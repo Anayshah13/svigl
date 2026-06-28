@@ -1,0 +1,95 @@
+@import "tailwindcss";
+
+:root {
+  --bg-base: #fafaf8;
+  --bg-surface: rgba(255, 255, 255, 0.88);
+  --ink: #2c2c2c;
+  --ink-muted: rgba(44, 44, 44, 0.62);
+  --pink: #ed7fb8;
+  --green: #10865c;
+  --plum: #703f93;
+  --chartreuse: #bbe331;
+  --plum-light: rgba(112, 63, 147, 0.12);
+  --green-light: rgba(16, 134, 92, 0.12);
+  --pink-light: rgba(237, 127, 184, 0.14);
+  --shadow-soft: 0 4px 28px -4px rgba(112, 63, 147, 0.12);
+  --shadow-card: 0 12px 40px -10px rgba(44, 44, 44, 0.1);
+}
+
+@theme inline {
+  --color-bg-base: var(--bg-base);
+  --color-bg-surface: var(--bg-surface);
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-pink: var(--pink);
+  --color-green: var(--green);
+  --color-plum: var(--plum);
+  --color-chartreuse: var(--chartreuse);
+  --color-plum-light: var(--plum-light);
+  --color-green-light: var(--green-light);
+  --color-pink-light: var(--pink-light);
+  --font-sans: var(--font-dm-sans);
+  --font-script: var(--font-caveat);
+  --font-mono: var(--font-geist-mono);
+}
+
+html {
+  color-scheme: light only;
+  scroll-behavior: smooth;
+  background-color: var(--bg-base);
+}
+
+body {
+  background-color: var(--bg-base);
+  color: var(--ink);
+  font-family: var(--font-dm-sans), system-ui, sans-serif;
+  min-height: 100vh;
+}
+
+main {
+  background-color: transparent;
+}
+
+::selection {
+  background: var(--pink-light);
+  color: var(--plum);
+}
+
+.dot-grid {
+  background-color: #ffffff;
+  background-image: radial-gradient(circle, rgba(112, 63, 147, 0.14) 1px, transparent 1px);
+  background-size: 18px 18px;
+}
+
+/* Landing canvas preview — subtle grid */
+.dot-grid-canvas {
+  background-color: #ffffff;
+  background-image: radial-gradient(circle, rgba(112, 63, 147, 0.2) 1px, transparent 1px);
+  background-size: 16px 16px;
+}
+
+.script-accent {
+  font-family: var(--font-caveat), cursive;
+  color: var(--plum);
+}
+
+.glass-panel {
+  background: var(--bg-surface);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.75);
+  box-shadow: var(--shadow-soft);
+}
+
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-8px) rotate(2deg);
+  }
+}
+
+.animate-float {
+  animation: float 4s ease-in-out infinite;
+}
