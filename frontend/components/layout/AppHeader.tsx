@@ -4,7 +4,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
 import { AuthControls } from "@/components/auth/AuthControls";
-import { CreateRoomButton } from "@/components/layout/CreateRoomButton";
 import { SviglLogo } from "@/components/layout/SviglLogo";
 import { cn } from "@/lib/cn";
 
@@ -51,7 +50,6 @@ export function AppHeader() {
         </nav>
 
         <div className="flex items-center gap-3">
-          <CreateRoomButton />
           <AuthControls />
         </div>
       </div>

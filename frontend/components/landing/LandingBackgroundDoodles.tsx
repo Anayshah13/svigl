@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, useAnimationFrame } from "framer-motion";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { colors, palette } from "@/lib/colors";
 
 const CENTER_X = 50;
@@ -324,6 +324,12 @@ function DoodleShape({ d, i }: { d: Doodle; i: number }) {
 }
 
 export function LandingBackgroundDoodles() {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   return (
     <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden" aria-hidden="true">
       <div
@@ -334,40 +340,44 @@ export function LandingBackgroundDoodles() {
         }}
       />
 
-      {BACKGROUND_BEZIERS.map((b) => {
-        const xPct = parsePct(b.left);
-        const yPct = parsePct(b.top);
-        const opacity = opacityFromCenter(xPct, yPct, 0.22, 0.04);
-        return <AnimatedBackgroundBezier key={b.id} config={b} opacity={opacity} />;
-      })}
+      {mounted ? (
+        <>
+          {BACKGROUND_BEZIERS.map((b) => {
+            const xPct = parsePct(b.left);
+            const yPct = parsePct(b.top);
+            const opacity = opacityFromCenter(xPct, yPct, 0.22, 0.04);
+            return <AnimatedBackgroundBezier key={b.id} config={b} opacity={opacity} />;
+          })}
 
-      {DOODLES.map((d, i) => (
-        <DoodleShape key={`${d.kind}-${i}`} d={d} i={i} />
-      ))}
+          {DOODLES.map((d, i) => (
+            <DoodleShape key={`${d.kind}-${i}`} d={d} i={i} />
+          ))}
 
-      {SCATTER_DOTS.map((dot, i) => {
-        const opacity = opacityFromCenter(dot.x, dot.y, 0.2, 0.03);
-        return (
-          <motion.div
-            key={`dot-${i}`}
-            className="absolute rounded-full"
-            style={{
-              left: `${dot.x}%`,
-              top: `${dot.y}%`,
-              width: dot.size,
-              height: dot.size,
-              backgroundColor: dot.color,
-              opacity,
-            }}
-            animate={{
-              x: [0, 12, -8, 6, 0],
-              y: [0, -14, 8, -6, 0],
-              scale: [1, 1.2, 0.92, 1.1, 1],
-            }}
-            transition={{ duration: 10 + i * 1.4, repeat: Infinity, ease: "easeInOut", delay: i * 0.4 }}
-          />
-        );
-      })}
+          {SCATTER_DOTS.map((dot, i) => {
+            const opacity = opacityFromCenter(dot.x, dot.y, 0.2, 0.03);
+            return (
+              <motion.div
+                key={`dot-${i}`}
+                className="absolute rounded-full"
+                style={{
+                  left: `${dot.x}%`,
+                  top: `${dot.y}%`,
+                  width: dot.size,
+                  height: dot.size,
+                  backgroundColor: dot.color,
+                  opacity,
+                }}
+                animate={{
+                  x: [0, 12, -8, 6, 0],
+                  y: [0, -14, 8, -6, 0],
+                  scale: [1, 1.2, 0.92, 1.1, 1],
+                }}
+                transition={{ duration: 10 + i * 1.4, repeat: Infinity, ease: "easeInOut", delay: i * 0.4 }}
+              />
+            );
+          })}
+        </>
+      ) : null}
     </div>
   );
 }

@@ -49,7 +49,7 @@ function WordSelectionOverlay({
       <motion.div
         initial={{ scale: 0.9, y: 20 }}
         animate={{ scale: 1, y: 0 }}
-        className="flex flex-col items-center gap-5 rounded-2xl border border-gray-200 bg-white p-8 shadow-[var(--shadow-card)]"
+        className="flex flex-col items-center gap-5 rounded-2xl border border-gray-200 bg-white p-8 shadow-(--shadow-card)"
       >
         <h2 className="text-lg font-bold text-ink">Choose a word to draw</h2>
         <div className="flex flex-wrap justify-center gap-3">
@@ -88,7 +88,7 @@ function RoundRevealOverlay({
         initial={{ scale: 0.85, y: 30 }}
         animate={{ scale: 1, y: 0 }}
         transition={{ type: "spring", stiffness: 300, damping: 25 }}
-        className="flex min-w-[280px] flex-col items-center gap-4 rounded-2xl border border-gray-200 bg-white p-8 shadow-[var(--shadow-card)]"
+        className="flex min-w-[280px] flex-col items-center gap-4 rounded-2xl border border-gray-200 bg-white p-8 shadow-(--shadow-card)"
       >
         <p className="text-xs font-bold uppercase tracking-widest text-gray-400">
           Round {round} / {totalRounds} — The word was
@@ -148,7 +148,7 @@ function GameFinishedOverlay({
       <motion.div
         initial={{ scale: 0.85, y: 30 }}
         animate={{ scale: 1, y: 0 }}
-        className="flex min-w-[300px] flex-col items-center gap-5 rounded-2xl border border-gray-200 bg-white p-8 shadow-[var(--shadow-card)]"
+        className="flex min-w-[300px] flex-col items-center gap-5 rounded-2xl border border-gray-200 bg-white p-8 shadow-(--shadow-card)"
       >
         <p className="text-xs font-bold uppercase tracking-widest text-gray-400">Game Over</p>
         {winner && (
@@ -221,7 +221,7 @@ function DrawingToolbar({
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="mx-auto flex max-w-2xl flex-wrap items-center justify-center gap-3 rounded-full border border-gray-200/80 bg-white/95 px-5 py-3 shadow-[var(--shadow-card)] backdrop-blur-sm"
+      className="mx-auto flex max-w-2xl flex-wrap items-center justify-center gap-3 rounded-full border border-gray-200/80 bg-white/95 px-5 py-3 shadow-(--shadow-card) backdrop-blur-sm"
     >
       <div className="flex items-center gap-1">
         {tools.map((t) => (
@@ -355,10 +355,8 @@ export function GameView() {
 
   const handlePublish = useCallback(() => {
     setPublishPending(true);
-    setTimeout(() => {
-      useRoomStore.getState().setGalleryDrawingId("mock-gallery-id");
-      setPublishPending(false);
-    }, 600);
+    // Gallery publish will call the backend once the game API is wired.
+    setPublishPending(false);
   }, []);
 
   const handleUpvote = useCallback(() => {
@@ -385,7 +383,7 @@ export function GameView() {
           <motion.div
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
-            className="flex flex-1 flex-col rounded-2xl border border-gray-200/80 bg-white/90 p-4 shadow-[var(--shadow-soft)] backdrop-blur-sm"
+            className="flex flex-1 flex-col rounded-2xl border border-gray-200/80 bg-white/90 p-4 shadow-(--shadow-soft) backdrop-blur-sm"
           >
             <h2 className="mb-3 text-[10px] font-bold uppercase tracking-widest text-gray-400">
               Leaderboard
@@ -447,7 +445,7 @@ export function GameView() {
             </motion.div>
           )}
 
-          <div className="relative flex-1 overflow-hidden rounded-2xl border border-gray-200/80 bg-white shadow-[var(--shadow-card)]">
+          <div className="relative flex-1 overflow-hidden rounded-2xl border border-gray-200/80 bg-white shadow-(--shadow-card)">
             <DrawingCanvas
               isDrawer={isDrawer}
               activeStyle={activeStyle}
@@ -490,7 +488,7 @@ export function GameView() {
                   publishPending={publishPending}
                   onPublish={handlePublish}
                   onUpvote={handleUpvote}
-                  onPlayAgain={() => router.push("/lobby")}
+                  onPlayAgain={() => router.push(room?.code ? `/room/${room.code}` : "/")}
                 />
               )}
             </AnimatePresence>
@@ -514,7 +512,7 @@ export function GameView() {
         <motion.aside
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
-          className="flex max-h-[500px] flex-col rounded-2xl border border-gray-200/80 bg-white/90 shadow-[var(--shadow-soft)] backdrop-blur-sm lg:max-h-none lg:min-h-0"
+          className="flex max-h-[500px] flex-col rounded-2xl border border-gray-200/80 bg-white/90 shadow-(--shadow-soft) backdrop-blur-sm lg:max-h-none lg:min-h-0"
         >
           <h2 className="border-b border-gray-100 px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-gray-400">
             {isDrawer ? "Chat" : "Guesses"}

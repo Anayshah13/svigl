@@ -174,20 +174,20 @@ function RemotePlayerCursors() {
   );
 }
 
-export function HeroCanvasPreview() {
+export function HeroCanvasPreview({ className }: { className?: string }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 32 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.8, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
-      className="relative"
+      className={`relative w-full ${className ?? ""}`}
     >
       <div
         className="overflow-hidden rounded-2xl border border-white/80 bg-white/95 shadow-2xl backdrop-blur-sm"
         style={{ boxShadow: `0 32px 64px -16px ${colors.plum}25, 0 0 0 1px rgba(255,255,255,0.8)` }}
       >
-        <div className="flex items-center gap-2 border-b border-black/5 bg-white/90 px-4 py-2.5">
-          <span className="font-mono text-xs" style={{ color: `${colors.ink}99` }}>
+        <div className="flex items-center gap-2 border-b border-black/5 bg-white/90 px-3 py-2">
+          <span className="font-mono text-[10px] sm:text-xs" style={{ color: `${colors.ink}99` }}>
             svigl.app · QXP4M
           </span>
           <span className="ml-auto flex items-center gap-1 text-[10px] font-semibold text-green">
@@ -196,8 +196,8 @@ export function HeroCanvasPreview() {
           </span>
         </div>
 
-        <div className="dot-grid-canvas relative bg-white" style={{ aspectRatio: "4/3" }}>
-          <svg viewBox={`0 0 ${W} ${H}`} className="relative z-0 h-full w-full">
+        <div className="dot-grid-canvas relative bg-white" style={{ aspectRatio: "3/4" }}>
+          <svg viewBox={`0 0 ${W} ${H}`} className="relative z-0 h-full w-full" preserveAspectRatio="xMidYMid meet">
             {LIGHTHOUSE.map((s, i) => {
               if (s.type === "circle") {
                 return (

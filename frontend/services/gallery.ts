@@ -1,6 +1,6 @@
 import type { GalleryEntry } from "@/types/domain";
-import { GALLERY_ENTRIES } from "@/services/data/galleryEntries";
+import { MOCK_GALLERY_ENTRIES } from "@/services/data/galleryEntries";
 
-export function fetchGalleryEntries(): Promise<GalleryEntry[]> {
-  return Promise.resolve(GALLERY_ENTRIES);
+export async function fetchGalleryEntries(): Promise<GalleryEntry[]> {
+  return MOCK_GALLERY_ENTRIES;
 }

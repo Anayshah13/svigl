@@ -30,7 +30,7 @@ function GalleryCard({ entry }: { entry: GalleryEntry }) {
       <motion.article
         whileHover={{ y: -6, boxShadow: "0 20px 40px -12px rgb(79 70 229 / 0.12)" }}
         transition={{ type: "spring", stiffness: 400, damping: 25 }}
-        className="overflow-hidden rounded-2xl border border-gray-200/80 bg-white shadow-[var(--shadow-soft)]"
+        className="overflow-hidden rounded-2xl border border-gray-200/80 bg-white shadow-(--shadow-soft)"
       >
         <div className="dot-grid aspect-square overflow-hidden bg-white">
           <SvgRenderer document={entry.replay} className="h-full w-full" />
@@ -201,8 +201,8 @@ export function GalleryView() {
           </p>
           <p className="mt-2 text-sm text-ink-muted">
             {filter === "mine"
-              ? "Sign in as mock user or set a display name to filter sample art."
-              : "Try a different search."}
+              ? "Publish drawings from a finished game to see them here."
+              : "Try a different search, or check back once players start publishing."}
           </p>
         </Card>
       )}

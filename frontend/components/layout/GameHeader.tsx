@@ -19,10 +19,10 @@ export function GameHeader() {
   const timerDisplay =
     remaining != null
       ? `${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, "0")}`
-      : "0:47";
+      : "—:—";
 
-  const hints = game?.currentWordHints ?? "u _ _ _ _ _ _ _";
-  const letterCount = hints.replace(/\s/g, "").length;
+  const hints = game?.currentWordHints ?? "—";
+  const letterCount = hints === "—" ? 0 : hints.replace(/\s/g, "").length;
 
   const leaveRoom = () => router.push("/");
 
@@ -32,11 +32,11 @@ export function GameHeader() {
         <SviglLogo />
         <div className="hidden text-sm text-gray-500 sm:block">
           <span className="font-mono font-semibold text-gray-700">
-            room: {room?.code ?? "DEMO"}
+            room: {room?.code ?? "—"}
           </span>
           <span className="mx-2 text-gray-300">·</span>
           <span>
-            Round {game?.round ?? 2} of {game?.totalRounds ?? 3}
+            Round {game?.round ?? "—"} of {game?.totalRounds ?? "—"}
           </span>
         </div>
       </div>

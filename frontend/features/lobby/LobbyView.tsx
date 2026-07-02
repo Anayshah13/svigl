@@ -1,18 +1,17 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
 import { motion } from "framer-motion";
 import { FadeIn, FadeInItem } from "@/components/motion/FadeIn";
 import { DoodleBackground } from "@/components/layout/DoodleBackground";
 import { SviglLogo } from "@/components/layout/SviglLogo";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { beginLocalGame, togglePlayerReady } from "@/services/localRoom";
 import { useRoomStore } from "@/stores/room";
 import { useSessionStore } from "@/stores/session";
 import { PlayerState } from "@/types/state";
 import { palette } from "@/lib/colors";
-import type { Player } from "@/types/domain";
 
 const AVATAR_COLORS = [...palette];
 
@@ -25,10 +24,10 @@ function avatarColor(id: string): string {
 export function LobbyView({ roomCode }: { roomCode: string }) {
   const router = useRouter();
   const room = useRoomStore((s) => s.room);
+  const setRoom = useRoomStore((s) => s.setRoom);
   const selfId = useSessionStore((s) => s.selfId);
-  const [localPlayers, setLocalPlayers] = useState<Player[]>([]);
 
-  const players = localPlayers.length > 0 ? localPlayers : (room?.players ?? []);
+  const players = room?.players ?? [];
   const spectators = room?.spectators ?? [];
   const isHost = !!room && !!selfId && room.hostId === selfId;
   const self = players.find((p) => p.id === selfId);
@@ -38,20 +37,15 @@ export function LobbyView({ roomCode }: { roomCode: string }) {
   const canStart = isHost && allReady;
 
   const toggleReady = () => {
-    if (!selfId) return;
-    setLocalPlayers(
-      players.map((p) =>
-        p.id === selfId
-          ? {
-              ...p,
-              state: p.state === PlayerState.READY ? PlayerState.CONNECTED : PlayerState.READY,
-            }
-          : p,
-      ),
-    );
+    if (!selfId || !room) return;
+    setRoom(togglePlayerReady(room, selfId));
   };
 
-  const startGame = () => router.push("/game");
+  const startGame = () => {
+    if (!room || !selfId || !canStart) return;
+    setRoom(beginLocalGame(room, selfId));
+    router.push("/game");
+  };
   const leaveRoom = () => router.push("/");
 
   return (
@@ -95,6 +89,9 @@ export function LobbyView({ roomCode }: { roomCode: string }) {
             <h2 className="mb-4 text-xs font-bold uppercase tracking-widest text-gray-400">
               Players ({players.length}/10)
             </h2>
+            {players.length === 0 && (
+              <p className="py-6 text-center text-sm text-ink-muted">Setting up your room…</p>
+            )}
             <ul className="divide-y divide-gray-100">
               {players.map((p) => (
                 <FadeInItem key={p.id}>
@@ -135,7 +132,7 @@ export function LobbyView({ roomCode }: { roomCode: string }) {
             </ul>
             {players.length >= 2 && !allReady && (
               <p className="mt-3 text-xs text-gray-400">
-                Waiting for all players to ready up… (prototype — toggle your ready state)
+                Waiting for all players to ready up…
               </p>
             )}
           </Card>

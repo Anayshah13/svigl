@@ -10,13 +10,17 @@ const FRIENDS = [
   { initial: "L", color: colors.chartreuse },
 ];
 
-export function FriendsPlayBadge() {
+export function FriendsPlayBadge({ embedded = false }: { embedded?: boolean }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.35, duration: 0.5 }}
-      className="mt-5 inline-flex flex-wrap items-center gap-3 rounded-2xl border border-white/70 bg-white/75 px-4 py-2.5 shadow-sm backdrop-blur-sm"
+      className={
+        embedded
+          ? "flex flex-wrap items-center gap-2.5 pt-3"
+          : "mt-5 inline-flex flex-wrap items-center gap-3 rounded-2xl border border-white/70 bg-white/75 px-4 py-2.5 shadow-sm backdrop-blur-sm"
+      }
     >
       <div className="flex items-center">
         {FRIENDS.map((f, i) => (
@@ -40,7 +44,7 @@ export function FriendsPlayBadge() {
         </motion.span>
       </div>
       <div className="h-8 w-px bg-plum/15" />
-      <p className="text-sm font-semibold text-ink">
+      <p className="text-xs font-semibold text-ink sm:text-sm">
         Play live with friends
         <span className="ml-1 font-normal text-ink-muted">· share a room code, no download</span>
       </p>

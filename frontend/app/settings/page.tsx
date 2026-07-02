@@ -113,9 +113,7 @@ export default function SettingsPage() {
               <div>
                 <p className="text-sm font-semibold text-ink">Account</p>
                 <p className="text-xs text-ink-muted">
-                  {authUser
-                    ? `Signed in as ${authUser.username}`
-                    : "Use mock user or guest sign-in for the prototype"}
+                  {authUser ? `Signed in as ${authUser.username}` : "Not signed in"}
                 </p>
               </div>
               <AuthControls />
@@ -208,7 +206,7 @@ export default function SettingsPage() {
         <Card className="flex flex-col gap-4 border-red-100">
           <h2 className="text-sm font-bold uppercase tracking-wider text-ink">Data</h2>
           <p className="text-xs text-ink-muted">
-            Resets toggles and stroke width. Does not affect mock account state.
+            Resets toggles and stroke width. Does not affect your account.
           </p>
           <div className="flex flex-wrap gap-3">
             <Button variant="outline" size="sm" onClick={resetPreferences}>

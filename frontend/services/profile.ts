@@ -1,5 +1,5 @@
 import type { GalleryEntry } from "@/types/domain";
-import { fetchGalleryEntries } from "@/services/gallery";
+import { MOCK_GALLERY_ENTRIES } from "@/services/data/galleryEntries";
 
 export interface ProfileStats {
   username: string;
@@ -18,26 +18,46 @@ export interface ProfileData {
   drawings: GalleryEntry[];
 }
 
+function emptyProfile(name: string): ProfileData {
+  return {
+    stats: {
+      username: name,
+      handle: `@${name.toUpperCase().slice(0, 4) || "PLAY"}`,
+      level: 1,
+      xp: 0,
+      xpNext: 500,
+      gamesPlayed: 0,
+      drawingsPublished: 0,
+      totalUpvotes: 0,
+      correctGuesses: 0,
+    },
+    drawings: [],
+  };
+}
+
 export async function fetchProfile(username?: string): Promise<ProfileData> {
-  const entries = await fetchGalleryEntries();
-  const name = username?.trim() || "Prototype User";
-  const drawings = entries.filter(
-    (e) => e.authorName.toLowerCase() === name.toLowerCase() || e.authorId === "mock-user-1",
+  const name = username?.trim() || "Player";
+  const drawings = MOCK_GALLERY_ENTRIES.filter(
+    (entry) => entry.authorName.toLowerCase() === name.toLowerCase(),
   );
-  const totalUpvotes = drawings.reduce((sum, e) => sum + e.upvotes, 0);
-  const xp = 680 + totalUpvotes * 10 + drawings.length * 50;
+
+  if (drawings.length === 0) {
+    return emptyProfile(name);
+  }
+
+  const totalUpvotes = drawings.reduce((sum, entry) => sum + entry.upvotes, 0);
 
   return {
     stats: {
       username: name,
       handle: `@${name.toUpperCase().slice(0, 4)}`,
-      level: Math.floor(xp / 500) + 1,
-      xp,
-      xpNext: 1500,
-      gamesPlayed: Math.max(drawings.length * 3, 12),
+      level: 2,
+      xp: 320,
+      xpNext: 500,
+      gamesPlayed: 12,
       drawingsPublished: drawings.length,
       totalUpvotes,
-      correctGuesses: Math.max(Math.floor(totalUpvotes / 4), 8),
+      correctGuesses: 34,
     },
     drawings,
   };

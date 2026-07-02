@@ -23,9 +23,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Svigl — SVG drawing & guessing prototype",
-  description:
-    "A polished frontend prototype for a multiplayer drawing game built from editable SVG primitives.",
+  title: "Svigl — SVG drawing & guessing",
+  description: "Multiplayer drawing game built from editable SVG primitives.",
 };
 
 export default function RootLayout({

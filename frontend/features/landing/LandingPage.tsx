@@ -7,13 +7,12 @@ import { useState, type FormEvent } from "react";
 import { HeroCanvasPreview } from "@/components/landing/HeroCanvasPreview";
 import { LandingBackgroundDoodles } from "@/components/landing/LandingBackgroundDoodles";
 import { VectorPrimitivesSection } from "@/components/landing/VectorPrimitivesSection";
-import { FriendsPlayBadge, LiveRoomsHint } from "@/components/landing/FriendsPlayBadge";
+import { FriendsPlayBadge } from "@/components/landing/FriendsPlayBadge";
 import { FadeIn, FadeInItem, FadeInStagger } from "@/components/motion/FadeIn";
-import { CreateRoomButton } from "@/components/layout/CreateRoomButton";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
-import { DEMO_ROOM_CODE } from "@/services/room";
+import { createRoom, ROOM_CODE_PLACEHOLDER } from "@/services/room";
 import { colors, palette } from "@/lib/colors";
 import { useSessionStore } from "@/stores/session";
 
@@ -142,12 +141,28 @@ export function LandingPage() {
   const displayName = useSessionStore((s) => s.displayName);
   const setDisplayName = useSessionStore((s) => s.setDisplayName);
   const [code, setCode] = useState("");
+  const [roomError, setRoomError] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
 
   const normalizedCode = code.trim().toUpperCase();
   const canJoin = normalizedCode.length >= 4;
 
-  const join = (_target: string) => {
-    router.push("/room/demo");
+  const join = (roomCode: string) => {
+    setRoomError(null);
+    router.push(`/room/${roomCode}`);
+  };
+
+  const handleCreateRoom = async () => {
+    setRoomError(null);
+    setCreating(true);
+    try {
+      const newCode = await createRoom(displayName);
+      router.push(`/room/${newCode}`);
+    } catch {
+      setRoomError("Could not create a room. Please try again.");
+    } finally {
+      setCreating(false);
+    }
   };
 
   const handleJoinSubmit = (event: FormEvent<HTMLFormElement>) => {
@@ -158,11 +173,11 @@ export function LandingPage() {
   return (
     <div className="relative overflow-x-hidden">
       <LandingBackgroundDoodles />
-      <section className="relative mx-auto grid max-w-7xl gap-10 px-6 py-14 lg:grid-cols-2 lg:items-center lg:gap-14 lg:py-20">
-        <div>
+      <section className="relative mx-auto grid min-h-[calc(100dvh-4rem)] max-w-7xl grid-cols-1 content-center gap-6 px-6 py-5 sm:py-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.68fr)] lg:items-center lg:gap-10 lg:py-8">
+        <div className="flex min-w-0 flex-col">
           <FadeIn>
             <motion.span
-              className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wider"
+              className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider sm:px-3 sm:py-1 sm:text-xs"
               style={{ background: colors.pinkLight, color: colors.plum }}
               whileHover={{ scale: 1.04 }}
             >
@@ -171,12 +186,12 @@ export function LandingPage() {
           </FadeIn>
 
           <FadeIn delay={0.08}>
-            <h1 className="mt-5 text-[2.75rem] font-bold leading-[1.02] tracking-tight text-ink sm:text-6xl lg:text-[5.25rem] xl:text-[5.75rem]">
-              Drawing, made of{" "}
-              <span className="script-accent relative inline-block text-[3.25rem] sm:text-7xl lg:text-[6.5rem] xl:text-[7rem]">
+            <h1 className="mt-3 text-[2rem] font-bold leading-[1.05] tracking-tight text-ink sm:mt-4 sm:text-5xl lg:text-[3.75rem] xl:text-[4.25rem]">
+              <span className="whitespace-nowrap">Drawing, made of</span>{" "}
+              <span className="script-accent relative inline-block text-[2.35rem] sm:text-6xl lg:text-[4.25rem] xl:text-[4.75rem]">
                 vectors
                 <motion.span
-                  className="absolute -bottom-1 left-0 h-1.5 w-full rounded-full"
+                  className="absolute -bottom-0.5 left-0 h-1 w-full rounded-full sm:h-1.5"
                   style={{ background: `linear-gradient(90deg, ${colors.plum}, ${colors.chartreuse})` }}
                   initial={{ scaleX: 0 }}
                   animate={{ scaleX: 1 }}
@@ -188,30 +203,77 @@ export function LandingPage() {
           </FadeIn>
 
           <FadeIn delay={0.16}>
-            <p className="mt-4 max-w-md text-base font-medium leading-snug text-ink">
-              One person draws with real SVG shapes.
-              <br />
-              Everyone else guesses the word — out loud, in chat, under the clock.
-            </p>
-            <p className="script-accent mt-2 text-2xl sm:text-3xl">
-              your friends roast your art in real time.
-            </p>
-          </FadeIn>
+            <Card
+              id="join"
+              className="mt-3 flex flex-col gap-3 rounded-3xl p-4 sm:mt-4 sm:p-5"
+              style={{
+                boxShadow: `0 24px 48px -16px ${colors.plum}18, 0 0 0 1px rgba(255,255,255,0.85)`,
+              }}
+            >
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="flex flex-col gap-1.5">
+                  <label htmlFor="display-name" className="text-xs font-semibold text-ink sm:text-sm">
+                    Display name
+                  </label>
+                  <Input
+                    id="display-name"
+                    value={displayName}
+                    onChange={(e) => setDisplayName(e.target.value)}
+                    placeholder="Anonymous artist"
+                    maxLength={24}
+                    className="h-10"
+                  />
+                </div>
 
-          <FriendsPlayBadge />
+                <form className="flex flex-col gap-1.5" onSubmit={handleJoinSubmit}>
+                  <label htmlFor="room-code" className="text-xs font-semibold text-ink sm:text-sm">
+                    Room code
+                  </label>
+                  <div className="flex gap-2">
+                    <Input
+                      id="room-code"
+                      value={code}
+                      onChange={(e) => setCode(e.target.value.toUpperCase())}
+                      placeholder={ROOM_CODE_PLACEHOLDER}
+                      maxLength={6}
+                      className="h-10 font-mono tracking-widest uppercase"
+                    />
+                    <Button type="submit" disabled={!canJoin} size="sm" className="shrink-0 px-4">
+                      Join
+                    </Button>
+                  </div>
+                </form>
+              </div>
 
-          <FadeIn delay={0.24}>
-            <div className="mt-6 flex flex-wrap items-center gap-3">
-              <CreateRoomButton size="lg" />
-              <Button variant="outline" size="lg" onClick={() => router.push("/gallery")}>
-                Browse gallery
-              </Button>
-              <LiveRoomsHint />
-            </div>
+              <div className="flex flex-wrap gap-2">
+                <Button size="md" onClick={() => void handleCreateRoom()} disabled={creating}>
+                  {creating ? "Creating…" : "Create room"}
+                </Button>
+                <Button variant="outline" size="md" onClick={() => router.push("/gallery")}>
+                  View gallery
+                </Button>
+              </div>
+
+              {roomError && (
+                <p className="text-sm font-medium text-red-600" role="alert">
+                  {roomError}
+                </p>
+              )}
+
+              <p className="script-accent text-lg leading-snug sm:text-xl">
+                your friends roast your art in real time.
+              </p>
+
+              <div className="border-t border-plum/10 pt-1">
+                <FriendsPlayBadge embedded />
+              </div>
+            </Card>
           </FadeIn>
         </div>
 
-        <HeroCanvasPreview />
+        <div className="mx-auto min-w-0 w-full max-w-68 sm:max-w-xs lg:max-h-[calc(100dvh-5.5rem)] lg:max-w-76 lg:justify-self-center xl:max-w-84">
+          <HeroCanvasPreview className="lg:max-h-[calc(100dvh-5.5rem)]" />
+        </div>
       </section>
 
       <VectorPrimitivesSection />
@@ -274,8 +336,8 @@ export function LandingPage() {
                 No signup. Just a room code and five minutes.
               </p>
               <div className="mt-7 flex flex-wrap gap-3">
-                <Button size="lg" variant="green" onClick={() => router.push("/room/demo")}>
-                  Start a room
+                <Button size="lg" variant="green" onClick={() => void handleCreateRoom()} disabled={creating}>
+                  {creating ? "Creating…" : "Start a room"}
                 </Button>
                 <Button variant="outline" size="lg" onClick={() => router.push("/gallery")}>
                   See what people made
@@ -283,49 +345,6 @@ export function LandingPage() {
               </div>
             </div>
           </div>
-        </FadeIn>
-      </section>
-
-      <section id="join" className="mx-auto max-w-xl px-6 pb-20">
-        <FadeIn>
-          <Card className="flex flex-col gap-5">
-            <div className="text-center">
-              <h2 className="text-xl font-bold text-ink">Jump into a room</h2>
-              <p className="mt-1 text-xs text-ink-muted">Name + code. That&apos;s it.</p>
-            </div>
-            <div className="flex flex-col gap-2">
-              <label htmlFor="display-name" className="text-sm font-semibold text-ink">
-                Display name
-              </label>
-              <Input
-                id="display-name"
-                value={displayName}
-                onChange={(e) => setDisplayName(e.target.value)}
-                placeholder="Anonymous artist"
-                maxLength={24}
-              />
-            </div>
-            <form className="flex flex-col gap-3" onSubmit={handleJoinSubmit}>
-              <div className="flex flex-col gap-2">
-                <label htmlFor="room-code" className="text-sm font-semibold text-ink">
-                  Room code
-                </label>
-                <div className="flex gap-2">
-                  <Input
-                    id="room-code"
-                    value={code}
-                    onChange={(e) => setCode(e.target.value.toUpperCase())}
-                    placeholder={DEMO_ROOM_CODE}
-                    maxLength={6}
-                    className="font-mono tracking-widest uppercase"
-                  />
-                  <Button type="submit" disabled={!canJoin} className="shrink-0">
-                    Join
-                  </Button>
-                </div>
-              </div>
-            </form>
-          </Card>
         </FadeIn>
       </section>
 

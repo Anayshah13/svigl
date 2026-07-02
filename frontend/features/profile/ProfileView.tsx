@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { FadeIn, FadeInItem, FadeInStagger } from "@/components/motion/FadeIn";
-import { AuthControls } from "@/components/auth/AuthControls";
 import { Card } from "@/components/ui/Card";
 import { SvgRenderer } from "@/features/drawing/SvgRenderer";
 import { fetchProfile } from "@/services/profile";
@@ -34,7 +33,7 @@ function StatCard({
     <FadeInItem>
       <motion.div
         whileHover={{ y: -4 }}
-        className="flex flex-col gap-2 rounded-2xl border border-gray-200/80 bg-white p-5 shadow-[var(--shadow-soft)]"
+        className="flex flex-col gap-2 rounded-2xl border border-gray-200/80 bg-white p-5 shadow-(--shadow-soft)"
       >
         <span className="text-lg">{icon}</span>
         <p className="text-3xl font-bold text-ink">{value}</p>
@@ -49,9 +48,9 @@ function DrawingCard({ entry }: { entry: GalleryEntry }) {
     <FadeInItem>
       <motion.article
         whileHover={{ y: -4 }}
-        className="overflow-hidden rounded-2xl border border-gray-200/80 bg-white shadow-[var(--shadow-soft)]"
+        className="overflow-hidden rounded-2xl border border-gray-200/80 bg-white shadow-(--shadow-soft)"
       >
-        <div className="dot-grid aspect-[4/3] bg-white">
+        <div className="dot-grid aspect-4/3 bg-white">
           <SvgRenderer document={entry.replay} className="h-full w-full" />
         </div>
         <div className="flex items-center justify-between p-4">
@@ -106,12 +105,12 @@ export function ProfileView() {
         <FadeIn>
           <h1 className="text-2xl font-bold text-ink">Your profile</h1>
           <p className="mt-2 text-ink-muted">
-            Use mock sign-in or set a display name to preview profile stats.
+            Set a display name on the home page or in settings to preview your profile.
           </p>
-          <div className="mt-4 flex justify-center">
-            <AuthControls />
-          </div>
-          <Link href="/" className="mt-4 inline-block text-sm text-plum hover:underline">
+          <Link href="/settings" className="mt-4 inline-block text-sm text-plum hover:underline">
+            Open settings
+          </Link>
+          <Link href="/" className="mt-2 inline-block text-sm text-plum hover:underline">
             Back to home
           </Link>
         </FadeIn>
@@ -121,9 +120,9 @@ export function ProfileView() {
 
   const avatarBg = avatarColor(username);
   const initial = username.charAt(0).toUpperCase();
-  const xp = stats?.xp ?? 680;
-  const xpNext = stats?.xpNext ?? 1500;
-  const level = stats?.level ?? 2;
+  const xp = stats?.xp ?? 0;
+  const xpNext = stats?.xpNext ?? 500;
+  const level = stats?.level ?? 1;
   const xpProgress = Math.min((xp / xpNext) * 100, 100);
 
   return (
@@ -133,7 +132,7 @@ export function ProfileView() {
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="rounded-2xl border border-gray-200/80 bg-white p-8 shadow-[var(--shadow-card)]"
+            className="rounded-2xl border border-gray-200/80 bg-white p-8 shadow-(--shadow-card)"
           >
             <div className="flex items-start gap-6">
               <div
@@ -176,8 +175,8 @@ export function ProfileView() {
           <FadeInStagger className="grid grid-cols-2 gap-4">
             <StatCard icon="✏️" value={stats?.drawingsPublished ?? 0} label="Drawings" />
             <StatCard icon="♥" value={stats?.totalUpvotes ?? 0} label="Upvotes" />
-            <StatCard icon="🎮" value={stats?.gamesPlayed ?? 12} label="Games" />
-            <StatCard icon="🎯" value={stats?.correctGuesses ?? 8} label="Correct guesses" />
+            <StatCard icon="🎮" value={stats?.gamesPlayed ?? 0} label="Games" />
+            <StatCard icon="🎯" value={stats?.correctGuesses ?? 0} label="Correct guesses" />
           </FadeInStagger>
         </div>
       </FadeIn>
@@ -198,7 +197,7 @@ export function ProfileView() {
         {loading && (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {Array.from({ length: 2 }, (_, i) => (
-              <div key={i} className="aspect-[4/3] animate-pulse rounded-2xl bg-gray-100" />
+              <div key={i} className="aspect-4/3 animate-pulse rounded-2xl bg-gray-100" />
             ))}
           </div>
         )}
@@ -207,7 +206,7 @@ export function ProfileView() {
           <Card className="border-dashed text-center">
             <p className="font-medium text-gray-700">No published drawings yet</p>
             <p className="mt-2 text-sm text-ink-muted">
-              Sample gallery entries use other author names — try mock user sign-in.
+              Finish a game and publish your drawing to fill this gallery.
             </p>
           </Card>
         )}
