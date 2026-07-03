@@ -14,14 +14,14 @@ const PILLARS = [
   },
   {
     title: "Real SVG output",
-    desc: "Every mark in the room is live SVG markup. Copy the drawing, drop it in a repo, or publish straight to the gallery — vectors you can zoom forever.",
+    desc: "Every mark is live SVG markup. Copy the drawing, drop it in a repo, or share it in the gallery — vectors you can zoom forever.",
     accent: colors.plum,
     tint: "rgba(112, 63, 147, 0.12)",
     icon: "svg" as const,
   },
   {
     title: "Precision built in",
-    desc: "Dot grid, anchor snapping, undo history, and fill/stroke controls. Figma-ish tooling without the learning curve — built for quick multiplayer rounds.",
+    desc: "Dot grid, anchor snapping, undo history, and fill/stroke controls. Figma-ish tooling without the learning curve.",
     accent: colors.pink,
     tint: colors.pinkLight,
     icon: "snap" as const,
@@ -156,9 +156,9 @@ export function VectorPrimitivesSection() {
             Why vector primitives?
           </h2>
           <p className="mt-4 text-base leading-relaxed text-ink-muted">
-            Brush-based drawing games leave blurry strokes and jagged tablet lines. Svigl is
+            Brush-based drawing tools leave blurry strokes and jagged tablet lines. Svigl is
             structural sketching —{" "}
-            <span className="script-accent text-xl text-plum">CAD vibes, party-game speed.</span>
+            <span className="script-accent text-xl text-plum">CAD vibes, gallery-ready output.</span>
           </p>
         </div>
       </FadeIn>

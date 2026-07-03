@@ -134,7 +134,7 @@ export function GalleryView() {
             <p className="text-xs font-bold uppercase tracking-widest text-plum">Community</p>
             <h1 className="mt-2 text-4xl font-bold tracking-tight text-ink">Gallery</h1>
             <p className="mt-2 text-ink-muted">
-              Vector sketches published from rooms around the world.
+              Vector sketches from artists around the community.
             </p>
           </div>
           <div className="relative w-full max-w-sm">
@@ -201,7 +201,7 @@ export function GalleryView() {
           </p>
           <p className="mt-2 text-sm text-ink-muted">
             {filter === "mine"
-              ? "Publish drawings from a finished game to see them here."
+              ? "Publish drawings to see them here."
               : "Try a different search, or check back once players start publishing."}
           </p>
         </Card>

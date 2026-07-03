@@ -15,9 +15,6 @@ const NAV = [
 
 export function AppHeader() {
   const pathname = usePathname();
-  const hideHeader =
-    pathname.startsWith("/room/") || pathname === "/lobby" || pathname === "/game";
-  if (hideHeader) return null;
 
   return (
     <header className="sticky top-0 z-50 border-b border-white/60 bg-white/70 backdrop-blur-xl">

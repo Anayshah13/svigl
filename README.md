@@ -59,9 +59,9 @@ npm run build    # production build
 npm run start    # serve production build
 npm run lint     # ESLint
 ```
-
 ---
 
 ## Design docs
 
 See [`docs/`](docs/) for architecture, state machines, and drawing model notes from the original full-stack design.
+

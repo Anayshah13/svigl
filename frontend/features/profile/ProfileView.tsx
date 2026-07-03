@@ -56,7 +56,7 @@ function DrawingCard({ entry }: { entry: GalleryEntry }) {
         <div className="flex items-center justify-between p-4">
           <div>
             <p className="font-semibold text-ink">{entry.word}</p>
-            <p className="text-xs text-gray-400">room {entry.roomCode}</p>
+            <p className="text-xs text-gray-400">{entry.upvotes} upvotes</p>
           </div>
           <span className="flex items-center gap-1 text-sm text-gray-400">♥ {entry.upvotes}</span>
         </div>
@@ -175,8 +175,6 @@ export function ProfileView() {
           <FadeInStagger className="grid grid-cols-2 gap-4">
             <StatCard icon="✏️" value={stats?.drawingsPublished ?? 0} label="Drawings" />
             <StatCard icon="♥" value={stats?.totalUpvotes ?? 0} label="Upvotes" />
-            <StatCard icon="🎮" value={stats?.gamesPlayed ?? 0} label="Games" />
-            <StatCard icon="🎯" value={stats?.correctGuesses ?? 0} label="Correct guesses" />
           </FadeInStagger>
         </div>
       </FadeIn>
@@ -206,7 +204,7 @@ export function ProfileView() {
           <Card className="border-dashed text-center">
             <p className="font-medium text-gray-700">No published drawings yet</p>
             <p className="mt-2 text-sm text-ink-muted">
-              Finish a game and publish your drawing to fill this gallery.
+              Publish drawings to see them listed here.
             </p>
           </Card>
         )}
