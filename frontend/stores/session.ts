@@ -25,15 +25,18 @@ export const useSessionStore = create<SessionState>((set) => ({
   setDisplayName: (displayName) => set({ displayName }),
   setSelfId: (selfId) => set({ selfId }),
   setAuth: (user) =>
-    set((state) => ({
+    set({
       authUser: user,
-      isGuest: user.provider === "guest",
-      displayName: state.displayName.trim() ? state.displayName : user.username,
-    })),
+      isGuest: false,
+      selfId: user.id,
+      displayName: user.username,
+    }),
   clearAuth: () =>
     set({
       authUser: null,
       isGuest: true,
+      selfId: null,
+      displayName: "",
     }),
   setAuthReady: (authReady) => set({ authReady }),
 }));

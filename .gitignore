@@ -1,6 +1,7 @@
 .env
 .env.local
 auth_key.json
+backend/.env.local
 __pycache__/
 *.py[cod]
 .venv/

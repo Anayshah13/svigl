@@ -13,8 +13,14 @@ const NAV = [
   { href: "/settings", label: "Settings" },
 ];
 
+const MINIMAL_HEADER_PATHS = ["/sign-in", "/auth/callback"];
+
 export function AppHeader() {
   const pathname = usePathname();
+
+  if (MINIMAL_HEADER_PATHS.some((path) => pathname.startsWith(path))) {
+    return null;
+  }
 
   return (
     <header className="sticky top-0 z-50 border-b border-white/60 bg-white/70 backdrop-blur-xl">

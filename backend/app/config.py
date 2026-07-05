@@ -11,6 +11,12 @@ class Settings(BaseSettings):
     postgres_host: str = "postgres"
     postgres_port: int = 5432
 
+    google_client_id: str
+    google_client_secret: str
+    google_redirect_uri: str
+    frontend_url: str
+    session_secret_key: str
+
     @property
     def database_url(self) -> str:
         return (
@@ -19,7 +25,7 @@ class Settings(BaseSettings):
         )
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=("../.env", ".env.local"),
         env_file_encoding="utf-8",
         extra="ignore",
     )
