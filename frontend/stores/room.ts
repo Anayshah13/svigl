@@ -1,29 +1,67 @@
 "use client";
 
 import { create } from "zustand";
-import type { ChatMessage, Room } from "@/types/domain";
+import type { Room, RoomStatus } from "@/types/room";
 
-interface RoomStore {
-  room: Room | null;
-  chat: ChatMessage[];
-  wordChoices: string[] | null;
-  revealedWord: string | null;
-  galleryDrawingId: string | null;
-  setRoom: (room: Room | null) => void;
-  setChat: (chat: ChatMessage[]) => void;
-  setGalleryDrawingId: (drawingId: string | null) => void;
-  reset: () => void;
+const STORAGE_KEY = "svigl:active-room-code";
+
+export function readPersistedRoomCode(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(STORAGE_KEY);
 }
 
-export const useRoomStore = create<RoomStore>((set) => ({
-  room: null,
-  chat: [],
-  wordChoices: null,
-  revealedWord: null,
-  galleryDrawingId: null,
-  setRoom: (room) => set({ room }),
-  setChat: (chat) => set({ chat }),
-  setGalleryDrawingId: (galleryDrawingId) => set({ galleryDrawingId }),
-  reset: () =>
-    set({ room: null, chat: [], wordChoices: null, revealedWord: null, galleryDrawingId: null }),
+function persistRoomCode(code: string | null): void {
+  if (typeof window === "undefined") return;
+  if (code) {
+    localStorage.setItem(STORAGE_KEY, code);
+  } else {
+    localStorage.removeItem(STORAGE_KEY);
+  }
+}
+
+interface ActiveRoomSnapshot {
+  code: string;
+  status: RoomStatus;
+  playerCount: number;
+  maxPlayers: number;
+}
+
+interface RoomStoreState {
+  activeRoom: ActiveRoomSnapshot | null;
+  setActiveRoom: (room: Room) => void;
+  syncActiveRoom: (room: Room) => void;
+  clearActiveRoom: () => void;
+}
+
+export const useRoomStore = create<RoomStoreState>((set) => ({
+  activeRoom: null,
+
+  setActiveRoom: (room) => {
+    persistRoomCode(room.code);
+    set({
+      activeRoom: {
+        code: room.code,
+        status: room.status,
+        playerCount: room.players.length,
+        maxPlayers: room.maxPlayers,
+      },
+    });
+  },
+
+  syncActiveRoom: (room) => {
+    persistRoomCode(room.code);
+    set({
+      activeRoom: {
+        code: room.code,
+        status: room.status,
+        playerCount: room.players.length,
+        maxPlayers: room.maxPlayers,
+      },
+    });
+  },
+
+  clearActiveRoom: () => {
+    persistRoomCode(null);
+    set({ activeRoom: null });
+  },
 }));

@@ -7,10 +7,8 @@ export interface ProfileStats {
   level: number;
   xp: number;
   xpNext: number;
-  gamesPlayed: number;
   drawingsPublished: number;
   totalUpvotes: number;
-  correctGuesses: number;
 }
 
 export interface ProfileData {
@@ -26,10 +24,8 @@ function emptyProfile(name: string): ProfileData {
       level: 1,
       xp: 0,
       xpNext: 500,
-      gamesPlayed: 0,
       drawingsPublished: 0,
       totalUpvotes: 0,
-      correctGuesses: 0,
     },
     drawings: [],
   };
@@ -54,10 +50,8 @@ export async function fetchProfile(username?: string): Promise<ProfileData> {
       level: 2,
       xp: 320,
       xpNext: 500,
-      gamesPlayed: 12,
       drawingsPublished: drawings.length,
       totalUpvotes,
-      correctGuesses: 34,
     },
     drawings,
   };

@@ -127,17 +127,19 @@ export function GalleryView() {
   }, [entries, filter, search, authUser, displayName]);
 
   return (
-    <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-8 px-6 py-10">
+    <div className="page-shell gap-6 sm:gap-8">
       <FadeIn>
-        <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-          <div>
+        <div className="flex flex-col gap-4 sm:gap-6 lg:flex-row lg:items-end lg:justify-between">
+          <div className="min-w-0">
             <p className="text-xs font-bold uppercase tracking-widest text-plum">Community</p>
-            <h1 className="mt-2 text-4xl font-bold tracking-tight text-ink">Gallery</h1>
-            <p className="mt-2 text-ink-muted">
-              Vector sketches published from rooms around the world.
+            <h1 className="mt-1 text-[clamp(1.75rem,6vw,2.5rem)] font-bold tracking-tight text-ink sm:mt-2">
+              Gallery
+            </h1>
+            <p className="mt-1 text-sm text-ink-muted sm:mt-2 sm:text-base">
+              Vector sketches from artists around the community.
             </p>
           </div>
-          <div className="relative w-full max-w-sm">
+          <div className="relative w-full lg:max-w-sm">
             <svg
               className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400"
               fill="none"
@@ -163,13 +165,13 @@ export function GalleryView() {
       </FadeIn>
 
       <FadeIn delay={0.1}>
-        <div className="flex gap-2">
+        <div className="-mx-1 flex gap-2 overflow-x-auto scroll-fade-x px-1 pb-1">
           {FILTERS.map(({ id, label }) => (
             <motion.button
               key={id}
               onClick={() => setFilter(id)}
               whileTap={{ scale: 0.97 }}
-              className={`relative rounded-full px-4 py-2 text-sm font-medium transition-colors ${
+              className={`relative shrink-0 rounded-full px-4 py-2 text-sm font-medium transition-colors ${
                 filter === id ? "text-plum" : "text-ink-muted hover:text-ink"
               }`}
             >
@@ -195,13 +197,13 @@ export function GalleryView() {
       )}
 
       {!loading && filtered.length === 0 && (
-        <Card className="border-dashed text-center">
+        <Card className="border-dashed px-4 py-8 text-center sm:px-6 sm:py-10">
           <p className="font-medium text-gray-700">
             {filter === "mine" ? "No published drawings yet" : "No drawings found"}
           </p>
           <p className="mt-2 text-sm text-ink-muted">
             {filter === "mine"
-              ? "Publish drawings from a finished game to see them here."
+              ? "Publish drawings to see them here."
               : "Try a different search, or check back once players start publishing."}
           </p>
         </Card>

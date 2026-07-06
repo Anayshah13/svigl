@@ -1,0 +1,304 @@
+"use client";
+
+import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { roomSyncAdapter } from "@/lib/room-sync";
+import { claimRoomTab, releaseRoomTab, startRoomTabHeartbeat } from "@/lib/room-tab-lock";
+import { validateRoomCode } from "@/lib/room-code";
+import { createRoom, fetchActiveRoom, fetchRoom, isUserInRoom, joinRoom, leaveRoom } from "@/services/room";
+import { useSessionStore } from "@/stores/session";
+import { useRoomStore } from "@/stores/room";
+import type { Room, RoomError } from "@/types/room";
+import { ROOM_ERROR_MESSAGES } from "@/types/room";
+
+function redirectToSignIn(router: ReturnType<typeof useRouter>): void {
+  router.replace("/sign-in?error=Session%20expired.%20Please%20sign%20in%20again.");
+}
+
+async function recoverActiveRoomOnConflict(): Promise<void> {
+  const active = await fetchActiveRoom().catch(() => null);
+  if (active) {
+    useRoomStore.getState().setActiveRoom(active);
+  }
+}
+
+/** Create / join actions for the homepage — no polling. */
+export function useRoomActions() {
+  const router = useRouter();
+  const authReady = useSessionStore((s) => s.authReady);
+
+  const [creating, setCreating] = useState(false);
+  const [joining, setJoining] = useState(false);
+  const [error, setError] = useState<RoomError | null>(null);
+
+  const createInFlight = useRef(false);
+  const joinInFlight = useRef(false);
+
+  const clearError = useCallback(() => setError(null), []);
+
+  const handleAuthError = useCallback(
+    (roomError: RoomError) => {
+      if (roomError.code === "AUTH_EXPIRED") {
+        redirectToSignIn(router);
+        return true;
+      }
+      return false;
+    },
+    [router],
+  );
+
+  const create = useCallback(async () => {
+    if (createInFlight.current || creating) return;
+    createInFlight.current = true;
+    setCreating(true);
+    setError(null);
+
+    try {
+      const room = await createRoom();
+      useRoomStore.getState().setActiveRoom(room);
+      router.push(`/room/${room.code}`);
+    } catch (caught) {
+      const roomError = caught as RoomError;
+      if (!handleAuthError(roomError)) {
+        if (roomError.code === "ALREADY_IN_ROOM") {
+          await recoverActiveRoomOnConflict();
+        }
+        setError(roomError);
+      }
+    } finally {
+      createInFlight.current = false;
+      setCreating(false);
+    }
+  }, [creating, handleAuthError, router]);
+
+  const join = useCallback(
+    async (rawCode: string) => {
+      if (joinInFlight.current || joining) return;
+
+      const validationError = validateRoomCode(rawCode);
+      if (validationError) {
+        setError(validationError);
+        return;
+      }
+
+      joinInFlight.current = true;
+      setJoining(true);
+      setError(null);
+
+      try {
+        const room = await joinRoom(rawCode);
+        useRoomStore.getState().setActiveRoom(room);
+        router.push(`/room/${room.code}`);
+      } catch (caught) {
+        const roomError = caught as RoomError;
+        if (!handleAuthError(roomError)) {
+          if (roomError.code === "ALREADY_IN_ROOM") {
+            await recoverActiveRoomOnConflict();
+          }
+          setError(roomError);
+        }
+      } finally {
+        joinInFlight.current = false;
+        setJoining(false);
+      }
+    },
+    [joining, handleAuthError, router],
+  );
+
+  return {
+    createRoom: create,
+    joinRoom: join,
+    creating,
+    joining,
+    busy: creating || joining,
+    error,
+    clearError,
+    authReady,
+  };
+}
+
+interface UseRoomOptions {
+  /** Attempt to join when the user navigates directly without membership. */
+  autoJoin?: boolean;
+}
+
+/** Room page state: load, poll, leave, membership checks. */
+export function useRoom(code: string, options: UseRoomOptions = {}) {
+  const router = useRouter();
+  const selfId = useSessionStore((s) => s.selfId);
+  const authUser = useSessionStore((s) => s.authUser);
+  const authReady = useSessionStore((s) => s.authReady);
+
+  const [room, setRoom] = useState<Room | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<RoomError | null>(null);
+  const [leaving, setLeaving] = useState(false);
+  const [notMember, setNotMember] = useState(false);
+  const [tabBlocked, setTabBlocked] = useState(false);
+  const [joining, setJoining] = useState(false);
+
+  const leaveInFlight = useRef(false);
+  const joinInFlight = useRef(false);
+  const normalizedCode = code.trim().toUpperCase();
+
+  const handleAuthError = useCallback(
+    (roomError: RoomError) => {
+      if (roomError.code === "AUTH_EXPIRED") {
+        redirectToSignIn(router);
+        return true;
+      }
+      return false;
+    },
+    [router],
+  );
+
+  const applyRoom = useCallback(
+    (nextRoom: Room) => {
+      setRoom(nextRoom);
+      setError(null);
+
+      if (selfId && !isUserInRoom(nextRoom, selfId)) {
+        setNotMember(true);
+      } else {
+        setNotMember(false);
+        if (selfId) {
+          useRoomStore.getState().setActiveRoom(nextRoom);
+        }
+      }
+    },
+    [selfId],
+  );
+
+  const retry = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    setNotMember(false);
+
+    try {
+      const nextRoom = await fetchRoom(normalizedCode);
+      applyRoom(nextRoom);
+    } catch (caught) {
+      const roomError = caught as RoomError;
+      if (!handleAuthError(roomError)) {
+        setError(roomError);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [applyRoom, handleAuthError, normalizedCode]);
+
+  const attemptJoin = useCallback(async () => {
+    if (joinInFlight.current || joining) return;
+    joinInFlight.current = true;
+    setJoining(true);
+    setError(null);
+
+    try {
+      const nextRoom = await joinRoom(normalizedCode);
+      applyRoom(nextRoom);
+    } catch (caught) {
+      const roomError = caught as RoomError;
+      if (!handleAuthError(roomError)) {
+        setError(roomError);
+      }
+    } finally {
+      joinInFlight.current = false;
+      setJoining(false);
+    }
+  }, [applyRoom, handleAuthError, joining, normalizedCode]);
+
+  const leave = useCallback(async () => {
+    if (leaveInFlight.current || leaving) return;
+    leaveInFlight.current = true;
+    setLeaving(true);
+    setError(null);
+
+    try {
+      await leaveRoom(normalizedCode);
+      useRoomStore.getState().clearActiveRoom();
+      if (selfId) {
+        releaseRoomTab(selfId, normalizedCode);
+      }
+      router.replace("/");
+    } catch (caught) {
+      const roomError = caught as RoomError;
+      if (!handleAuthError(roomError)) {
+        setError(roomError);
+      }
+    } finally {
+      leaveInFlight.current = false;
+      setLeaving(false);
+    }
+  }, [handleAuthError, leaving, normalizedCode, router]);
+
+  // Initial load + polling via swappable sync adapter
+  useEffect(() => {
+    if (!authReady || !selfId) return;
+
+    const claim = claimRoomTab(selfId, normalizedCode);
+    if (claim === "blocked") {
+      setTabBlocked(true);
+      setLoading(false);
+      setError({ code: "TAB_BLOCKED", message: ROOM_ERROR_MESSAGES.TAB_BLOCKED });
+      return;
+    }
+
+    setTabBlocked(false);
+    const stopHeartbeat = startRoomTabHeartbeat(selfId, normalizedCode);
+
+    let firstLoad = true;
+
+    const unsubscribe = roomSyncAdapter.subscribe(
+      normalizedCode,
+      (nextRoom) => {
+        applyRoom(nextRoom);
+        if (firstLoad) {
+          firstLoad = false;
+          setLoading(false);
+        }
+      },
+      (roomError) => {
+        if (!handleAuthError(roomError)) {
+          setError(roomError);
+        }
+        if (firstLoad) {
+          firstLoad = false;
+          setLoading(false);
+        }
+      },
+    );
+
+    return () => {
+      unsubscribe();
+      stopHeartbeat();
+    };
+  }, [applyRoom, authReady, handleAuthError, normalizedCode, selfId]);
+
+  // Auto-join when user lands on /room/{code} without membership (e.g. bookmark)
+  useEffect(() => {
+    if (!options.autoJoin || !authReady || loading || tabBlocked || joining) return;
+    if (!notMember || error) return;
+    void attemptJoin();
+  }, [attemptJoin, authReady, error, joining, loading, notMember, options.autoJoin, tabBlocked]);
+
+  const isHost = Boolean(room && selfId && room.hostId === selfId);
+  const isMember = Boolean(room && selfId && isUserInRoom(room, selfId));
+  const currentPlayer = room?.players.find((player) => player.id === selfId) ?? null;
+
+  return {
+    room,
+    loading: !authReady || loading,
+    error,
+    leaving,
+    joining,
+    notMember: notMember && !joining,
+    tabBlocked,
+    isHost,
+    isMember,
+    currentPlayer,
+    authUser,
+    leaveRoom: leave,
+    retry,
+    attemptJoin,
+  };
+}

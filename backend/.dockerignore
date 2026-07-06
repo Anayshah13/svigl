@@ -1,0 +1,12 @@
+__pycache__
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+.env
+.env.local
+.venv
+venv
+.git
+.gitignore
+*.md

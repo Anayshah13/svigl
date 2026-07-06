@@ -37,6 +37,7 @@ html {
   color-scheme: light only;
   scroll-behavior: smooth;
   background-color: var(--bg-base);
+  overflow-x: hidden;
 }
 
 body {
@@ -92,4 +93,59 @@ main {
 
 .animate-float {
   animation: float 4s ease-in-out infinite;
+}
+
+/* Layout helpers for responsive screens */
+.page-shell {
+  margin-inline: auto;
+  width: 100%;
+  max-width: 80rem;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  padding: 1.5rem 1rem;
+}
+
+@media (min-width: 640px) {
+  .page-shell {
+    padding: 2.5rem 1.5rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .page-shell {
+    padding-block: 2.5rem;
+  }
+}
+
+.page-shell-narrow {
+  max-width: 48rem;
+}
+
+.page-shell-tight {
+  max-width: 42rem;
+}
+
+.safe-bottom {
+  padding-bottom: max(1.25rem, env(safe-area-inset-bottom, 0px));
+}
+
+.scroll-fade-x {
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.scroll-fade-x::-webkit-scrollbar {
+  display: none;
+}
+
+@media (max-width: 639px) {
+  .mobile-stack {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .mobile-full {
+    width: 100%;
+  }
 }

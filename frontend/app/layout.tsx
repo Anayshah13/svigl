@@ -4,6 +4,7 @@ import "./globals.css";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { AuroraBackground } from "@/components/layout/AuroraBackground";
 import { AuthProvider } from "@/components/auth/AuthProvider";
+import { ActiveRoomBar } from "@/components/room/ActiveRoomBar";
 
 const dmSans = DM_Sans({
   variable: "--font-dm-sans",
@@ -23,8 +24,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Svigl — SVG drawing & guessing",
-  description: "Multiplayer drawing game built from editable SVG primitives.",
+  title: "Svigl — SVG drawing gallery",
+  description: "SVG drawing gallery built from editable vector primitives.",
 };
 
 export default function RootLayout({
@@ -33,17 +34,23 @@ export default function RootLayout({
   return (
     <html
       lang="en"
+      data-scroll-behavior="smooth"
       className={`${dmSans.variable} ${caveat.variable} ${geistMono.variable} h-full antialiased`}
       style={{ backgroundColor: "#FAFAF8" }}
     >
       <body
         className="relative flex min-h-full flex-col text-ink"
-        style={{ backgroundColor: "#FAFAF8", color: "#2C2C2C" }}
+        style={{
+          backgroundColor: "#FAFAF8",
+          color: "#2C2C2C",
+          paddingTop: "env(safe-area-inset-top, 0px)",
+        }}
       >
         <AuroraBackground />
         <AuthProvider>
           <AppHeader />
           <main className="relative z-0 flex flex-1 flex-col">{children}</main>
+          <ActiveRoomBar />
         </AuthProvider>
       </body>
     </html>

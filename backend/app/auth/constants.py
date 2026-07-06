@@ -1,0 +1,2 @@
+PROVIDER_GOOGLE = "google"
+PROVIDER_GUEST = "guest"
