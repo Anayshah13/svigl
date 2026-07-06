@@ -33,6 +33,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
+      data-scroll-behavior="smooth"
       className={`${dmSans.variable} ${caveat.variable} ${geistMono.variable} h-full antialiased`}
       style={{ backgroundColor: "#FAFAF8" }}
     >

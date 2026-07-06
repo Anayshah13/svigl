@@ -27,7 +27,7 @@ export const useSessionStore = create<SessionState>((set) => ({
   setAuth: (user) =>
     set({
       authUser: user,
-      isGuest: false,
+      isGuest: user.provider === "guest",
       selfId: user.id,
       displayName: user.username,
     }),

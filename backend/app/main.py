@@ -10,6 +10,7 @@ from starlette.responses import Response
 
 from app.api.auth import router as auth_router
 from app.api.health import router as health_router
+from app.api.session import router as session_router
 from app.config import settings
 
 logging.basicConfig(
@@ -26,7 +27,8 @@ app.add_middleware(
 )
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[settings.frontend_url],
+    allow_origins=settings.cors_origins,
+    allow_origin_regex=settings.cors_origin_regex,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -34,6 +36,7 @@ app.add_middleware(
 
 app.include_router(health_router)
 app.include_router(auth_router)
+app.include_router(session_router)
 
 
 class NoCacheMiddleware(BaseHTTPMiddleware):

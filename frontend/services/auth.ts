@@ -1,65 +1,124 @@
+import { getGuestDeviceId } from "@/lib/guest";
 import { getApiUrl } from "@/lib/api";
+import { formatDisplayName } from "@/lib/names";
+
+export type AuthProvider = "google" | "guest";
 
 export interface AuthUser {
   id: string;
-  googleId: string | null;
-  email: string;
+  email: string | null;
   username: string;
   avatarUrl: string | null;
-  provider: "google";
+  provider: AuthProvider;
 }
 
-const AUTH_STORAGE_KEY = "svigl:auth-user";
-
-export function startGoogleSignIn(): void {
-  window.location.href = `${getApiUrl()}/auth/google`;
+interface MeResponse {
+  id: string;
+  provider: AuthProvider;
+  email: string | null;
+  name: string;
+  avatar_url: string | null;
 }
 
-export function loadStoredAuthUser(): AuthUser | null {
-  if (typeof window === "undefined") return null;
-
-  try {
-    const raw = window.localStorage.getItem(AUTH_STORAGE_KEY);
-    if (!raw) return null;
-    return JSON.parse(raw) as AuthUser;
-  } catch {
-    return null;
-  }
+export interface UpdateProfileInput {
+  name?: string;
+  avatarUrl?: string | null;
+  removeAvatar?: boolean;
 }
 
-export function persistAuthUser(user: AuthUser): void {
-  window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(user));
-}
+let sessionRequest: Promise<AuthUser | null> | null = null;
 
-export function clearStoredAuthUser(): void {
-  window.localStorage.removeItem(AUTH_STORAGE_KEY);
-}
-
-export function parseAuthCallbackParams(params: URLSearchParams): AuthUser | null {
-  const id = params.get("id");
-  const email = params.get("email");
-  const name = params.get("name");
-
-  if (!id || !email || !name) return null;
-
-  const googleId = params.get("google_id");
-  const avatarUrl = params.get("avatar_url");
-
+function mapMeResponse(data: MeResponse): AuthUser {
   return {
-    id,
-    googleId: googleId || null,
-    email,
-    username: name,
-    avatarUrl: avatarUrl || null,
-    provider: "google",
+    id: data.id,
+    email: data.email,
+    username: formatDisplayName(data.name),
+    avatarUrl: data.avatar_url,
+    provider: data.provider,
   };
 }
 
-export function fetchAuthSession(): Promise<AuthUser | null> {
-  return Promise.resolve(loadStoredAuthUser());
+export function startGoogleSignIn(): void {
+  sessionRequest = null;
+  sessionStorage.removeItem("svigl:auth-callback-processing");
+  window.location.href = `${getApiUrl()}/auth/google`;
 }
 
-export function signOut(): Promise<void> {
-  clearStoredAuthUser();
-  return Promise.resolve();
+export async function startGuestSignIn(): Promise<AuthUser> {
+  sessionRequest = null;
+  const guestDeviceId = getGuestDeviceId();
+
+  const response = await fetch(`${getApiUrl()}/auth/guest`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ guest_device_id: guestDeviceId }),
+  });
+
+  if (!response.ok) {
+    throw new Error("Failed to sign in as guest.");
+  }
+
+  const data = (await response.json()) as MeResponse;
+  return mapMeResponse(data);
+}
+
+export async function fetchAuthSession(): Promise<AuthUser | null> {
+  if (!sessionRequest) {
+    sessionRequest = fetch(`${getApiUrl()}/me`, {
+      credentials: "include",
+    })
+      .then(async (response) => {
+        if (response.status === 401) {
+          return null;
+        }
+
+        if (!response.ok) {
+          throw new Error("Failed to load auth session.");
+        }
+
+        const data = (await response.json()) as MeResponse;
+        return mapMeResponse(data);
+      })
+      .finally(() => {
+        sessionRequest = null;
+      });
+  }
+
+  return sessionRequest;
+}
+
+export async function updateProfile(input: UpdateProfileInput): Promise<AuthUser> {
+  sessionRequest = null;
+
+  const body: Record<string, unknown> = {};
+  if (input.name !== undefined) body.name = input.name;
+  if (input.removeAvatar) body.remove_avatar = true;
+  else if (input.avatarUrl !== undefined) body.avatar_url = input.avatarUrl;
+
+  const response = await fetch(`${getApiUrl()}/me`, {
+    method: "PATCH",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => null)) as { detail?: string } | null;
+    throw new Error(payload?.detail ?? "Failed to update profile.");
+  }
+
+  const data = (await response.json()) as MeResponse;
+  return mapMeResponse(data);
+}
+
+export async function signOut(): Promise<void> {
+  sessionRequest = null;
+
+  await fetch(`${getApiUrl()}/logout`, {
+    method: "POST",
+    credentials: "include",
+  });
+
+  window.location.href = "/sign-in";
 }

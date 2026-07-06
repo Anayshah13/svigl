@@ -5,20 +5,14 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { FadeIn, FadeInItem, FadeInStagger } from "@/components/motion/FadeIn";
 import { Card } from "@/components/ui/Card";
+import { UserAvatar } from "@/components/ui/UserAvatar";
 import { SvgRenderer } from "@/features/drawing/SvgRenderer";
+import { ProfileEditor } from "@/features/profile/ProfileEditor";
+import { formatDisplayName, profileHandle } from "@/lib/names";
 import { fetchProfile } from "@/services/profile";
-import { palette } from "@/lib/colors";
 import { useSessionStore } from "@/stores/session";
 import type { GalleryEntry } from "@/types/domain";
 import type { ProfileStats } from "@/services/profile";
-
-const AVATAR_COLORS = [...palette];
-
-function avatarColor(name: string): string {
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
-  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
-}
 
 function StatCard({
   icon,
@@ -33,7 +27,7 @@ function StatCard({
     <FadeInItem>
       <motion.div
         whileHover={{ y: -4 }}
-        className="flex flex-col gap-2 rounded-2xl border border-gray-200/80 bg-white p-5 shadow-(--shadow-soft)"
+        className="flex flex-col gap-2 rounded-2xl border border-gray-200/80 bg-white/90 p-5 shadow-(--shadow-soft) backdrop-blur-sm"
       >
         <span className="text-lg">{icon}</span>
         <p className="text-3xl font-bold text-ink">{value}</p>
@@ -65,6 +59,12 @@ function DrawingCard({ entry }: { entry: GalleryEntry }) {
   );
 }
 
+function providerLabel(provider: string | undefined): string {
+  if (provider === "google") return "Google account";
+  if (provider === "guest") return "Guest account";
+  return "Preview profile";
+}
+
 export function ProfileView() {
   const authUser = useSessionStore((s) => s.authUser);
   const displayName = useSessionStore((s) => s.displayName);
@@ -72,12 +72,15 @@ export function ProfileView() {
   const [stats, setStats] = useState<ProfileStats | null>(null);
   const [drawings, setDrawings] = useState<GalleryEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [profileVersion, setProfileVersion] = useState(0);
 
-  const username = authUser?.username ?? (displayName || "Guest");
+  const rawName = authUser?.username ?? (displayName || "Guest");
+  const displayUsername = formatDisplayName(rawName);
+  const avatarUrl = authUser?.avatarUrl ?? null;
 
   useEffect(() => {
     let cancelled = false;
-    void fetchProfile(username)
+    void fetchProfile(displayUsername)
       .then((profile) => {
         if (cancelled) return;
         setStats(profile.stats);
@@ -89,7 +92,7 @@ export function ProfileView() {
     return () => {
       cancelled = true;
     };
-  }, [username]);
+  }, [displayUsername, profileVersion]);
 
   if (!authReady) {
     return (
@@ -105,10 +108,10 @@ export function ProfileView() {
         <FadeIn>
           <h1 className="text-2xl font-bold text-ink">Your profile</h1>
           <p className="mt-2 text-ink-muted">
-            Set a display name on the home page or in settings to preview your profile.
+            Sign in or set a display name on the home page to preview your profile.
           </p>
-          <Link href="/settings" className="mt-4 inline-block text-sm text-plum hover:underline">
-            Open settings
+          <Link href="/sign-in" className="mt-4 inline-block text-sm text-plum hover:underline">
+            Sign in
           </Link>
           <Link href="/" className="mt-2 inline-block text-sm text-plum hover:underline">
             Back to home
@@ -118,43 +121,66 @@ export function ProfileView() {
     );
   }
 
-  const avatarBg = avatarColor(username);
-  const initial = username.charAt(0).toUpperCase();
   const xp = stats?.xp ?? 0;
   const xpNext = stats?.xpNext ?? 500;
   const level = stats?.level ?? 1;
   const xpProgress = Math.min((xp / xpNext) * 100, 100);
+  const handle = stats?.handle ?? profileHandle(displayUsername);
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-10 px-6 py-10">
       <FadeIn>
-        <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
+        <div className="grid gap-4 lg:grid-cols-[1.5fr_1fr]">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="rounded-2xl border border-gray-200/80 bg-white p-8 shadow-(--shadow-card)"
+            className="relative overflow-hidden rounded-3xl border border-gray-200/80 bg-white p-8 shadow-(--shadow-card)"
           >
-            <div className="flex items-start gap-6">
-              <div
-                className="flex h-20 w-20 items-center justify-center rounded-full text-3xl font-bold text-gray-800 shadow-md"
-                style={{ backgroundColor: avatarBg }}
-              >
-                {initial}
+            <div className="pointer-events-none absolute -right-8 -top-8 h-40 w-40 rounded-full bg-plum-light/70 blur-2xl" />
+            <div className="pointer-events-none absolute -bottom-10 left-12 h-32 w-32 rounded-full bg-pink-light/80 blur-2xl" />
+
+            <div className="relative flex flex-col gap-6 sm:flex-row sm:items-start">
+              <div className="relative shrink-0 self-start">
+                <UserAvatar
+                  name={displayUsername}
+                  avatarUrl={avatarUrl}
+                  className="h-24 w-24 text-3xl shadow-md ring-4 ring-white"
+                />
               </div>
-              <div className="flex-1">
-                <p className="text-xs font-bold uppercase tracking-wider text-gray-400">
-                  {stats?.handle ?? `@${username.slice(0, 4).toUpperCase()}`}
+
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="rounded-full bg-plum-light px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-plum">
+                    {providerLabel(authUser?.provider)}
+                  </span>
+                  <span className="text-xs font-bold uppercase tracking-wider text-gray-400">{handle}</span>
+                </div>
+
+                <h1 className="mt-3 text-3xl font-bold tracking-tight text-ink sm:text-4xl">
+                  {displayUsername}
+                </h1>
+                <p className="mt-2 max-w-lg text-sm leading-relaxed text-ink-muted">
+                  Sketching things since round 1. Your gallery, stats, and identity live here.
                 </p>
-                <h1 className="text-3xl font-bold text-ink">{username.toLowerCase()}</h1>
-                <p className="mt-1 text-ink-muted">Sketching things since round 1.</p>
+
+                {authUser ? (
+                  <div className="mt-5">
+                    <ProfileEditor
+                      name={displayUsername}
+                      avatarUrl={avatarUrl}
+                      onSaved={() => setProfileVersion((value) => value + 1)}
+                    />
+                  </div>
+                ) : null}
+
                 <div className="mt-6">
                   <div className="mb-2 flex justify-between text-sm">
                     <span className="font-semibold text-plum">{xp.toLocaleString()} XP</span>
-                    <span className="text-gray-400">{xpNext.toLocaleString()} for next</span>
+                    <span className="text-gray-400">{xpNext.toLocaleString()} for next level</span>
                   </div>
-                  <div className="h-2 overflow-hidden rounded-full bg-gray-100">
+                  <div className="h-2.5 overflow-hidden rounded-full bg-gray-100">
                     <motion.div
-                      className="h-full rounded-full bg-plum"
+                      className="h-full rounded-full bg-linear-to-r from-plum to-pink"
                       initial={{ width: 0 }}
                       animate={{ width: `${xpProgress}%` }}
                       transition={{ duration: 1, ease: [0.22, 1, 0.36, 1] }}
@@ -162,9 +188,10 @@ export function ProfileView() {
                   </div>
                 </div>
               </div>
+
               <motion.div
                 whileHover={{ rotate: 5, scale: 1.05 }}
-                className="flex h-20 w-20 flex-col items-center justify-center rounded-full bg-plum-light"
+                className="flex h-24 w-24 shrink-0 flex-col items-center justify-center rounded-2xl bg-plum-light shadow-(--shadow-soft)"
               >
                 <span className="text-2xl">🏆</span>
                 <span className="text-xs font-bold text-plum">Level {level}</span>
@@ -175,36 +202,39 @@ export function ProfileView() {
           <FadeInStagger className="grid grid-cols-2 gap-4">
             <StatCard icon="✏️" value={stats?.drawingsPublished ?? 0} label="Drawings" />
             <StatCard icon="♥" value={stats?.totalUpvotes ?? 0} label="Upvotes" />
+            <StatCard icon="⚡" value={level} label="Level" />
+            <StatCard icon="🎯" value={`${Math.round(xpProgress)}%`} label="Next level" />
           </FadeInStagger>
         </div>
       </FadeIn>
 
       <section>
         <FadeIn>
-          <div className="mb-6 flex items-end justify-between">
+          <div className="mb-6 flex items-end justify-between gap-4">
             <div>
               <p className="text-xs font-bold uppercase tracking-widest text-gray-400">Published</p>
-              <h2 className="text-2xl font-bold text-ink">
-                Drawings by {username.toLowerCase()}
-              </h2>
+              <h2 className="text-2xl font-bold text-ink">Drawings by {displayUsername}</h2>
             </div>
-            <span className="text-sm text-gray-400">{drawings.length} total</span>
+            <span className="rounded-full bg-gray-100 px-3 py-1 text-sm text-gray-500">
+              {drawings.length} total
+            </span>
           </div>
         </FadeIn>
 
         {loading && (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {Array.from({ length: 2 }, (_, i) => (
+            {Array.from({ length: 3 }, (_, i) => (
               <div key={i} className="aspect-4/3 animate-pulse rounded-2xl bg-gray-100" />
             ))}
           </div>
         )}
 
         {!loading && drawings.length === 0 && (
-          <Card className="border-dashed text-center">
-            <p className="font-medium text-gray-700">No published drawings yet</p>
+          <Card className="border-dashed bg-white/80 py-12 text-center">
+            <p className="text-3xl">🎨</p>
+            <p className="mt-3 font-medium text-gray-700">No published drawings yet</p>
             <p className="mt-2 text-sm text-ink-muted">
-              Publish drawings to see them listed here.
+              Publish drawings from a game round to fill this gallery.
             </p>
           </Card>
         )}

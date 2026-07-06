@@ -1,13 +1,20 @@
 "use client";
 
+import { usePathname } from "next/navigation";
 import * as React from "react";
 import { fetchAuthSession } from "@/services/auth";
 import { useSessionStore } from "@/stores/session";
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
   const setAuthReady = useSessionStore((s) => s.setAuthReady);
 
   React.useEffect(() => {
+    if (pathname.startsWith("/auth/callback")) {
+      setAuthReady(true);
+      return;
+    }
+
     let cancelled = false;
 
     fetchAuthSession()
@@ -22,7 +29,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [setAuthReady]);
+  }, [pathname, setAuthReady]);
 
   return <>{children}</>;
 }
