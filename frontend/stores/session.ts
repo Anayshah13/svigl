@@ -3,6 +3,12 @@
 import { create } from "zustand";
 import type { AuthUser } from "@/services/auth";
 
+/** Temporary audit logging — remove after auth stability is confirmed. */
+function authLog(event: string, detail?: Record<string, unknown>): void {
+  if (process.env.NODE_ENV === "production") return;
+  console.log(`[auth] ${event}`, detail ?? "");
+}
+
 interface SessionState {
   selfId: string | null;
   displayName: string;
@@ -24,13 +30,19 @@ export const useSessionStore = create<SessionState>((set) => ({
   authReady: false,
   setDisplayName: (displayName) => set({ displayName }),
   setSelfId: (selfId) => set({ selfId }),
-  setAuth: (user) =>
+  setAuth: (user) => {
+    authLog("auth state updated", {
+      action: "setAuth",
+      userId: user.id,
+      provider: user.provider,
+    });
     set({
       authUser: user,
       isGuest: user.provider === "guest",
       selfId: user.id,
       displayName: user.username,
-    }),
+    });
+  },
   clearAuth: () =>
     set({
       authUser: null,
@@ -38,5 +50,8 @@ export const useSessionStore = create<SessionState>((set) => ({
       selfId: null,
       displayName: "",
     }),
-  setAuthReady: (authReady) => set({ authReady }),
+  setAuthReady: (authReady) => {
+    authLog("auth state updated", { action: "setAuthReady", authReady });
+    set({ authReady });
+  },
 }));

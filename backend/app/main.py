@@ -1,17 +1,20 @@
 import logging
 from collections.abc import Awaitable, Callable
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
-from starlette.requests import Request
 from starlette.responses import Response
 
 from app.api.auth import router as auth_router
 from app.api.health import router as health_router
+from app.api.rooms import router as rooms_router
 from app.api.session import router as session_router
 from app.config import settings
+
+logger = logging.getLogger(__name__)
 
 logging.basicConfig(
     level=logging.DEBUG if settings.debug else logging.INFO,
@@ -19,6 +22,17 @@ logging.basicConfig(
 )
 
 app = FastAPI(title=settings.app_name, debug=settings.debug)
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    """Return JSON 500s so CORS headers are applied and tracebacks stay server-side."""
+    logger.exception("Unhandled error on %s", request.url.path)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal server error."},
+    )
+
 
 app.add_middleware(
     SessionMiddleware,
@@ -37,6 +51,7 @@ app.add_middleware(
 app.include_router(health_router)
 app.include_router(auth_router)
 app.include_router(session_router)
+app.include_router(rooms_router)
 
 
 class NoCacheMiddleware(BaseHTTPMiddleware):

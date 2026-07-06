@@ -27,10 +27,10 @@ function StatCard({
     <FadeInItem>
       <motion.div
         whileHover={{ y: -4 }}
-        className="flex flex-col gap-2 rounded-2xl border border-gray-200/80 bg-white/90 p-5 shadow-(--shadow-soft) backdrop-blur-sm"
+        className="flex flex-col gap-2 rounded-2xl border border-gray-200/80 bg-white/90 p-4 shadow-(--shadow-soft) backdrop-blur-sm sm:gap-2 sm:p-5"
       >
         <span className="text-lg">{icon}</span>
-        <p className="text-3xl font-bold text-ink">{value}</p>
+        <p className="text-2xl font-bold text-ink sm:text-3xl">{value}</p>
         <p className="text-xs font-bold uppercase tracking-wider text-gray-400">{label}</p>
       </motion.div>
     </FadeInItem>
@@ -104,7 +104,7 @@ export function ProfileView() {
 
   if (!authUser && !displayName.trim()) {
     return (
-      <div className="mx-auto flex max-w-md flex-1 flex-col items-center justify-center gap-6 p-6 text-center">
+      <div className="page-shell page-shell-narrow flex flex-col items-center justify-center gap-5 text-center sm:gap-6">
         <FadeIn>
           <h1 className="text-2xl font-bold text-ink">Your profile</h1>
           <p className="mt-2 text-ink-muted">
@@ -128,35 +128,35 @@ export function ProfileView() {
   const handle = stats?.handle ?? profileHandle(displayUsername);
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-10 px-6 py-10">
+    <div className="page-shell max-w-6xl gap-8 sm:gap-10">
       <FadeIn>
         <div className="grid gap-4 lg:grid-cols-[1.5fr_1fr]">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="relative overflow-hidden rounded-3xl border border-gray-200/80 bg-white p-8 shadow-(--shadow-card)"
+            className="relative overflow-hidden rounded-3xl border border-gray-200/80 bg-white p-5 shadow-(--shadow-card) sm:p-8"
           >
             <div className="pointer-events-none absolute -right-8 -top-8 h-40 w-40 rounded-full bg-plum-light/70 blur-2xl" />
             <div className="pointer-events-none absolute -bottom-10 left-12 h-32 w-32 rounded-full bg-pink-light/80 blur-2xl" />
 
-            <div className="relative flex flex-col gap-6 sm:flex-row sm:items-start">
+            <div className="relative flex flex-col gap-5 sm:flex-row sm:items-start sm:gap-6">
               <div className="relative shrink-0 self-start">
                 <UserAvatar
                   name={displayUsername}
                   avatarUrl={avatarUrl}
-                  className="h-24 w-24 text-3xl shadow-md ring-4 ring-white"
+                  className="h-20 w-20 text-2xl shadow-md ring-4 ring-white sm:h-24 sm:w-24 sm:text-3xl"
                 />
               </div>
 
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="rounded-full bg-plum-light px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-plum">
+                  <span className="rounded-full bg-plum-light px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-plum sm:text-[11px]">
                     {providerLabel(authUser?.provider)}
                   </span>
-                  <span className="text-xs font-bold uppercase tracking-wider text-gray-400">{handle}</span>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 sm:text-xs">{handle}</span>
                 </div>
 
-                <h1 className="mt-3 text-3xl font-bold tracking-tight text-ink sm:text-4xl">
+                <h1 className="mt-2 text-2xl font-bold tracking-tight text-ink sm:mt-3 sm:text-3xl md:text-4xl">
                   {displayUsername}
                 </h1>
                 <p className="mt-2 max-w-lg text-sm leading-relaxed text-ink-muted">
@@ -191,7 +191,7 @@ export function ProfileView() {
 
               <motion.div
                 whileHover={{ rotate: 5, scale: 1.05 }}
-                className="flex h-24 w-24 shrink-0 flex-col items-center justify-center rounded-2xl bg-plum-light shadow-(--shadow-soft)"
+                className="flex h-20 w-full shrink-0 flex-row items-center justify-center gap-3 rounded-2xl bg-plum-light shadow-(--shadow-soft) sm:h-24 sm:w-24 sm:flex-col sm:gap-0"
               >
                 <span className="text-2xl">🏆</span>
                 <span className="text-xs font-bold text-plum">Level {level}</span>
@@ -199,7 +199,7 @@ export function ProfileView() {
             </div>
           </motion.div>
 
-          <FadeInStagger className="grid grid-cols-2 gap-4">
+          <FadeInStagger className="grid grid-cols-2 gap-3 sm:gap-4">
             <StatCard icon="✏️" value={stats?.drawingsPublished ?? 0} label="Drawings" />
             <StatCard icon="♥" value={stats?.totalUpvotes ?? 0} label="Upvotes" />
             <StatCard icon="⚡" value={level} label="Level" />
@@ -210,12 +210,12 @@ export function ProfileView() {
 
       <section>
         <FadeIn>
-          <div className="mb-6 flex items-end justify-between gap-4">
-            <div>
+          <div className="mb-5 flex flex-col gap-3 sm:mb-6 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
+            <div className="min-w-0">
               <p className="text-xs font-bold uppercase tracking-widest text-gray-400">Published</p>
-              <h2 className="text-2xl font-bold text-ink">Drawings by {displayUsername}</h2>
+              <h2 className="text-xl font-bold text-ink sm:text-2xl">Drawings by {displayUsername}</h2>
             </div>
-            <span className="rounded-full bg-gray-100 px-3 py-1 text-sm text-gray-500">
+            <span className="self-start rounded-full bg-gray-100 px-3 py-1 text-sm text-gray-500 sm:self-auto">
               {drawings.length} total
             </span>
           </div>

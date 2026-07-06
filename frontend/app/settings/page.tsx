@@ -15,12 +15,12 @@ export default function SettingsPage() {
   const authReady = useSessionStore((s) => s.authReady);
 
   return (
-    <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-8 px-6 py-10">
+    <div className="page-shell page-shell-narrow gap-6 sm:gap-8">
       <FadeIn>
         <div>
           <p className="text-xs font-bold uppercase tracking-widest text-plum">Preferences</p>
-          <h1 className="mt-2 text-3xl font-bold text-ink">Settings</h1>
-          <p className="mt-2 text-sm text-ink-muted">
+          <h1 className="mt-1 text-[clamp(1.65rem,5vw,1.875rem)] font-bold text-ink sm:mt-2 sm:text-3xl">Settings</h1>
+          <p className="mt-1 text-sm text-ink-muted sm:mt-2">
             Your display name and account. Saved locally in your browser.
           </p>
         </div>
@@ -46,14 +46,16 @@ export default function SettingsPage() {
             </p>
           </div>
           {authReady && (
-            <div className="flex items-center justify-between rounded-xl border border-plum/10 bg-plum-light/40 px-4 py-3">
-              <div>
+            <div className="flex flex-col gap-3 rounded-xl border border-plum/10 bg-plum-light/40 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0">
                 <p className="text-sm font-semibold text-ink">Account</p>
-                <p className="text-xs text-ink-muted">
+                <p className="truncate text-xs text-ink-muted">
                   {authUser ? `Signed in as ${authUser.username}` : "Not signed in"}
                 </p>
               </div>
-              <AuthControls />
+              <div className="shrink-0">
+                <AuthControls />
+              </div>
             </div>
           )}
         </Card>

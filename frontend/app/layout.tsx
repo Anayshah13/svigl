@@ -4,6 +4,7 @@ import "./globals.css";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { AuroraBackground } from "@/components/layout/AuroraBackground";
 import { AuthProvider } from "@/components/auth/AuthProvider";
+import { ActiveRoomBar } from "@/components/room/ActiveRoomBar";
 
 const dmSans = DM_Sans({
   variable: "--font-dm-sans",
@@ -39,12 +40,17 @@ export default function RootLayout({
     >
       <body
         className="relative flex min-h-full flex-col text-ink"
-        style={{ backgroundColor: "#FAFAF8", color: "#2C2C2C" }}
+        style={{
+          backgroundColor: "#FAFAF8",
+          color: "#2C2C2C",
+          paddingTop: "env(safe-area-inset-top, 0px)",
+        }}
       >
         <AuroraBackground />
         <AuthProvider>
           <AppHeader />
           <main className="relative z-0 flex flex-1 flex-col">{children}</main>
+          <ActiveRoomBar />
         </AuthProvider>
       </body>
     </html>

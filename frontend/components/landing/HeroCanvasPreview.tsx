@@ -2,6 +2,7 @@
 
 import { motion, useAnimationFrame } from "framer-motion";
 import { useRef, useState } from "react";
+import { gsap, prefersReducedMotion, useGSAP } from "@/lib/gsap";
 import { colors } from "@/lib/colors";
 
 const W = 480;
@@ -174,110 +175,225 @@ function RemotePlayerCursors() {
   );
 }
 
+const TOOLBAR_KEYS = ["V", "P", "R", "O"];
+
 export function HeroCanvasPreview({ className }: { className?: string }) {
+  const rootRef = useRef<HTMLDivElement>(null);
+  const tiltRef = useRef<HTMLDivElement>(null);
+
+  useGSAP(
+    () => {
+      if (prefersReducedMotion()) return;
+      const root = rootRef.current;
+      const tilt = tiltRef.current;
+      if (!root || !tilt) return;
+
+      // --- Gentle parallax tilt following the cursor (max ~3.5deg) ---
+      gsap.set(tilt, { transformPerspective: 900 });
+      const rotX = gsap.quickTo(tilt, "rotationX", { duration: 0.8, ease: "power3.out" });
+      const rotY = gsap.quickTo(tilt, "rotationY", { duration: 0.8, ease: "power3.out" });
+
+      const onMove = (e: MouseEvent) => {
+        const rect = root.getBoundingClientRect();
+        const nx = (e.clientX - (rect.left + rect.width / 2)) / (rect.width / 2);
+        const ny = (e.clientY - (rect.top + rect.height / 2)) / (rect.height / 2);
+        rotY(gsap.utils.clamp(-3.5, 3.5, nx * 3.5));
+        rotX(gsap.utils.clamp(-3.5, 3.5, -ny * 3.5));
+      };
+      const onLeave = () => {
+        rotX(0);
+        rotY(0);
+      };
+      root.addEventListener("mousemove", onMove);
+      root.addEventListener("mouseleave", onLeave);
+
+      // --- Ambient glow blobs slowly drifting behind the canvas ---
+      gsap.to(".hero-glow-a", {
+        x: 22,
+        y: -18,
+        scale: 1.12,
+        duration: 9,
+        ease: "sine.inOut",
+        repeat: -1,
+        yoyo: true,
+      });
+      gsap.to(".hero-glow-b", {
+        x: -18,
+        y: 16,
+        scale: 1.08,
+        duration: 11,
+        ease: "sine.inOut",
+        repeat: -1,
+        yoyo: true,
+        delay: 1.2,
+      });
+
+      // --- Pulsing timer badge ---
+      gsap.to(".hero-timer", {
+        scale: 1.07,
+        duration: 0.9,
+        ease: "sine.inOut",
+        repeat: -1,
+        yoyo: true,
+        transformOrigin: "center",
+      });
+
+      // --- Floating chat bubble ---
+      gsap.to(".hero-chat", {
+        y: -5,
+        rotation: -1,
+        duration: 2.6,
+        ease: "sine.inOut",
+        repeat: -1,
+        yoyo: true,
+        delay: 3,
+      });
+
+      // --- Toolbar keys: subtle idle highlight cycle ---
+      const keys = gsap.utils.toArray<HTMLElement>(".hero-key");
+      const cycle = gsap.timeline({ repeat: -1, repeatDelay: 2.4, delay: 4 });
+      keys.forEach((key) => {
+        cycle
+          .to(key, { backgroundColor: `${colors.plum}14`, y: -2, duration: 0.3, ease: "power2.out" })
+          .to(key, { backgroundColor: "rgba(0,0,0,0)", y: 0, duration: 0.45, ease: "power2.inOut" }, "+=0.12");
+      });
+
+      return () => {
+        root.removeEventListener("mousemove", onMove);
+        root.removeEventListener("mouseleave", onLeave);
+      };
+    },
+    { scope: rootRef },
+  );
+
   return (
     <motion.div
+      ref={rootRef}
       initial={{ opacity: 0, y: 32 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.8, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
       className={`relative w-full ${className ?? ""}`}
     >
-      <div
-        className="overflow-hidden rounded-2xl border border-white/80 bg-white/95 shadow-2xl backdrop-blur-sm"
-        style={{ boxShadow: `0 32px 64px -16px ${colors.plum}25, 0 0 0 1px rgba(255,255,255,0.8)` }}
-      >
-        <div className="flex items-center gap-2 border-b border-black/5 bg-white/90 px-3 py-2">
-          <span className="font-mono text-[10px] sm:text-xs" style={{ color: `${colors.ink}99` }}>
-            svigl.app · QXP4M
-          </span>
-          <span className="ml-auto flex items-center gap-1 text-[10px] font-semibold text-green">
-            <span className="h-1.5 w-1.5 rounded-full bg-green" />
-            3 online
-          </span>
-        </div>
+      {/* Ambient gradient mesh behind the canvas */}
+      <div className="pointer-events-none absolute -inset-8 -z-10" aria-hidden>
+        <div
+          className="hero-glow-a absolute left-[-10%] top-[-6%] h-[55%] w-[70%] rounded-full blur-3xl"
+          style={{ background: `radial-gradient(circle, ${colors.pink}40 0%, transparent 70%)` }}
+        />
+        <div
+          className="hero-glow-b absolute bottom-[-8%] right-[-12%] h-[60%] w-[75%] rounded-full blur-3xl"
+          style={{ background: `radial-gradient(circle, ${colors.plum}33 0%, ${colors.chartreuse}22 45%, transparent 72%)` }}
+        />
+      </div>
 
-        <div className="dot-grid-canvas relative bg-white" style={{ aspectRatio: "3/4" }}>
-          <svg viewBox={`0 0 ${W} ${H}`} className="relative z-0 h-full w-full" preserveAspectRatio="xMidYMid meet">
-            {LIGHTHOUSE.map((s, i) => {
-              if (s.type === "circle") {
+      <div ref={tiltRef} className="will-change-transform">
+        <div
+          className="overflow-hidden rounded-2xl border border-white/80 bg-white/95 shadow-2xl backdrop-blur-sm"
+          style={{ boxShadow: `0 32px 64px -16px ${colors.plum}25, 0 0 0 1px rgba(255,255,255,0.8)` }}
+        >
+          <div className="flex items-center gap-2 border-b border-black/5 bg-white/90 px-3 py-2">
+            <span className="font-mono text-[10px] sm:text-xs" style={{ color: `${colors.ink}99` }}>
+              svigl.app · QXP4M
+            </span>
+            <span className="ml-auto flex items-center gap-1 text-[10px] font-semibold text-green">
+              <span className="h-1.5 w-1.5 rounded-full bg-green" />
+              3 online
+            </span>
+          </div>
+
+          <div className="dot-grid-canvas relative bg-white" style={{ aspectRatio: "3/4" }}>
+            <svg viewBox={`0 0 ${W} ${H}`} className="relative z-0 h-full w-full" preserveAspectRatio="xMidYMid meet">
+              {LIGHTHOUSE.map((s, i) => {
+                if (s.type === "circle") {
+                  return (
+                    <motion.circle
+                      key={i}
+                      cx={s.cx}
+                      cy={s.cy}
+                      r={0}
+                      fill={s.fill}
+                      animate={{ r: s.r }}
+                      transition={{ type: "spring", stiffness: 260, damping: 18, delay: s.delay }}
+                    />
+                  );
+                }
                 return (
-                  <motion.circle
+                  <motion.rect
                     key={i}
-                    cx={s.cx}
-                    cy={s.cy}
-                    r={0}
+                    x={s.x}
+                    y={s.y}
+                    width={0}
+                    height={0}
+                    rx={s.rx}
                     fill={s.fill}
-                    animate={{ r: s.r }}
+                    animate={{ width: s.w, height: s.h }}
                     transition={{ type: "spring", stiffness: 260, damping: 18, delay: s.delay }}
                   />
                 );
-              }
-              return (
-                <motion.rect
-                  key={i}
-                  x={s.x}
-                  y={s.y}
-                  width={0}
-                  height={0}
-                  rx={s.rx}
-                  fill={s.fill}
-                  animate={{ width: s.w, height: s.h }}
-                  transition={{ type: "spring", stiffness: 260, damping: 18, delay: s.delay }}
+              })}
+              <CubicBezierWithHandle />
+            </svg>
+
+            <RemotePlayerCursors />
+
+            {/* Vignette for depth */}
+            <div
+              className="pointer-events-none absolute inset-0 z-10"
+              aria-hidden
+              style={{
+                background:
+                  "radial-gradient(ellipse 90% 85% at 50% 42%, transparent 62%, rgba(44,44,44,0.06) 100%)",
+              }}
+            />
+
+            <div
+              className="hero-timer absolute right-3 top-3 z-10 rounded-full px-3 py-1 text-xs font-bold text-white shadow-md"
+              style={{ background: colors.plum }}
+            >
+              0:42
+            </div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 2.4, type: "spring" }}
+              className="hero-chat absolute bottom-11 left-3 z-10 max-w-[min(72%,10.5rem)] rounded-2xl rounded-bl-sm px-2.5 py-1.5 text-[11px] shadow-md sm:bottom-12 sm:left-4 sm:max-w-[180px] sm:px-3 sm:py-2 sm:text-xs"
+              style={{ background: colors.whitePure, color: colors.ink }}
+            >
+              <span style={{ color: `${colors.ink}99` }}>guess: </span>
+              <span className="script-accent text-sm font-semibold sm:text-base" style={{ color: colors.plum }}>
+                lighthouse?
+              </span>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 1.6, type: "spring" }}
+              className="absolute bottom-2 left-1/2 z-10 flex max-w-[calc(100%-1rem)] -translate-x-1/2 flex-wrap items-center justify-center gap-0.5 rounded-full border border-black/5 bg-white/95 px-1.5 py-1 shadow-md backdrop-blur-sm sm:bottom-3 sm:gap-1 sm:px-2 sm:py-1.5"
+            >
+              {TOOLBAR_KEYS.map((k, i) => (
+                <div
+                  key={k}
+                  className={`flex h-7 w-7 items-center justify-center rounded-lg text-[10px] font-bold ${i === 1 ? "" : "hero-key"}`}
+                  style={{
+                    background: i === 1 ? colors.plum : "transparent",
+                    color: i === 1 ? colors.whitePure : colors.ink,
+                  }}
+                >
+                  {k}
+                </div>
+              ))}
+              <div className="mx-0.5 h-4 w-px bg-black/10" />
+              {[colors.ink, colors.plum, colors.green, colors.pink].map((c) => (
+                <div
+                  key={c}
+                  className="h-4 w-4 rounded-full border-2 border-white shadow-sm"
+                  style={{ background: c }}
                 />
-              );
-            })}
-            <CubicBezierWithHandle />
-          </svg>
-
-          <RemotePlayerCursors />
-
-          <motion.div
-            className="absolute right-3 top-3 z-10 rounded-full px-3 py-1 text-xs font-bold text-white shadow-md"
-            style={{ background: colors.plum }}
-          >
-            0:42
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 2.4, type: "spring" }}
-            className="absolute bottom-12 left-4 z-10 max-w-[180px] rounded-2xl rounded-bl-sm px-3 py-2 text-xs shadow-md"
-            style={{ background: colors.whitePure, color: colors.ink }}
-          >
-            <span style={{ color: `${colors.ink}99` }}>guess: </span>
-            <span className="script-accent text-base font-semibold" style={{ color: colors.plum }}>
-              lighthouse?
-            </span>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 1.6, type: "spring" }}
-            className="absolute bottom-3 left-1/2 z-10 flex -translate-x-1/2 items-center gap-1 rounded-full border border-black/5 bg-white/95 px-2 py-1.5 shadow-md backdrop-blur-sm"
-          >
-            {["V", "P", "R", "O"].map((k, i) => (
-              <div
-                key={k}
-                className="flex h-7 w-7 items-center justify-center rounded-lg text-[10px] font-bold"
-                style={{
-                  background: i === 1 ? colors.plum : "transparent",
-                  color: i === 1 ? colors.whitePure : colors.ink,
-                }}
-              >
-                {k}
-              </div>
-            ))}
-            <div className="mx-0.5 h-4 w-px bg-black/10" />
-            {[colors.ink, colors.plum, colors.green, colors.pink].map((c) => (
-              <div
-                key={c}
-                className="h-4 w-4 rounded-full border-2 border-white shadow-sm"
-                style={{ background: c }}
-              />
-            ))}
-          </motion.div>
+              ))}
+            </motion.div>
+          </div>
         </div>
       </div>
     </motion.div>

@@ -105,14 +105,14 @@ export function ProfileEditor({ name, avatarUrl, onSaved }: ProfileEditorProps) 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-end justify-center bg-ink/30 p-4 sm:items-center"
+            className="fixed inset-0 z-50 flex items-end justify-center bg-ink/30 p-3 sm:items-center sm:p-4"
             onClick={() => !busy && setOpen(false)}
           >
             <motion.div
               initial={{ opacity: 0, y: 24 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 24 }}
-              className="w-full max-w-md rounded-3xl border border-white/80 bg-white p-6 shadow-(--shadow-card)"
+              className="max-h-[92dvh] w-full max-w-md overflow-y-auto rounded-3xl border border-white/80 bg-white p-5 shadow-(--shadow-card) sm:max-h-none sm:p-6"
               onClick={(event) => event.stopPropagation()}
             >
               <div className="mb-6 flex items-start justify-between gap-4">
@@ -165,14 +165,15 @@ export function ProfileEditor({ name, avatarUrl, onSaved }: ProfileEditorProps) 
                   className="hidden"
                   onChange={(event) => void handleFileChange(event)}
                 />
-                <div className="flex w-full gap-2">
+                <div className="flex w-full flex-col gap-2 sm:flex-row">
                   <Input
                     value={avatarUrlInput}
                     onChange={(event) => setAvatarUrlInput(event.target.value)}
                     placeholder="Or paste image URL"
                     disabled={busy}
+                    className="min-w-0 flex-1"
                   />
-                  <Button type="button" variant="outline" size="sm" onClick={applyUrl} disabled={busy}>
+                  <Button type="button" variant="outline" size="sm" onClick={applyUrl} disabled={busy} className="w-full sm:w-auto">
                     Use
                   </Button>
                 </div>
@@ -196,11 +197,11 @@ export function ProfileEditor({ name, avatarUrl, onSaved }: ProfileEditorProps) 
                 </p>
               ) : null}
 
-              <div className="mt-6 flex gap-2">
+              <div className="mt-6 flex flex-col gap-2 sm:flex-row">
                 <Button type="button" className="flex-1" onClick={() => void handleSave()} disabled={busy}>
                   {busy ? "Saving…" : "Save changes"}
                 </Button>
-                <Button type="button" variant="ghost" onClick={() => setOpen(false)} disabled={busy}>
+                <Button type="button" variant="ghost" onClick={() => setOpen(false)} disabled={busy} className="w-full sm:w-auto">
                   Cancel
                 </Button>
               </div>

@@ -11,6 +11,7 @@ services:
     # the container without masking installed deps from the image.
     volumes:
       - ./backend/app:/app/app
+      - ./backend/alembic:/app/alembic
     # Dev-only: run as root so Windows/OneDrive bind mounts stay readable inside
     # the container (the Dockerfile's non-root USER can block seeing live edits).
     user: "0:0"

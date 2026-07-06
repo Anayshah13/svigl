@@ -28,6 +28,12 @@ export interface UpdateProfileInput {
 
 let sessionRequest: Promise<AuthUser | null> | null = null;
 
+/** Temporary audit logging — remove after auth stability is confirmed. */
+function authLog(event: string, detail?: Record<string, unknown>): void {
+  if (process.env.NODE_ENV === "production") return;
+  console.log(`[auth] ${event}`, detail ?? "");
+}
+
 function mapMeResponse(data: MeResponse): AuthUser {
   return {
     id: data.id,
@@ -39,15 +45,18 @@ function mapMeResponse(data: MeResponse): AuthUser {
 }
 
 export function startGoogleSignIn(): void {
+  authLog("loginGoogle called");
   sessionRequest = null;
   sessionStorage.removeItem("svigl:auth-callback-processing");
   window.location.href = `${getApiUrl()}/auth/google`;
 }
 
 export async function startGuestSignIn(): Promise<AuthUser> {
+  authLog("loginGuest called");
   sessionRequest = null;
   const guestDeviceId = getGuestDeviceId();
 
+  authLog("/auth/guest request started", { guestDeviceId });
   const response = await fetch(`${getApiUrl()}/auth/guest`, {
     method: "POST",
     credentials: "include",
@@ -60,15 +69,21 @@ export async function startGuestSignIn(): Promise<AuthUser> {
   }
 
   const data = (await response.json()) as MeResponse;
-  return mapMeResponse(data);
+  const user = mapMeResponse(data);
+  authLog("/auth/guest response", { userId: user.id, provider: user.provider });
+  return user;
 }
 
 export async function fetchAuthSession(): Promise<AuthUser | null> {
+  authLog("fetchAuthSession called", { deduped: Boolean(sessionRequest) });
+
   if (!sessionRequest) {
+    authLog("/me request started");
     sessionRequest = fetch(`${getApiUrl()}/me`, {
       credentials: "include",
     })
       .then(async (response) => {
+        authLog("/me response", { status: response.status });
         if (response.status === 401) {
           return null;
         }
@@ -78,7 +93,9 @@ export async function fetchAuthSession(): Promise<AuthUser | null> {
         }
 
         const data = (await response.json()) as MeResponse;
-        return mapMeResponse(data);
+        const user = mapMeResponse(data);
+        authLog("/me response body", { userId: user.id, provider: user.provider });
+        return user;
       })
       .finally(() => {
         sessionRequest = null;
@@ -113,6 +130,7 @@ export async function updateProfile(input: UpdateProfileInput): Promise<AuthUser
 }
 
 export async function signOut(): Promise<void> {
+  authLog("logout called");
   sessionRequest = null;
 
   await fetch(`${getApiUrl()}/logout`, {

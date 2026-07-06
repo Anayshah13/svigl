@@ -26,7 +26,7 @@ export function AuthControls() {
     return (
       <Link
         href="/sign-in"
-        className="inline-flex h-9 items-center justify-center rounded-full border border-plum/25 bg-white/80 px-4 text-sm font-semibold text-ink transition-all hover:border-plum/50 hover:bg-white"
+        className="inline-flex h-9 items-center justify-center rounded-full border border-plum/25 bg-white/80 px-3 text-xs font-semibold text-ink transition-all hover:border-plum/50 hover:bg-white sm:px-4 sm:text-sm"
       >
         Sign in
       </Link>
@@ -34,7 +34,7 @@ export function AuthControls() {
   }
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-1.5 sm:gap-2">
       <Link
         href="/profile"
         className="flex items-center gap-2 rounded-full py-1 pl-1 pr-3 transition-colors hover:bg-gray-100"
@@ -48,7 +48,7 @@ export function AuthControls() {
           {formatDisplayName(authUser.username)}
         </span>
       </Link>
-      <Button variant="ghost" size="sm" onClick={() => void handleSignOut()} disabled={busy}>
+      <Button variant="ghost" size="sm" onClick={() => void handleSignOut()} disabled={busy} className="px-2 text-xs sm:px-3 sm:text-sm">
         Sign out
       </Button>
     </div>
