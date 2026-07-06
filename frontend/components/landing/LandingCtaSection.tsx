@@ -46,7 +46,7 @@ export function LandingCtaSection() {
       <FadeIn>
         <div
           ref={cardRef}
-          className="relative overflow-hidden rounded-[1.5rem] border border-white/80 bg-white/92 px-5 py-10 shadow-[0_32px_64px_-20px_rgba(112,63,147,0.18)] backdrop-blur-md sm:rounded-[2rem] sm:px-12 sm:py-14 lg:px-16 lg:py-16"
+          className="relative overflow-hidden rounded-3xl border border-white/80 bg-white/92 px-5 py-10 shadow-[0_32px_64px_-20px_rgba(112,63,147,0.18)] backdrop-blur-md sm:rounded-4xl sm:px-12 sm:py-14 lg:px-16 lg:py-16"
         >
           <div
             className="cta-glow-plum pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full blur-3xl"
