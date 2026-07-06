@@ -64,20 +64,20 @@ export default function SettingsPage() {
       <FadeIn delay={0.1}>
         <Card className="flex flex-col gap-4">
           <h2 className="text-sm font-bold uppercase tracking-wider text-ink">Navigation</h2>
-          <div className="flex flex-wrap gap-3">
-            <Link href="/gallery">
-              <Button variant="outline" size="sm">
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+            <Link href="/gallery" className="w-full sm:w-auto">
+              <Button variant="outline" size="sm" className="w-full sm:w-auto">
                 Open gallery
               </Button>
             </Link>
-            <Link href="/profile">
-              <Button variant="outline" size="sm">
+            <Link href="/profile" className="w-full sm:w-auto">
+              <Button variant="outline" size="sm" className="w-full sm:w-auto">
                 View profile
               </Button>
             </Link>
             <Link
               href="/"
-              className="inline-flex h-9 items-center rounded-full px-4 text-sm font-semibold text-ink hover:bg-plum-light/60"
+              className="inline-flex h-11 w-full items-center justify-center rounded-full px-4 text-sm font-semibold text-ink hover:bg-plum-light/60 sm:h-9 sm:w-auto"
             >
               Back to home
             </Link>

@@ -12,6 +12,7 @@ const NAV = [
   { href: "/gallery", label: "Gallery" },
   { href: "/profile", label: "Profile" },
   { href: "/settings", label: "Settings" },
+  { href: "/feedback", label: "Feedback" },
 ];
 
 const MINIMAL_HEADER_PATHS = ["/sign-in", "/auth/callback"];
@@ -97,10 +98,12 @@ export function AppHeader() {
     return null;
   }
 
+  const isLandingHome = pathname === "/";
+
   return (
     <header className="sticky top-0 z-50 border-b border-white/60 bg-white/70 backdrop-blur-xl">
-      <div className="mx-auto flex h-14 max-w-7xl items-center justify-between gap-3 px-4 sm:h-16 sm:px-6">
-        <SviglLogo className="min-w-0 shrink" />
+      <div className="mx-auto flex h-14 w-full max-w-7xl items-center gap-3 px-4 sm:h-16 sm:px-6">
+        <SviglLogo className={cn("min-w-0 shrink-0", isLandingHome && "hidden md:inline-flex")} />
 
         <nav className="absolute left-1/2 hidden -translate-x-1/2 items-center gap-1 md:flex">
           {NAV.map(({ href, label }) => {
@@ -109,7 +112,7 @@ export function AppHeader() {
           })}
         </nav>
 
-        <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+        <div className="ml-auto flex shrink-0 items-center gap-2 sm:gap-3">
           <AuthControls />
           <button
             type="button"

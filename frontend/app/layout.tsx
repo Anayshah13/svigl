@@ -28,6 +28,12 @@ export const metadata: Metadata = {
   description: "SVG drawing gallery built from editable vector primitives.",
 };
 
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover" as const,
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
@@ -44,6 +50,8 @@ export default function RootLayout({
           backgroundColor: "#FAFAF8",
           color: "#2C2C2C",
           paddingTop: "env(safe-area-inset-top, 0px)",
+          paddingLeft: "env(safe-area-inset-left, 0px)",
+          paddingRight: "env(safe-area-inset-right, 0px)",
         }}
       >
         <AuroraBackground />

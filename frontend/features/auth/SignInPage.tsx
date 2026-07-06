@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
+import { SviglLogo } from "@/components/layout/SviglLogo";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { startGoogleSignIn, startGuestSignIn } from "@/services/auth";
@@ -77,9 +78,11 @@ export function SignInPage() {
           boxShadow: `0 24px 48px -16px ${colors.plum}18, 0 0 0 1px rgba(255,255,255,0.85)`,
         }}
       >
-        <p className="script-accent text-3xl font-semibold text-plum">Svigl</p>
+        <div className="flex justify-center">
+          <SviglLogo size="lg" />
+        </div>
 
-        <h1 className="mt-5 text-xl font-bold tracking-tight text-ink sm:mt-6 sm:text-2xl">Welcome to Svigl</h1>
+        <h1 className="mt-5 text-xl font-bold tracking-tight text-ink sm:mt-6 sm:text-2xl">Welcome</h1>
         <p className="mt-2 text-sm leading-relaxed text-ink-muted">
           Sign in with Google or play as a guest to enter the drawing gallery and play with friends.
         </p>

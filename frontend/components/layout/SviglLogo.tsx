@@ -1,29 +1,33 @@
 import Link from "next/link";
 import { cn } from "@/lib/cn";
-import { colors } from "@/lib/colors";
 
-export function SviglLogo({ className }: { className?: string }) {
+const LOGO_SIZES = {
+  sm: "text-xl",
+  default: "text-3xl",
+  lg: "text-4xl sm:text-5xl",
+  hero: "text-[clamp(3rem,14vw,4.75rem)]",
+} as const;
+
+export function SviglLogo({
+  className,
+  size = "default",
+}: {
+  className?: string;
+  size?: keyof typeof LOGO_SIZES;
+}) {
   return (
-    <Link href="/" className={cn("group flex items-center gap-2", className)}>
-      <svg
-        width="28"
-        height="28"
-        viewBox="0 0 28 28"
-        fill="none"
-        aria-hidden="true"
-        className="transition-transform duration-300 group-hover:rotate-12"
+    <Link
+      href="/"
+      aria-label="Svigl home"
+      className={cn("group inline-flex items-center", className)}
+    >
+      <span
+        className={cn(
+          "script-accent font-bold leading-none tracking-tight transition-transform duration-300 group-hover:scale-[1.03]",
+          LOGO_SIZES[size],
+        )}
       >
-        <path
-          d="M4 20 Q14 4 24 20"
-          stroke={colors.plum}
-          strokeWidth="3"
-          strokeLinecap="round"
-          fill="none"
-        />
-        <circle cx="14" cy="18" r="2" fill={colors.chartreuse} />
-      </svg>
-      <span className="text-xl font-bold tracking-tight text-ink">
-        Svigl<span style={{ color: colors.plum }}>.</span>
+        Svigl
       </span>
     </Link>
   );
