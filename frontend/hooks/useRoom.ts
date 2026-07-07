@@ -4,15 +4,32 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { roomSyncAdapter } from "@/lib/room-sync";
 import { claimRoomTab, releaseRoomTab, startRoomTabHeartbeat } from "@/lib/room-tab-lock";
+import { redirectToSignInWithReturn } from "@/lib/post-auth-redirect";
 import { validateRoomCode } from "@/lib/room-code";
-import { createRoom, fetchActiveRoom, fetchRoom, isUserInRoom, joinRoom, leaveRoom } from "@/services/room";
+import {
+  createRoom,
+  fetchActiveRoom,
+  fetchRoom,
+  isUserInRoom,
+  joinRoom,
+  kickPlayer as kickPlayerApi,
+  leaveRoom,
+  transferHost as transferHostApi,
+} from "@/services/room";
 import { useSessionStore } from "@/stores/session";
 import { useRoomStore } from "@/stores/room";
 import type { Room, RoomError } from "@/types/room";
 import { ROOM_ERROR_MESSAGES } from "@/types/room";
 
-function redirectToSignIn(router: ReturnType<typeof useRouter>): void {
-  router.replace("/sign-in?error=Session%20expired.%20Please%20sign%20in%20again.");
+function redirectToSignIn(
+  router: ReturnType<typeof useRouter>,
+  returnPath?: string,
+): void {
+  redirectToSignInWithReturn(
+    router,
+    returnPath,
+    "Your session expired. Sign in again to rejoin your room.",
+  );
 }
 
 async function recoverActiveRoomOnConflict(): Promise<void> {
@@ -136,20 +153,22 @@ export function useRoom(code: string, options: UseRoomOptions = {}) {
   const [notMember, setNotMember] = useState(false);
   const [tabBlocked, setTabBlocked] = useState(false);
   const [joining, setJoining] = useState(false);
+  const [awaitingSignIn, setAwaitingSignIn] = useState(false);
 
   const leaveInFlight = useRef(false);
   const joinInFlight = useRef(false);
   const normalizedCode = code.trim().toUpperCase();
+  const codeValidationError = validateRoomCode(code);
 
   const handleAuthError = useCallback(
     (roomError: RoomError) => {
       if (roomError.code === "AUTH_EXPIRED") {
-        redirectToSignIn(router);
+        redirectToSignIn(router, `/room/${normalizedCode}`);
         return true;
       }
       return false;
     },
-    [router],
+    [normalizedCode, router],
   );
 
   const applyRoom = useCallback(
@@ -231,9 +250,61 @@ export function useRoom(code: string, options: UseRoomOptions = {}) {
     }
   }, [handleAuthError, leaving, normalizedCode, router]);
 
+  const kick = useCallback(
+    async (targetId: string) => {
+      setError(null);
+      try {
+        const nextRoom = await kickPlayerApi(normalizedCode, targetId);
+        applyRoom(nextRoom);
+      } catch (caught) {
+        const roomError = caught as RoomError;
+        if (!handleAuthError(roomError)) {
+          setError(roomError);
+        }
+      }
+    },
+    [applyRoom, handleAuthError, normalizedCode],
+  );
+
+  const makeHost = useCallback(
+    async (targetId: string) => {
+      setError(null);
+      try {
+        const nextRoom = await transferHostApi(normalizedCode, targetId);
+        applyRoom(nextRoom);
+      } catch (caught) {
+        const roomError = caught as RoomError;
+        if (!handleAuthError(roomError)) {
+          setError(roomError);
+        }
+      }
+    },
+    [applyRoom, handleAuthError, normalizedCode],
+  );
+
+  // Invite links: unauthenticated visitors must sign in before the room can load.
+  useEffect(() => {
+    if (!authReady) return;
+
+    if (codeValidationError) {
+      setError(codeValidationError);
+      setLoading(false);
+      return;
+    }
+
+    if (!selfId) {
+      setAwaitingSignIn(true);
+      redirectToSignInWithReturn(
+        router,
+        `/room/${normalizedCode}`,
+        "Sign in to join this room.",
+      );
+    }
+  }, [authReady, codeValidationError, normalizedCode, router, selfId]);
+
   // Initial load + polling via swappable sync adapter
   useEffect(() => {
-    if (!authReady || !selfId) return;
+    if (!authReady || !selfId || codeValidationError) return;
 
     const claim = claimRoomTab(selfId, normalizedCode);
     if (claim === "blocked") {
@@ -287,7 +358,7 @@ export function useRoom(code: string, options: UseRoomOptions = {}) {
 
   return {
     room,
-    loading: !authReady || loading,
+    loading: !authReady || awaitingSignIn || loading,
     error,
     leaving,
     joining,
@@ -298,6 +369,8 @@ export function useRoom(code: string, options: UseRoomOptions = {}) {
     currentPlayer,
     authUser,
     leaveRoom: leave,
+    kickPlayer: kick,
+    transferHost: makeHost,
     retry,
     attemptJoin,
   };

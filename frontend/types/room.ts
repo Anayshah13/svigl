@@ -27,6 +27,10 @@ export type RoomErrorCode =
   | "ALREADY_IN_ROOM"
   | "NOT_IN_ROOM"
   | "NOT_A_MEMBER"
+  | "NOT_HOST"
+  | "CANNOT_KICK_SELF"
+  | "ALREADY_HOST"
+  | "TARGET_NOT_IN_ROOM"
   | "TAB_BLOCKED"
   | "AUTH_EXPIRED"
   | "NETWORK_ERROR"
@@ -49,6 +53,10 @@ export const ROOM_ERROR_MESSAGES: Record<RoomErrorCode, string> = {
     "You're already in another room. Use the session bar at the bottom to return or leave before joining a new one.",
   NOT_IN_ROOM: "You're not in this room.",
   NOT_A_MEMBER: "You're not in this room. Join with the code or head back home.",
+  NOT_HOST: "Only the host can do that.",
+  CANNOT_KICK_SELF: "You can't kick yourself. Leave the room instead.",
+  ALREADY_HOST: "That player is already the host.",
+  TARGET_NOT_IN_ROOM: "That player is not in this room.",
   TAB_BLOCKED:
     "This room is already open in another tab. Close the other tab, then refresh this page.",
   AUTH_EXPIRED: "Your session expired. Please sign in again.",

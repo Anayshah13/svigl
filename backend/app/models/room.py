@@ -72,6 +72,11 @@ class RoomPlayer(Base):
         server_default=func.now(),
         nullable=False,
     )
+    last_seen_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
 
     room: Mapped["Room"] = relationship(back_populates="players")
     user = relationship("User", lazy="joined")

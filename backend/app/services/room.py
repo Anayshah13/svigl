@@ -1,5 +1,6 @@
 import random
 import string
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from fastapi import HTTPException, status
@@ -16,6 +17,11 @@ from app.models.room import (
 
 _CODE_CHARS = string.ascii_uppercase
 _MAX_CODE_ATTEMPTS = 20
+PRESENCE_TTL_SECONDS = 15
+
+
+def _utcnow() -> datetime:
+    return datetime.now(timezone.utc)
 
 
 def _generate_unique_code(db: Session) -> str:
@@ -56,6 +62,72 @@ def _get_room_or_404(db: Session, code: str) -> Room:
     return room
 
 
+def _remove_player(db: Session, room: Room, user_id: UUID) -> Room | None:
+    """Remove a player from a room. Returns the room if it still exists, else None."""
+    target = next((rp for rp in list(room.players) if rp.user_id == user_id), None)
+    if target is None:
+        return room
+
+    db.delete(target)
+    db.flush()
+
+    remaining = [rp for rp in room.players if rp.user_id != user_id]
+
+    if not remaining:
+        db.delete(room)
+        db.commit()
+        return None
+
+    if room.host_id == user_id:
+        room.host_id = remaining[0].user_id
+
+    db.commit()
+    db.refresh(room)
+    return room
+
+
+def evict_stale_players(db: Session, room: Room) -> Room | None:
+    """Drop players whose client has not sent a presence ping recently."""
+    db.refresh(room)
+    cutoff = _utcnow() - timedelta(seconds=PRESENCE_TTL_SECONDS)
+    stale_user_ids = [
+        rp.user_id for rp in list(room.players) if rp.last_seen_at < cutoff
+    ]
+
+    current: Room | None = room
+    for user_id in stale_user_ids:
+        if current is None:
+            break
+        db.refresh(current)
+        current = _remove_player(db, current, user_id)
+
+    return current
+
+
+def touch_room_presence(db: Session, code: str, user_id: UUID) -> Room | None:
+    """Record that a player is still connected and evict anyone who is not."""
+    room = _get_room_or_404(db, code)
+
+    target = next((rp for rp in room.players if rp.user_id == user_id), None)
+    if target is None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="You are not in this room.",
+        )
+
+    target.last_seen_at = _utcnow()
+    db.flush()
+
+    room = evict_stale_players(db, room)
+    if room is None:
+        db.commit()
+        return None
+
+    db.commit()
+    db.refresh(room)
+    return room
+
+
 def create_room(db: Session, host_id: UUID, max_players: int) -> Room:
     existing = _get_active_room_for_user(db, host_id)
     if existing:
@@ -65,11 +137,12 @@ def create_room(db: Session, host_id: UUID, max_players: int) -> Room:
         )
 
     code = _generate_unique_code(db)
+    now = _utcnow()
     room = Room(code=code, host_id=host_id, max_players=max_players)
     db.add(room)
     db.flush()
 
-    player = RoomPlayer(room_id=room.id, user_id=host_id)
+    player = RoomPlayer(room_id=room.id, user_id=host_id, last_seen_at=now)
     db.add(player)
     db.commit()
     db.refresh(room)
@@ -90,8 +163,11 @@ def join_room(db: Session, code: str, user_id: UUID) -> Room:
             detail="Game is already in progress.",
         )
 
-    already_in = any(rp.user_id == user_id for rp in room.players)
+    already_in = next((rp for rp in room.players if rp.user_id == user_id), None)
     if already_in:
+        already_in.last_seen_at = _utcnow()
+        db.commit()
+        db.refresh(room)
         return room
 
     existing = _get_active_room_for_user(db, user_id)
@@ -107,7 +183,7 @@ def join_room(db: Session, code: str, user_id: UUID) -> Room:
             detail="Room is full.",
         )
 
-    player = RoomPlayer(room_id=room.id, user_id=user_id)
+    player = RoomPlayer(room_id=room.id, user_id=user_id, last_seen_at=_utcnow())
     db.add(player)
     db.commit()
     db.refresh(room)
@@ -117,27 +193,92 @@ def join_room(db: Session, code: str, user_id: UUID) -> Room:
 def leave_room(db: Session, code: str, user_id: UUID) -> Room | None:
     """Remove a player from a room. Returns the room if it still exists, else None."""
     room = _get_room_or_404(db, code)
+    return _remove_player(db, room, user_id)
 
-    target = next((rp for rp in room.players if rp.user_id == user_id), None)
+
+def _assert_host(room: Room, user_id: UUID) -> None:
+    if room.host_id != user_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the host can perform this action.",
+        )
+
+
+def _get_member_or_409(room: Room, target_id: UUID) -> RoomPlayer:
+    target = next((rp for rp in room.players if rp.user_id == target_id), None)
     if target is None:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="You are not in this room.",
+            detail="That player is not in this room.",
+        )
+    return target
+
+
+def kick_player(
+    db: Session, code: str, host_id: UUID, target_id: UUID
+) -> Room | None:
+    """
+    Host removes another player from the room.
+
+    Edge cases handled:
+    - Non-host caller → 403
+    - Host trying to kick themselves → 409 (use leave instead)
+    - Target not in room → 409
+    - Room is FINISHED → 410
+    - Room deleted after kick (shouldn't happen since host stays) → None
+    """
+    room = _get_room_or_404(db, code)
+
+    if room.status == ROOM_STATUS_FINISHED:
+        raise HTTPException(
+            status_code=status.HTTP_410_GONE,
+            detail="This room has finished.",
         )
 
-    db.delete(target)
-    db.flush()
+    _assert_host(room, host_id)
 
-    remaining = [rp for rp in room.players if rp.user_id != user_id]
+    if target_id == host_id:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="You can't kick yourself. Use leave instead.",
+        )
 
-    if not remaining:
-        db.delete(room)
-        db.commit()
-        return None
+    _get_member_or_409(room, target_id)
 
-    if room.host_id == user_id:
-        room.host_id = remaining[0].user_id
+    return _remove_player(db, room, target_id)
 
+
+def transfer_host(
+    db: Session, code: str, host_id: UUID, new_host_id: UUID
+) -> Room:
+    """
+    Transfer host role to another player in the room.
+
+    Edge cases handled:
+    - Non-host caller → 403
+    - Transferring to yourself → 409
+    - New host not in room → 409
+    - Room is FINISHED → 410
+    """
+    room = _get_room_or_404(db, code)
+
+    if room.status == ROOM_STATUS_FINISHED:
+        raise HTTPException(
+            status_code=status.HTTP_410_GONE,
+            detail="This room has finished.",
+        )
+
+    _assert_host(room, host_id)
+
+    if new_host_id == host_id:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="You are already the host.",
+        )
+
+    _get_member_or_409(room, new_host_id)
+
+    room.host_id = new_host_id
     db.commit()
     db.refresh(room)
     return room
@@ -147,8 +288,27 @@ def get_user_active_room(db: Session, user_id: UUID) -> Room | None:
     membership = _get_active_room_for_user(db, user_id)
     if membership is None:
         return None
-    return db.get(Room, membership.room_id)
+
+    room = db.get(Room, membership.room_id)
+    if room is None:
+        return None
+
+    room = evict_stale_players(db, room)
+    if room is None:
+        return None
+
+    if not any(rp.user_id == user_id for rp in room.players):
+        return None
+
+    return room
 
 
 def get_room(db: Session, code: str) -> Room:
-    return _get_room_or_404(db, code)
+    room = _get_room_or_404(db, code)
+    room = evict_stale_players(db, room)
+    if room is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Room not found.",
+        )
+    return room

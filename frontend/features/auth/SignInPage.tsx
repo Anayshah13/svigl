@@ -9,6 +9,13 @@ import { Card } from "@/components/ui/Card";
 import { startGoogleSignIn, startGuestSignIn } from "@/services/auth";
 import { useSessionStore } from "@/stores/session";
 import { colors } from "@/lib/colors";
+import {
+  clearStoredPostAuthRedirect,
+  resolvePostAuthRedirect,
+  sanitizePostAuthRedirect,
+  storePostAuthRedirect,
+} from "@/lib/post-auth-redirect";
+import { normalizeRoomCode } from "@/lib/room-code";
 
 function GoogleIcon() {
   return (
@@ -39,14 +46,26 @@ export function SignInPage() {
   const authUser = useSessionStore((s) => s.authUser);
   const authReady = useSessionStore((s) => s.authReady);
   const error = searchParams.get("error");
+  const message = searchParams.get("message");
+  const nextPath = sanitizePostAuthRedirect(searchParams.get("next"));
+  const inviteRoomCode =
+    nextPath?.startsWith("/room/") ? normalizeRoomCode(nextPath.slice("/room/".length)) : null;
   const [redirecting, setRedirecting] = useState(false);
   const [guestError, setGuestError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (authReady && authUser) {
-      router.replace("/");
+    if (nextPath) {
+      storePostAuthRedirect(nextPath);
     }
-  }, [authReady, authUser, router]);
+  }, [nextPath]);
+
+  useEffect(() => {
+    if (authReady && authUser) {
+      const destination = resolvePostAuthRedirect(searchParams.get("next"));
+      clearStoredPostAuthRedirect();
+      router.replace(destination);
+    }
+  }, [authReady, authUser, router, searchParams]);
 
   const handleGuestSignIn = async () => {
     setRedirecting(true);
@@ -55,7 +74,9 @@ export function SignInPage() {
       const user = await startGuestSignIn();
       useSessionStore.getState().setAuth(user);
       useSessionStore.getState().setAuthReady(true);
-      router.replace("/");
+      const destination = resolvePostAuthRedirect(searchParams.get("next"));
+      clearStoredPostAuthRedirect();
+      router.replace(destination);
     } catch {
       setGuestError("Could not sign in as guest. Please try again.");
       setRedirecting(false);
@@ -82,10 +103,26 @@ export function SignInPage() {
           <SviglLogo size="lg" />
         </div>
 
-        <h1 className="mt-5 text-xl font-bold tracking-tight text-ink sm:mt-6 sm:text-2xl">Welcome</h1>
+        <h1 className="mt-5 text-xl font-bold tracking-tight text-ink sm:mt-6 sm:text-2xl">
+          {inviteRoomCode ? "Join the game" : "Welcome"}
+        </h1>
         <p className="mt-2 text-sm leading-relaxed text-ink-muted">
-          Sign in with Google or play as a guest to enter the drawing gallery and play with friends.
+          {inviteRoomCode ? (
+            <>
+              Sign in to join room{" "}
+              <span className="font-mono font-bold tracking-[0.15em] text-plum">{inviteRoomCode}</span>
+              . Your Google name or guest username will appear in the lobby.
+            </>
+          ) : (
+            "Sign in with Google or play as a guest to enter the drawing gallery and play with friends."
+          )}
         </p>
+
+        {message ? (
+          <p className="mt-4 rounded-2xl bg-plum-light px-4 py-3 text-sm font-medium text-plum">
+            {message}
+          </p>
+        ) : null}
 
         {error ? (
           <p
@@ -113,7 +150,7 @@ export function SignInPage() {
           disabled={redirecting}
           onClick={() => {
             setRedirecting(true);
-            startGoogleSignIn();
+            startGoogleSignIn(nextPath);
           }}
         >
           <GoogleIcon />

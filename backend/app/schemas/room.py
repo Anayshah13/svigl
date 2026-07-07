@@ -8,6 +8,10 @@ class CreateRoomRequest(BaseModel):
     max_players: int = Field(default=8, ge=2, le=16)
 
 
+class TargetPlayerRequest(BaseModel):
+    player_id: UUID
+
+
 class PlayerResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

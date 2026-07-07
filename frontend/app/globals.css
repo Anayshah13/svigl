@@ -51,6 +51,10 @@ main {
   background-color: transparent;
 }
 
+html.has-active-room-bar main {
+  padding-bottom: var(--active-room-bar-offset, 7rem);
+}
+
 ::selection {
   background: var(--pink-light);
   color: var(--plum);

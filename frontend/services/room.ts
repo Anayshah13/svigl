@@ -1,4 +1,4 @@
-import { ApiError, apiFetch } from "@/lib/api";
+import { ApiError, apiFetch, getApiUrl } from "@/lib/api";
 import { normalizeRoomCode } from "@/lib/room-code";
 import { ROOM_ERROR_MESSAGES, type Room, type RoomError, type RoomStatus } from "@/types/room";
 
@@ -61,6 +61,10 @@ function mapApiError(error: unknown): RoomError {
     return { code: "SERVER_UNAVAILABLE", message: ROOM_ERROR_MESSAGES.SERVER_UNAVAILABLE };
   }
 
+  if (error.status === 403) {
+    return { code: "NOT_HOST", message: ROOM_ERROR_MESSAGES.NOT_HOST };
+  }
+
   if (error.status === 409) {
     const detail = error.detail?.toLowerCase() ?? "";
 
@@ -78,6 +82,15 @@ function mapApiError(error: unknown): RoomError {
     }
     if (detail.includes("already in an active room")) {
       return { code: "ALREADY_IN_ROOM", message: ROOM_ERROR_MESSAGES.ALREADY_IN_ROOM };
+    }
+    if (detail.includes("kick yourself")) {
+      return { code: "CANNOT_KICK_SELF", message: ROOM_ERROR_MESSAGES.CANNOT_KICK_SELF };
+    }
+    if (detail.includes("already the host")) {
+      return { code: "ALREADY_HOST", message: ROOM_ERROR_MESSAGES.ALREADY_HOST };
+    }
+    if (detail.includes("player is not in this room")) {
+      return { code: "TARGET_NOT_IN_ROOM", message: ROOM_ERROR_MESSAGES.TARGET_NOT_IN_ROOM };
     }
   }
 
@@ -139,6 +152,45 @@ export async function fetchActiveRoom(): Promise<Room | null> {
     }
     throw error;
   }
+}
+
+/** Keep the player marked as connected; also triggers stale-player eviction server-side. */
+export async function pingRoomPresence(code: string): Promise<Room> {
+  const normalized = normalizeRoomCode(code);
+  const data = await roomRequest<RoomResponse>(`/rooms/${normalized}/presence`, {
+    method: "POST",
+  });
+  return mapRoom(data);
+}
+
+/** Best-effort leave when the tab or window is closing. */
+export function leaveRoomBeacon(code: string): void {
+  const normalized = normalizeRoomCode(code);
+  void fetch(`${getApiUrl()}/rooms/${normalized}/leave`, {
+    method: "POST",
+    credentials: "include",
+    keepalive: true,
+  });
+}
+
+/** Host kicks a player from the room. */
+export async function kickPlayer(code: string, playerId: string): Promise<Room> {
+  const normalized = normalizeRoomCode(code);
+  const data = await roomRequest<RoomResponse>(`/rooms/${normalized}/kick`, {
+    method: "POST",
+    body: JSON.stringify({ player_id: playerId }),
+  });
+  return mapRoom(data);
+}
+
+/** Host transfers the host role to another player. */
+export async function transferHost(code: string, playerId: string): Promise<Room> {
+  const normalized = normalizeRoomCode(code);
+  const data = await roomRequest<RoomResponse>(`/rooms/${normalized}/transfer-host`, {
+    method: "POST",
+    body: JSON.stringify({ player_id: playerId }),
+  });
+  return mapRoom(data);
 }
 
 export function isUserInRoom(room: Room, userId: string | null): boolean {

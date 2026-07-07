@@ -1,6 +1,7 @@
 import { getGuestDeviceId } from "@/lib/guest";
 import { getApiUrl } from "@/lib/api";
 import { formatDisplayName } from "@/lib/names";
+import { sanitizePostAuthRedirect, storePostAuthRedirect } from "@/lib/post-auth-redirect";
 
 export type AuthProvider = "google" | "guest";
 
@@ -44,11 +45,25 @@ function mapMeResponse(data: MeResponse): AuthUser {
   };
 }
 
-export function startGoogleSignIn(): void {
+export function startGoogleSignIn(returnPath?: string | null): void {
   authLog("loginGoogle called");
   sessionRequest = null;
   sessionStorage.removeItem("svigl:auth-callback-processing");
-  window.location.href = `${getApiUrl()}/auth/google`;
+
+  const safeNext = sanitizePostAuthRedirect(returnPath);
+  if (safeNext) {
+    storePostAuthRedirect(safeNext);
+  }
+
+  const params = new URLSearchParams();
+  if (safeNext) {
+    params.set("next", safeNext);
+  }
+
+  const query = params.toString();
+  window.location.href = query
+    ? `${getApiUrl()}/auth/google?${query}`
+    : `${getApiUrl()}/auth/google`;
 }
 
 export async function startGuestSignIn(): Promise<AuthUser> {

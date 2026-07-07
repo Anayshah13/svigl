@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
+import { redirectToSignInWithReturn } from "@/lib/post-auth-redirect";
 import { releaseRoomTab } from "@/lib/room-tab-lock";
 import { fetchActiveRoom, fetchRoom, isUserInRoom, leaveRoom } from "@/services/room";
 import { useSessionStore } from "@/stores/session";
@@ -11,10 +12,6 @@ import { readPersistedRoomCode, useRoomStore } from "@/stores/room";
 import { ROOM_STATUS_LABELS, type RoomError } from "@/types/room";
 
 const REFRESH_INTERVAL_MS = 10_000;
-
-function redirectToSignIn(router: ReturnType<typeof useRouter>): void {
-  router.replace("/sign-in?error=Session%20expired.%20Please%20sign%20in%20again.");
-}
 
 /** Keeps active-room state in sync with the backend across page navigations. */
 export function useActiveRoomSession() {
@@ -53,14 +50,18 @@ export function useActiveRoomSession() {
     } catch (error) {
       const roomError = error as RoomError;
       if (roomError.code === "AUTH_EXPIRED") {
-        redirectToSignIn(router);
+        redirectToSignInWithReturn(
+          router,
+          activeRoom ? `/room/${activeRoom.code}` : undefined,
+          "Your session expired. Sign in again to rejoin your room.",
+        );
         return;
       }
       if (roomError.code === "ROOM_NOT_FOUND" || roomError.code === "ROOM_FINISHED") {
         clearActiveRoom();
       }
     }
-  }, [clearActiveRoom, router, selfId, syncActiveRoom]);
+  }, [activeRoom, clearActiveRoom, router, selfId, syncActiveRoom]);
 
   // Restore session from localStorage after auth bootstrap
   useEffect(() => {
@@ -95,7 +96,11 @@ export function useActiveRoomSession() {
         if (cancelled) return;
         const roomError = error as RoomError;
         if (roomError.code === "AUTH_EXPIRED") {
-          redirectToSignIn(router);
+          redirectToSignInWithReturn(
+            router,
+            code ? `/room/${code}` : undefined,
+            "Your session expired. Sign in again to rejoin your room.",
+          );
         } else {
           clearActiveRoom();
         }
@@ -136,7 +141,11 @@ export function useActiveRoomSession() {
     } catch (error) {
       const roomError = error as RoomError;
       if (roomError.code === "AUTH_EXPIRED") {
-        redirectToSignIn(router);
+        redirectToSignInWithReturn(
+          router,
+          activeRoom ? `/room/${activeRoom.code}` : undefined,
+          "Your session expired. Sign in again to rejoin your room.",
+        );
       } else if (roomError.code === "NOT_IN_ROOM" || roomError.code === "ROOM_NOT_FOUND") {
         clearActiveRoom();
       }
@@ -160,6 +169,36 @@ export function useActiveRoomSession() {
 
 export function ActiveRoomBar() {
   const { activeRoom, barVisible, leaving, leaveActiveRoom, returnHref } = useActiveRoomSession();
+  const barContainerRef = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    const root = document.documentElement;
+
+    if (!barVisible) {
+      root.classList.remove("has-active-room-bar");
+      root.style.removeProperty("--active-room-bar-offset");
+      return;
+    }
+
+    const el = barContainerRef.current;
+    if (!el) return;
+
+    const syncOffset = () => {
+      root.style.setProperty("--active-room-bar-offset", `${el.offsetHeight}px`);
+      root.classList.add("has-active-room-bar");
+    };
+
+    syncOffset();
+
+    const observer = new ResizeObserver(syncOffset);
+    observer.observe(el);
+
+    return () => {
+      observer.disconnect();
+      root.classList.remove("has-active-room-bar");
+      root.style.removeProperty("--active-room-bar-offset");
+    };
+  }, [barVisible]);
 
   if (!barVisible || !activeRoom) {
     return null;
@@ -168,9 +207,10 @@ export function ActiveRoomBar() {
   const statusLabel = ROOM_STATUS_LABELS[activeRoom.status];
 
   return (
-      <>
-      <div className="h-24 shrink-0 sm:h-28" aria-hidden />
-      <div className="pointer-events-none fixed inset-x-0 bottom-0 z-50 px-3 pb-3 safe-bottom sm:px-6 sm:pb-5">
+      <div
+        ref={barContainerRef}
+        className="pointer-events-none fixed inset-x-0 bottom-0 z-50 px-3 pb-3 safe-bottom sm:px-6 sm:pb-5"
+      >
         <div
           role="status"
           className="pointer-events-auto mx-auto max-w-7xl rounded-2xl border border-plum/20 bg-white/95 px-4 py-3.5 shadow-[0_12px_40px_-12px_rgba(112,63,147,0.35),0_0_0_1px_rgba(255,255,255,0.9)] backdrop-blur-xl sm:rounded-3xl sm:px-6 sm:py-5"
@@ -214,6 +254,5 @@ export function ActiveRoomBar() {
           </div>
         </div>
       </div>
-    </>
   );
 }

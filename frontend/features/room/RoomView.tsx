@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import * as React from "react";
+import { InviteFriendsPill, RoomCodeCopyButton } from "@/components/room/RoomInviteActions";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { UserAvatar } from "@/components/ui/UserAvatar";
@@ -58,6 +60,107 @@ function ErrorPanel({
   );
 }
 
+function PlayerActions({
+  playerId,
+  playerName,
+  onKick,
+  onMakeHost,
+}: {
+  playerId: string;
+  playerName: string;
+  onKick: (id: string) => Promise<void>;
+  onMakeHost: (id: string) => Promise<void>;
+}) {
+  const [open, setOpen] = React.useState(false);
+  const [busy, setBusy] = React.useState(false);
+  const [confirmKick, setConfirmKick] = React.useState(false);
+  const ref = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    if (!open) return;
+    const onClickOutside = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+        setConfirmKick(false);
+      }
+    };
+    document.addEventListener("mousedown", onClickOutside);
+    return () => document.removeEventListener("mousedown", onClickOutside);
+  }, [open]);
+
+  const handleKick = async () => {
+    if (!confirmKick) {
+      setConfirmKick(true);
+      return;
+    }
+    setBusy(true);
+    await onKick(playerId);
+    setBusy(false);
+    setOpen(false);
+    setConfirmKick(false);
+  };
+
+  const handleMakeHost = async () => {
+    setBusy(true);
+    await onMakeHost(playerId);
+    setBusy(false);
+    setOpen(false);
+  };
+
+  const displayName = formatDisplayName(playerName);
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => {
+          setOpen((o) => !o);
+          setConfirmKick(false);
+        }}
+        className="inline-flex h-8 w-8 items-center justify-center rounded-full text-ink-muted transition-colors hover:bg-plum-light hover:text-plum"
+        aria-label={`Manage ${displayName}`}
+      >
+        <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4" aria-hidden="true">
+          <circle cx="10" cy="4" r="1.5" />
+          <circle cx="10" cy="10" r="1.5" />
+          <circle cx="10" cy="16" r="1.5" />
+        </svg>
+      </button>
+
+      {open ? (
+        <div className="absolute right-0 top-full z-20 mt-1 w-48 overflow-hidden rounded-xl border border-plum/15 bg-white shadow-lg">
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void handleMakeHost()}
+            className="flex w-full items-center gap-2 px-3.5 py-2.5 text-left text-sm font-medium text-ink transition-colors hover:bg-plum-light disabled:opacity-50"
+          >
+            <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4 shrink-0 text-plum" aria-hidden="true">
+              <path d="M10 2l2.09 4.26L17 7.27l-3.5 3.41L14.18 16 10 13.77 5.82 16l.68-5.32L3 7.27l4.91-1.01z" />
+            </svg>
+            Make host
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void handleKick()}
+            className={`flex w-full items-center gap-2 px-3.5 py-2.5 text-left text-sm font-medium transition-colors disabled:opacity-50 ${
+              confirmKick
+                ? "bg-red-50 text-red-600 hover:bg-red-100"
+                : "text-red-500 hover:bg-red-50"
+            }`}
+          >
+            <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4 shrink-0" aria-hidden="true">
+              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clipRule="evenodd" />
+            </svg>
+            {confirmKick ? `Confirm kick ${displayName}?` : "Kick player"}
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export function RoomView() {
   const params = useParams<{ code: string }>();
   const code = params.code ?? "";
@@ -75,6 +178,8 @@ export function RoomView() {
     currentPlayer,
     authUser,
     leaveRoom,
+    kickPlayer,
+    transferHost,
     retry,
     attemptJoin,
   } = useRoom(code, { autoJoin: true });
@@ -130,23 +235,29 @@ export function RoomView() {
       <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
         <div className="min-w-0">
           <p className="text-xs font-bold uppercase tracking-wider text-ink-muted">Room</p>
-          <h1 className="mt-1 break-all font-mono text-[clamp(1.75rem,8vw,2.25rem)] font-bold tracking-[0.12em] text-ink sm:tracking-[0.2em]">
-            {room.code}
-          </h1>
+          <div className="relative mt-1 inline-block pr-8">
+            <h1 className="break-all font-mono text-[clamp(1.75rem,8vw,2.25rem)] font-bold tracking-[0.12em] text-ink sm:tracking-[0.2em]">
+              {room.code}
+            </h1>
+            <RoomCodeCopyButton code={room.code} className="absolute bottom-0 right-0" />
+          </div>
           <div className="mt-2 sm:mt-3">
             <StatusBadge status={room.status} />
           </div>
         </div>
 
-        <Button
-          type="button"
-          variant="outline"
-          disabled={leaving}
-          onClick={() => void leaveRoom()}
-          className="w-full sm:w-auto"
-        >
-          {leaving ? "Leaving…" : "Leave room"}
-        </Button>
+        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+          <InviteFriendsPill code={room.code} className="flex-1 sm:flex-none" />
+          <Button
+            type="button"
+            variant="outline"
+            disabled={leaving}
+            onClick={() => void leaveRoom()}
+            className="flex-1 sm:w-auto"
+          >
+            {leaving ? "Leaving…" : "Leave room"}
+          </Button>
+        </div>
       </div>
 
       {error ? (
@@ -195,31 +306,46 @@ export function RoomView() {
       <Card className="rounded-3xl p-4 sm:p-6">
         <h2 className="text-sm font-bold uppercase tracking-wider text-ink-muted">Players</h2>
         <ul className="mt-3 space-y-2 sm:mt-4 sm:space-y-3">
-          {room.players.map((player) => (
-            <li
-              key={player.id}
-              className="flex items-center justify-between rounded-2xl border border-plum/10 bg-white/80 px-3 py-2.5 sm:px-4 sm:py-3"
-            >
-              <div className="flex items-center gap-3">
-                <UserAvatar
-                  name={player.name}
-                  avatarUrl={player.avatarUrl}
-                  className="h-9 w-9 text-sm"
-                />
-                <div>
-                  <p className="text-sm font-semibold text-ink">
-                    {formatDisplayName(player.name)}
-                    {player.id === room.hostId ? (
-                      <span className="ml-2 text-xs font-medium text-plum">Host</span>
-                    ) : null}
-                    {player.id === currentPlayer?.id ? (
-                      <span className="ml-2 text-xs font-medium text-ink-muted">You</span>
-                    ) : null}
-                  </p>
+          {room.players.map((player) => {
+            const isSelf = player.id === currentPlayer?.id;
+            const isPlayerHost = player.id === room.hostId;
+            const canManage = isHost && !isSelf;
+
+            return (
+              <li
+                key={player.id}
+                className="flex items-center justify-between rounded-2xl border border-plum/10 bg-white/80 px-3 py-2.5 sm:px-4 sm:py-3"
+              >
+                <div className="flex items-center gap-3">
+                  <UserAvatar
+                    name={player.name}
+                    avatarUrl={player.avatarUrl}
+                    className="h-9 w-9 text-sm"
+                  />
+                  <div>
+                    <p className="text-sm font-semibold text-ink">
+                      {formatDisplayName(player.name)}
+                      {isPlayerHost ? (
+                        <span className="ml-2 text-xs font-medium text-plum">Host</span>
+                      ) : null}
+                      {isSelf ? (
+                        <span className="ml-2 text-xs font-medium text-ink-muted">You</span>
+                      ) : null}
+                    </p>
+                  </div>
                 </div>
-              </div>
-            </li>
-          ))}
+
+                {canManage ? (
+                  <PlayerActions
+                    playerId={player.id}
+                    playerName={player.name}
+                    onKick={kickPlayer}
+                    onMakeHost={transferHost}
+                  />
+                ) : null}
+              </li>
+            );
+          })}
         </ul>
       </Card>
 

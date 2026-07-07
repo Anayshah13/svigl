@@ -9,6 +9,7 @@ from app.auth import AuthError, UserPersistenceError, complete_google_login, red
 from app.auth.cookies import set_auth_cookie
 from app.auth.jwt import create_access_token
 from app.auth.logging_utils import log_auth_event
+from app.auth.oauth_flow import pop_post_auth_redirect
 from app.auth.redirects import build_frontend_auth_error_url, build_frontend_auth_success_url
 from app.auth.repository import authenticate_guest
 from app.db.session import get_db
@@ -57,8 +58,9 @@ async def google_callback(
         )
 
     token = create_access_token(user_id=user.id, email=user.email, path=path)
+    next_path = pop_post_auth_redirect(request)
     response = RedirectResponse(
-        build_frontend_auth_success_url(),
+        build_frontend_auth_success_url(next_path),
         status_code=status.HTTP_302_FOUND,
     )
     set_auth_cookie(response, token, path=path)

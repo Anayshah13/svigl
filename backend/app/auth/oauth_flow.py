@@ -9,6 +9,7 @@ from app.auth.exceptions import AuthError
 from app.auth.google import oauth
 from app.auth.logging_utils import log_auth_event
 from app.auth.names import format_person_name
+from app.auth.post_auth_redirect import sanitize_post_auth_redirect
 from app.auth.repository import upsert_user_from_google
 from app.auth.schemas import GoogleProfile
 from app.config import settings
@@ -17,16 +18,26 @@ logger = logging.getLogger(__name__)
 
 
 async def redirect_to_google_consent(request: Request) -> RedirectResponse:
+    next_path = sanitize_post_auth_redirect(request.query_params.get("next"))
+    if next_path:
+        request.session["post_auth_redirect"] = next_path
+
     log_auth_event(
         "google_login_start",
         path=str(request.url.path),
         authenticated=False,
         redirect_uri=settings.google_redirect_uri,
+        post_auth_redirect=next_path,
     )
     return await oauth.google.authorize_redirect(
         request,
         settings.google_redirect_uri,
     )
+
+
+def pop_post_auth_redirect(request: Request) -> str | None:
+    next_path = request.session.pop("post_auth_redirect", None)
+    return sanitize_post_auth_redirect(next_path)
 
 
 async def complete_google_login(request: Request, db: Session):

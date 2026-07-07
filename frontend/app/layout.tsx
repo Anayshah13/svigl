@@ -5,6 +5,7 @@ import { AppHeader } from "@/components/layout/AppHeader";
 import { AuroraBackground } from "@/components/layout/AuroraBackground";
 import { AuthProvider } from "@/components/auth/AuthProvider";
 import { ActiveRoomBar } from "@/components/room/ActiveRoomBar";
+import { RoomPresenceKeeper } from "@/components/room/RoomPresenceKeeper";
 
 const dmSans = DM_Sans({
   variable: "--font-dm-sans",
@@ -58,6 +59,7 @@ export default function RootLayout({
         <AuthProvider>
           <AppHeader />
           <main className="relative z-0 flex flex-1 flex-col">{children}</main>
+          <RoomPresenceKeeper />
           <ActiveRoomBar />
         </AuthProvider>
       </body>
