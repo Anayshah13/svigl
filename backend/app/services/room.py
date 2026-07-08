@@ -68,17 +68,23 @@ def _remove_player(db: Session, room: Room, user_id: UUID) -> Room | None:
     if target is None:
         return room
 
+    was_host = room.host_id == user_id
     db.delete(target)
     db.flush()
 
-    remaining = [rp for rp in room.players if rp.user_id != user_id]
+    # Re-query after delete — room.players can be stale here and falsely appear empty.
+    remaining = db.scalars(
+        select(RoomPlayer)
+        .where(RoomPlayer.room_id == room.id)
+        .order_by(RoomPlayer.joined_at)
+    ).all()
 
     if not remaining:
         db.delete(room)
         db.commit()
         return None
 
-    if room.host_id == user_id:
+    if was_host:
         room.host_id = remaining[0].user_id
 
     db.commit()
@@ -86,7 +92,7 @@ def _remove_player(db: Session, room: Room, user_id: UUID) -> Room | None:
     return room
 
 
-def evict_stale_players(db: Session, room: Room) -> Room | None:
+def evict_stale_players(db: Session, room: Room) -> tuple[Room | None, list[UUID]]:
     """Drop players whose client has not sent a presence ping recently."""
     db.refresh(room)
     cutoff = _utcnow() - timedelta(seconds=PRESENCE_TTL_SECONDS)
@@ -95,16 +101,18 @@ def evict_stale_players(db: Session, room: Room) -> Room | None:
     ]
 
     current: Room | None = room
+    evicted: list[UUID] = []
     for user_id in stale_user_ids:
         if current is None:
             break
         db.refresh(current)
         current = _remove_player(db, current, user_id)
+        evicted.append(user_id)
 
-    return current
+    return current, evicted
 
 
-def touch_room_presence(db: Session, code: str, user_id: UUID) -> Room | None:
+def touch_room_presence(db: Session, code: str, user_id: UUID) -> tuple[Room | None, list[UUID]]:
     """Record that a player is still connected and evict anyone who is not."""
     room = _get_room_or_404(db, code)
 
@@ -118,14 +126,14 @@ def touch_room_presence(db: Session, code: str, user_id: UUID) -> Room | None:
     target.last_seen_at = _utcnow()
     db.flush()
 
-    room = evict_stale_players(db, room)
+    room, evicted = evict_stale_players(db, room)
     if room is None:
         db.commit()
-        return None
+        return None, evicted
 
     db.commit()
     db.refresh(room)
-    return room
+    return room, evicted
 
 
 def create_room(db: Session, host_id: UUID, max_players: int) -> Room:
@@ -293,7 +301,7 @@ def get_user_active_room(db: Session, user_id: UUID) -> Room | None:
     if room is None:
         return None
 
-    room = evict_stale_players(db, room)
+    room, _ = evict_stale_players(db, room)
     if room is None:
         return None
 
@@ -305,7 +313,7 @@ def get_user_active_room(db: Session, user_id: UUID) -> Room | None:
 
 def get_room(db: Session, code: str) -> Room:
     room = _get_room_or_404(db, code)
-    room = evict_stale_players(db, room)
+    room, _ = evict_stale_players(db, room)
     if room is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

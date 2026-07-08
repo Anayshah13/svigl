@@ -1,3 +1,5 @@
+import { appWebSocket } from "@/services/app-websocket";
+import { disconnectRoomSync } from "@/lib/room-sync";
 import { releaseRoomTab } from "@/lib/room-tab-lock";
 import { fetchActiveRoom, isUserInRoom, leaveRoom } from "@/services/room";
 import { readPersistedRoomCode, useRoomStore } from "@/stores/room";
@@ -24,9 +26,15 @@ export async function leaveActiveRoomIfAny(userId: string | null): Promise<void>
       throw error;
     }
   } finally {
+    disconnectRoomSync();
     if (code && userId) {
       releaseRoomTab(userId, code);
     }
     store.clearActiveRoom();
   }
+}
+
+/** Full socket teardown — use on sign-out. */
+export function disconnectAppWebSocket(): void {
+  appWebSocket.disconnect();
 }

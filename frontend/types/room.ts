@@ -70,3 +70,32 @@ export const ROOM_STATUS_LABELS: Record<RoomStatus, string> = {
   PLAYING: "Game in progress",
   FINISHED: "Finished",
 };
+
+/** WebSocket connection lifecycle states. */
+export type ConnectionState =
+  | "connecting"
+  | "connected"
+  | "disconnected"
+  | "reconnecting"
+  | "error";
+
+/** Typed event names matching backend EventType. */
+export type WSEventType =
+  | "PING"
+  | "PONG"
+  | "JOIN_ROOM"
+  | "LEAVE_ROOM"
+  | "ROOM_LEFT"
+  | "PLAYER_JOINED"
+  | "PLAYER_LEFT"
+  | "PLAYER_CONNECTED"
+  | "PLAYER_DISCONNECTED"
+  | "ROOM_UPDATED"
+  | "PLAYER_KICKED"
+  | "ERROR";
+
+/** Wire format for all WebSocket messages. */
+export interface WSMessage {
+  type: WSEventType;
+  payload: Record<string, unknown>;
+}

@@ -25,7 +25,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Svigl — SVG drawing gallery",
+  title: "Svigl - Challenge your Friends",
   description: "SVG drawing gallery built from editable vector primitives.",
 };
 

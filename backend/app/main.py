@@ -12,6 +12,7 @@ from app.api.auth import router as auth_router
 from app.api.health import router as health_router
 from app.api.rooms import router as rooms_router
 from app.api.session import router as session_router
+from app.api.ws import router as ws_router
 from app.config import settings
 
 logger = logging.getLogger(__name__)
@@ -52,6 +53,7 @@ app.include_router(health_router)
 app.include_router(auth_router)
 app.include_router(session_router)
 app.include_router(rooms_router)
+app.include_router(ws_router)
 
 
 class NoCacheMiddleware(BaseHTTPMiddleware):

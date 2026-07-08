@@ -2,7 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { roomSyncAdapter } from "@/lib/room-sync";
+import { disconnectRoomSync, roomSyncAdapter } from "@/lib/room-sync";
+import { wsDebug } from "@/lib/ws-debug";
 import { claimRoomTab, releaseRoomTab, startRoomTabHeartbeat } from "@/lib/room-tab-lock";
 import { redirectToSignInWithReturn } from "@/lib/post-auth-redirect";
 import { validateRoomCode } from "@/lib/room-code";
@@ -234,6 +235,9 @@ export function useRoom(code: string, options: UseRoomOptions = {}) {
 
     try {
       await leaveRoom(normalizedCode);
+      disconnectRoomSync();
+      setRoom(null);
+      setNotMember(false);
       useRoomStore.getState().clearActiveRoom();
       if (selfId) {
         releaseRoomTab(selfId, normalizedCode);
@@ -302,7 +306,9 @@ export function useRoom(code: string, options: UseRoomOptions = {}) {
     }
   }, [authReady, codeValidationError, normalizedCode, router, selfId]);
 
-  // Initial load + polling via swappable sync adapter
+  const isMember = Boolean(room && selfId && isUserInRoom(room, selfId));
+
+  // Tab lock + initial REST load (no WebSocket yet)
   useEffect(() => {
     if (!authReady || !selfId || codeValidationError) return;
 
@@ -337,13 +343,63 @@ export function useRoom(code: string, options: UseRoomOptions = {}) {
           setLoading(false);
         }
       },
+      { enableWebSocket: false },
     );
 
     return () => {
       unsubscribe();
       stopHeartbeat();
     };
-  }, [applyRoom, authReady, handleAuthError, normalizedCode, selfId]);
+  }, [applyRoom, authReady, codeValidationError, handleAuthError, normalizedCode, selfId]);
+
+  // WebSocket realtime sync — only after confirmed membership
+  useEffect(() => {
+    wsDebug("useRoom_ws_effect_mount", {
+      component: "useRoom",
+      userId: selfId,
+      roomCode: normalizedCode,
+      detail: `isMember=${isMember}`,
+    });
+
+    if (!authReady || !selfId || codeValidationError || tabBlocked || !isMember) {
+      return () => {
+        wsDebug("useRoom_ws_effect_unmount", {
+          component: "useRoom",
+          userId: selfId,
+          roomCode: normalizedCode,
+        });
+      };
+    }
+
+    const unsubscribe = roomSyncAdapter.subscribe(
+      normalizedCode,
+      (nextRoom) => applyRoom(nextRoom),
+      (roomError) => {
+        if (!handleAuthError(roomError)) {
+          setError(roomError);
+        }
+      },
+      { enableWebSocket: true, skipInitialFetch: true },
+    );
+
+    return () => {
+      wsDebug("useRoom_ws_effect_unmount", {
+        component: "useRoom",
+        userId: selfId,
+        roomCode: normalizedCode,
+      });
+      unsubscribe();
+    };
+  }, [
+    applyRoom,
+    authReady,
+    codeValidationError,
+    handleAuthError,
+    isMember,
+    normalizedCode,
+    selfId,
+    tabBlocked,
+  ]);
 
   // Auto-join when user lands on /room/{code} without membership (e.g. bookmark)
   useEffect(() => {
@@ -353,7 +409,6 @@ export function useRoom(code: string, options: UseRoomOptions = {}) {
   }, [attemptJoin, authReady, error, joining, loading, notMember, options.autoJoin, tabBlocked]);
 
   const isHost = Boolean(room && selfId && room.hostId === selfId);
-  const isMember = Boolean(room && selfId && isUserInRoom(room, selfId));
   const currentPlayer = room?.players.find((player) => player.id === selfId) ?? null;
 
   return {

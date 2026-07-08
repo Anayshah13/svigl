@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/Button";
 import { UserAvatar } from "@/components/ui/UserAvatar";
 import { SignOutConfirmOverlay } from "@/components/auth/SignOutConfirmOverlay";
 import { formatDisplayName } from "@/lib/names";
-import { leaveActiveRoomIfAny } from "@/lib/leave-active-room";
+import { leaveActiveRoomIfAny, disconnectAppWebSocket } from "@/lib/leave-active-room";
 import { signOut } from "@/services/auth";
 import { useSessionStore } from "@/stores/session";
 import { useRoomStore } from "@/stores/room";
@@ -23,6 +23,7 @@ export function AuthControls() {
     setBusy(true);
     try {
       await leaveActiveRoomIfAny(selfId);
+      disconnectAppWebSocket();
       await signOut();
     } catch {
       setBusy(false);

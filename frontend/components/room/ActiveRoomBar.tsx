@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
+import { disconnectRoomSync } from "@/lib/room-sync";
 import { redirectToSignInWithReturn } from "@/lib/post-auth-redirect";
 import { releaseRoomTab } from "@/lib/room-tab-lock";
 import { fetchActiveRoom, fetchRoom, isUserInRoom, leaveRoom } from "@/services/room";
@@ -134,6 +135,7 @@ export function useActiveRoomSession() {
 
     try {
       await leaveRoom(activeRoom.code);
+      disconnectRoomSync();
       if (selfId) {
         releaseRoomTab(selfId, activeRoom.code);
       }

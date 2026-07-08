@@ -1,20 +1,35 @@
 "use client";
 
 import { useEffect } from "react";
+import { initPageLifecycle, isPageReload } from "@/lib/page-lifecycle";
 import { releaseRoomTab } from "@/lib/room-tab-lock";
 import { isUserInRoom, leaveRoomBeacon, pingRoomPresence } from "@/services/room";
 import { useSessionStore } from "@/stores/session";
-import { useRoomStore } from "@/stores/room";
+import { readPersistedRoomCode, useRoomStore } from "@/stores/room";
 import type { RoomError } from "@/types/room";
 
 const PRESENCE_INTERVAL_MS = 5_000;
 
 /**
- * Sends periodic presence pings while the user is in a room, and leaves on tab close.
- * Mount once globally (see RoomPresenceKeeper).
+ * Sends periodic presence pings while the user is in a room.
+ * Leaves the room on tab/window close — but not on page reload.
  */
 export function useRoomPresence(roomCode: string | null, enabled: boolean): void {
   const selfId = useSessionStore((s) => s.selfId);
+
+  useEffect(() => {
+    initPageLifecycle();
+
+    const onPageShow = () => {
+      const code = useRoomStore.getState().activeRoom?.code ?? readPersistedRoomCode();
+      if (code) {
+        void pingRoomPresence(code).catch(() => undefined);
+      }
+    };
+
+    window.addEventListener("pageshow", onPageShow);
+    return () => window.removeEventListener("pageshow", onPageShow);
+  }, []);
 
   useEffect(() => {
     if (!enabled || !roomCode || !selfId) return;
@@ -44,7 +59,13 @@ export function useRoomPresence(roomCode: string | null, enabled: boolean): void
       }
     };
 
-    const onPageHide = () => {
+    const onPageHide = (event: PageTransitionEvent) => {
+      // bfcache restore — user may return to this page
+      if (event.persisted) return;
+
+      // Reload also fires pagehide; do not leave or clear persisted room state.
+      if (isPageReload()) return;
+
       leaveRoomBeacon(roomCode);
       releaseRoomTab(selfId, roomCode);
       useRoomStore.getState().clearActiveRoom();
