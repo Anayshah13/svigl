@@ -3,7 +3,7 @@
  * Creates a per-room WebSocket to /ws/{code}; do not use alongside appWebSocket.
  */
 
-import { getApiUrl } from "@/lib/api";
+import { getWsUrl } from "@/lib/api";
 import type { ConnectionState, WSEventType, WSMessage } from "@/types/room";
 
 export type WSEventHandler = (payload: Record<string, unknown>) => void;
@@ -53,8 +53,7 @@ export class WebSocketService {
     this.intentionalClose = false;
     this.setState("connecting");
 
-    const apiUrl = getApiUrl();
-    const wsUrl = apiUrl.replace(/^http/, "ws") + `/ws/${this.roomCode}`;
+    const wsUrl = getWsUrl(`/ws/${this.roomCode}`);
 
     this.ws = new WebSocket(wsUrl);
 

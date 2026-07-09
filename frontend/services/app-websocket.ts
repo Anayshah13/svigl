@@ -5,7 +5,7 @@
  * REST is still responsible for create/join/leave; this layer only syncs.
  */
 
-import { getApiUrl } from "@/lib/api";
+import { getWsUrl } from "@/lib/api";
 import { nextSocketId, wsDebug } from "@/lib/ws-debug";
 import type { Room, RoomError, WSMessage } from "@/types/room";
 
@@ -142,8 +142,7 @@ class AppWebSocketManager {
     const id = nextSocketId();
     this.socketId = id;
 
-    const apiUrl = getApiUrl();
-    const wsUrl = apiUrl.replace(/^http/, "ws") + "/ws";
+    const wsUrl = getWsUrl("/ws");
 
     wsDebug("socket_created", {
       userId: this.userId,

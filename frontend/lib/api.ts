@@ -1,5 +1,34 @@
+/**
+ * Backend HTTP base URL (no trailing slash).
+ * Local default keeps `npm run dev` working without env files.
+ * Production (Vercel) must set NEXT_PUBLIC_API_URL at build time.
+ */
 export function getApiUrl(): string {
-  return process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+  const url = process.env.NEXT_PUBLIC_API_URL?.trim();
+  if (url) return url.replace(/\/$/, "");
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("NEXT_PUBLIC_API_URL must be set in production");
+  }
+  return "http://localhost:8000";
+}
+
+/**
+ * Backend WebSocket URL including path (e.g. ws://host/ws or wss://host/ws).
+ * Prefer NEXT_PUBLIC_WS_URL as the WS origin (scheme + host[+port]), optionally
+ * ending in `/ws`. Path is always appended for the active endpoint.
+ */
+export function getWsUrl(path = "/ws"): string {
+  const explicit = process.env.NEXT_PUBLIC_WS_URL?.trim();
+  if (explicit) {
+    const base = explicit.replace(/\/$/, "").replace(/\/ws$/i, "");
+    return `${base}${path.startsWith("/") ? path : `/${path}`}`;
+  }
+
+  const api = getApiUrl();
+  const wsBase = api
+    .replace(/^https:\/\//i, "wss://")
+    .replace(/^http:\/\//i, "ws://");
+  return `${wsBase}${path.startsWith("/") ? path : `/${path}`}`;
 }
 
 export class ApiError extends Error {

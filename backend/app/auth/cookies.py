@@ -18,7 +18,7 @@ def set_auth_cookie(response: Response, token: str, *, path: str) -> None:
         max_age=settings.jwt_expiration_seconds,
         httponly=True,
         secure=settings.cookie_secure,
-        samesite="lax",
+        samesite=settings.cookie_samesite,
         path="/",
     )
     log_auth_event(
@@ -28,7 +28,7 @@ def set_auth_cookie(response: Response, token: str, *, path: str) -> None:
         cookie_name=AUTH_COOKIE_NAME,
         max_age=settings.jwt_expiration_seconds,
         secure=settings.cookie_secure,
-        samesite="lax",
+        samesite=settings.cookie_samesite,
     )
 
 
@@ -39,7 +39,7 @@ def clear_auth_cookie(response: Response, *, path: str) -> None:
         max_age=0,
         httponly=True,
         secure=settings.cookie_secure,
-        samesite="lax",
+        samesite=settings.cookie_samesite,
         path="/",
     )
     log_auth_event(

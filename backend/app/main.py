@@ -1,4 +1,5 @@
 import logging
+import time
 from collections.abc import Awaitable, Callable
 
 from fastapi import FastAPI, Request
@@ -35,25 +36,28 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
     )
 
 
-app.add_middleware(
-    SessionMiddleware,
-    secret_key=settings.session_secret_key,
-    https_only=not settings.debug,
-)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.cors_origins,
-    allow_origin_regex=settings.cors_origin_regex,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+class RequestLoggingMiddleware(BaseHTTPMiddleware):
+    """Production-friendly access log: method, path, status, duration."""
 
-app.include_router(health_router)
-app.include_router(auth_router)
-app.include_router(session_router)
-app.include_router(rooms_router)
-app.include_router(ws_router)
+    _SKIP_PATHS = frozenset({"/health", "/"})
+
+    async def dispatch(
+        self, request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
+        if request.url.path in self._SKIP_PATHS:
+            return await call_next(request)
+
+        started = time.perf_counter()
+        response = await call_next(request)
+        duration_ms = (time.perf_counter() - started) * 1000
+        logger.info(
+            "%s %s %s %.1fms",
+            request.method,
+            request.url.path,
+            response.status_code,
+            duration_ms,
+        )
+        return response
 
 
 class NoCacheMiddleware(BaseHTTPMiddleware):
@@ -65,5 +69,27 @@ class NoCacheMiddleware(BaseHTTPMiddleware):
         return response
 
 
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=settings.session_secret_key,
+    https_only=settings.cookie_secure,
+    same_site=settings.cookie_samesite,
+)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origins,
+    allow_origin_regex=settings.cors_origin_regex,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+app.add_middleware(RequestLoggingMiddleware)
+
 if settings.debug:
     app.add_middleware(NoCacheMiddleware)
+
+app.include_router(health_router)
+app.include_router(auth_router)
+app.include_router(session_router)
+app.include_router(rooms_router)
+app.include_router(ws_router)

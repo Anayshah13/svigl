@@ -31,6 +31,8 @@ services:
       ]
     environment:
       DEBUG: "true"
+      COOKIE_SECURE: "false"
+      COOKIE_SAMESITE: "lax"
       # Docker Desktop (especially on Windows/macOS) often misses inotify events
       # on bind mounts; polling ensures reload still triggers on file saves.
       WATCHFILES_FORCE_POLLING: "true"

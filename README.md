@@ -89,11 +89,15 @@ FRONTEND_URL=http://localhost:3000
 
 # Generate with: python -c "import secrets; print(secrets.token_hex(32))"
 SESSION_SECRET_KEY=change-me-to-a-long-random-string
-JWT_SECRET_KEY=change-me-to-a-long-random-string
-JWT_EXPIRATION_SECONDS=604800
+JWT_SECRET=change-me-to-a-long-random-string
+JWT_EXPIRE_MINUTES=10080
+
+# Local cookie defaults (production: COOKIE_SECURE=true, COOKIE_SAMESITE=none)
+COOKIE_SECURE=false
+COOKIE_SAMESITE=lax
 ```
 
-> **Google OAuth setup:** Go to [Google Cloud Console](https://console.cloud.google.com/) → APIs & Services → Credentials → Create OAuth 2.0 Client ID. Add `http://localhost:8000/auth/google/callback` as an authorised redirect URI.
+> **Google OAuth setup:** Go to [Google Cloud Console](https://console.cloud.google.com/) → APIs & Services → Credentials → Create OAuth 2.0 Client ID. Add `http://localhost:8000/auth/google/callback` as an authorised redirect URI. For production, also add `https://<your-railway-host>/auth/google/callback`.
 
 ### 3. `frontend/.env.local`
 
@@ -104,6 +108,7 @@ cp frontend/.env.example frontend/.env.local
 ```env
 # frontend/.env.local
 NEXT_PUBLIC_API_URL=http://localhost:8000
+NEXT_PUBLIC_WS_URL=ws://localhost:8000
 ```
 
 ---
