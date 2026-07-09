@@ -8,11 +8,11 @@
 
 | Layer | Tech |
 |-------|------|
-| Frontend | Next.js 16, React 19, TypeScript, Tailwind CSS v4, Framer Motion, Zustand |
+| Frontend | Next.js 16, React 19, TypeScript, Tailwind CSS v4, Framer Motion, GSAP |
 | Backend | FastAPI, SQLAlchemy 2, Alembic, PyJWT, Authlib |
 | Database | PostgreSQL 17 |
 | Auth | Google OAuth 2.0 + JWT session cookies |
-| Infrastructure | Docker, Docker Compose |
+| Infrastructure | Docker, Docker Compose (local); Vercel (frontend), Railway (backend) |
 
 ---
 
@@ -31,6 +31,8 @@ svigl/
 ├── frontend/           # Next.js app
 │   ├── app/
 │   ├── components/
+│   ├── stores/         # Client state (session + active room)
+│   ├── lib/create-store.ts  # Lightweight store (useSyncExternalStore)
 │   ├── .env.example
 │   └── .env.local      # ← create this (never commit)
 ├── docs/               # Architecture and domain docs
@@ -236,6 +238,59 @@ npm run dev
 | Backend API | http://localhost:8000 |
 | API Docs (Swagger) | http://localhost:8000/docs |
 | PostgreSQL | localhost:5433 (host port) |
+
+---
+
+## Client State (Frontend)
+
+Global UI state lives in two small stores under `frontend/stores/`:
+
+| Store | Purpose |
+|-------|---------|
+| `session.ts` | Auth user, guest flag, display name, `authReady` bootstrap flag |
+| `room.ts` | Active room snapshot + `localStorage` persistence for room code |
+
+Both use a tiny in-house store helper (`frontend/lib/create-store.ts`) built on React’s `useSyncExternalStore` — no Zustand or other state library.
+
+---
+
+## Production Deployment
+
+| Service | Host | Notes |
+|---------|------|-------|
+| Frontend | [Vercel](https://vercel.com) | Set `NEXT_PUBLIC_API_URL` and `NEXT_PUBLIC_WS_URL` at build time |
+| Backend | [Railway](https://railway.app) | Docker build from `backend/`; set service root directory to `backend` |
+
+### Railway (backend)
+
+Required variables (see `backend/.env.example`):
+
+- `FRONTEND_URL` — e.g. `https://svigl.vercel.app`
+- `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`
+- `JWT_SECRET`, `JWT_EXPIRE_MINUTES`, `SESSION_SECRET_KEY`
+- `COOKIE_SECURE=true`, `COOKIE_SAMESITE=none`, `DEBUG=false`
+- `DATABASE_URL` — from Railway Postgres
+
+**Networking:** public domain **target port must be `8080`** (matches `PORT` in `backend/Dockerfile`). A mismatch causes Railway 502 “Application failed to respond”.
+
+Health check: `GET /health`
+
+### Vercel (frontend)
+
+```env
+NEXT_PUBLIC_API_URL=https://<your-railway-host>
+NEXT_PUBLIC_WS_URL=wss://<your-railway-host>
+```
+
+Redeploy after changing these (they are baked in at build time).
+
+### Google Cloud Console
+
+Add production redirect URI:
+
+`https://<your-railway-host>/auth/google/callback`
+
+Keep `http://localhost:8000/auth/google/callback` for local dev.
 
 ---
 

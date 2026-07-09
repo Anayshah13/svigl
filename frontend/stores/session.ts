@@ -1,6 +1,6 @@
 "use client";
 
-import { create } from "zustand";
+import { createStore } from "@/lib/create-store";
 import type { AuthUser } from "@/services/auth";
 
 /** Temporary audit logging — remove after auth stability is confirmed. */
@@ -22,7 +22,7 @@ interface SessionState {
   setAuthReady: (ready: boolean) => void;
 }
 
-export const useSessionStore = create<SessionState>((set) => ({
+export const useSessionStore = createStore<SessionState>((set) => ({
   selfId: null,
   displayName: "",
   isGuest: true,

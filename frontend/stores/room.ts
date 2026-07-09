@@ -1,6 +1,6 @@
 "use client";
 
-import { create } from "zustand";
+import { createStore } from "@/lib/create-store";
 import type { Room, RoomStatus } from "@/types/room";
 
 const STORAGE_KEY = "svigl:active-room-code";
@@ -33,7 +33,7 @@ interface RoomStoreState {
   clearActiveRoom: () => void;
 }
 
-export const useRoomStore = create<RoomStoreState>((set) => ({
+export const useRoomStore = createStore<RoomStoreState>((set) => ({
   activeRoom: null,
 
   setActiveRoom: (room) => {
