@@ -2,8 +2,12 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
+# Pin PORT to Railway's common default so Dockerfile EXPOSE, process bind,
+# and public-domain target port all agree. A previous EXPOSE 8000 left the
+# Railway domain targeting 8000 while the app listened on 8080 → edge 502.
 ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    PORT=8080
 
 RUN addgroup --system app && adduser --system --ingroup app app
 
@@ -18,9 +22,7 @@ RUN chmod +x ./entrypoint.sh
 
 USER app
 
-# Do NOT pin EXPOSE/PORT here. Railway injects PORT at runtime (often 8080).
-# Pinning EXPOSE 8000 causes Railway's public domain target port to mismatch
-# the process port → edge proxy 502 "Application failed to respond".
+EXPOSE 8080
 
 ENTRYPOINT ["./entrypoint.sh"]
 CMD []
