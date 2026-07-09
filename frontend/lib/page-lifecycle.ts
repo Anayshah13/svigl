@@ -7,6 +7,18 @@
 
 const RELOAD_FLAG = "svigl:page-reloading";
 
+/** Minimal Navigation API types — not yet in all TypeScript DOM libs. */
+interface AppNavigateEvent extends Event {
+  navigationType: string;
+}
+
+interface AppNavigation {
+  addEventListener(
+    type: "navigate",
+    listener: (event: AppNavigateEvent) => void,
+  ): void;
+}
+
 let initialized = false;
 
 export function initPageLifecycle(): void {
@@ -28,9 +40,9 @@ export function initPageLifecycle(): void {
     }
   });
 
-  const navigation = (window as Window & { navigation?: Navigation }).navigation;
+  const navigation = (window as Window & { navigation?: AppNavigation }).navigation;
   if (navigation) {
-    navigation.addEventListener("navigate", (event: NavigateEvent) => {
+    navigation.addEventListener("navigate", (event) => {
       if (event.navigationType === "reload") {
         sessionStorage.setItem(RELOAD_FLAG, "1");
       }
