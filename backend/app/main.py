@@ -1,6 +1,7 @@
 import logging
 import time
-from collections.abc import Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -23,7 +24,20 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
 )
 
-app = FastAPI(title=settings.app_name, debug=settings.debug)
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    logger.info(
+        "startup complete cors_origins=%s cookie_secure=%s cookie_samesite=%s frontend_url=%s",
+        settings.cors_origins,
+        settings.cookie_secure,
+        settings.cookie_samesite,
+        settings.frontend_url,
+    )
+    yield
+
+
+app = FastAPI(title=settings.app_name, debug=settings.debug, lifespan=lifespan)
 
 
 @app.exception_handler(Exception)
@@ -69,6 +83,8 @@ class NoCacheMiddleware(BaseHTTPMiddleware):
         return response
 
 
+# Middleware order: last added = outermost. CORS must wrap Session so preflight
+# and error responses get Access-Control-* headers.
 app.add_middleware(
     SessionMiddleware,
     secret_key=settings.session_secret_key,

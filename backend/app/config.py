@@ -16,7 +16,8 @@ class Settings(BaseSettings):
     postgres_user: str | None = None
     postgres_password: str | None = None
     postgres_db: str | None = None
-    postgres_host: str = "postgres.railway.internal"
+    # Local docker-compose service name. Production should set DATABASE_URL.
+    postgres_host: str = "postgres"
     postgres_port: int = 5432
 
     google_client_id: str

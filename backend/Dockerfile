@@ -3,8 +3,7 @@ FROM python:3.12-slim
 WORKDIR /app
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    PORT=8000
+    PYTHONUNBUFFERED=1
 
 RUN addgroup --system app && adduser --system --ingroup app app
 
@@ -19,11 +18,9 @@ RUN chmod +x ./entrypoint.sh
 
 USER app
 
-EXPOSE 8000
-
-HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
-    CMD python -c "import os,urllib.request; p=os.environ.get('PORT','8000'); urllib.request.urlopen(f'http://127.0.0.1:{p}/health')" || exit 1
+# Do NOT pin EXPOSE/PORT here. Railway injects PORT at runtime (often 8080).
+# Pinning EXPOSE 8000 causes Railway's public domain target port to mismatch
+# the process port → edge proxy 502 "Application failed to respond".
 
 ENTRYPOINT ["./entrypoint.sh"]
 CMD []
-

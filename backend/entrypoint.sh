@@ -11,5 +11,9 @@ if [ "$#" -gt 0 ]; then
   exec "$@"
 fi
 
-echo "Starting API on 0.0.0.0:${PORT}"
-exec uvicorn app.main:app --host 0.0.0.0 --port "${PORT}"
+echo "Starting API on 0.0.0.0:${PORT} (Railway public domain target port must match this)"
+exec uvicorn app.main:app \
+  --host 0.0.0.0 \
+  --port "${PORT}" \
+  --proxy-headers \
+  --forwarded-allow-ips='*'
