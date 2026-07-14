@@ -17,7 +17,8 @@ from app.models.room import (
 
 _CODE_CHARS = string.ascii_uppercase
 _MAX_CODE_ATTEMPTS = 20
-PRESENCE_TTL_SECONDS = 15
+# Grace window for refresh / brief network loss before membership eviction.
+PRESENCE_TTL_SECONDS = 45
 
 
 def _utcnow() -> datetime:
@@ -92,8 +93,33 @@ def _remove_player(db: Session, room: Room, user_id: UUID) -> Room | None:
     return room
 
 
+def touch_membership_presence(db: Session, user_id: UUID, room_code: str) -> bool:
+    """
+    Bump last_seen_at for a member without running eviction.
+    Returns True if the user is a member of the room.
+    """
+    membership = _get_membership(db, user_id, room_code)
+    if membership is None:
+        return False
+    membership.last_seen_at = _utcnow()
+    db.commit()
+    return True
+
+
+def _get_membership(db: Session, user_id: UUID, room_code: str) -> RoomPlayer | None:
+    return db.scalar(
+        select(RoomPlayer)
+        .join(Room)
+        .where(
+            RoomPlayer.user_id == user_id,
+            Room.code == room_code.upper(),
+            Room.status != ROOM_STATUS_FINISHED,
+        )
+    )
+
+
 def evict_stale_players(db: Session, room: Room) -> tuple[Room | None, list[UUID]]:
-    """Drop players whose client has not sent a presence ping recently."""
+    """Drop players whose client has not sent a presence signal recently."""
     db.refresh(room)
     cutoff = _utcnow() - timedelta(seconds=PRESENCE_TTL_SECONDS)
     stale_user_ids = [
@@ -110,6 +136,26 @@ def evict_stale_players(db: Session, room: Room) -> tuple[Room | None, list[UUID
         evicted.append(user_id)
 
     return current, evicted
+
+
+def sweep_stale_rooms(db: Session) -> list[tuple[str, Room | None, list[UUID]]]:
+    """
+    Evict stale memberships across all active rooms.
+    Returns (room_code, room_or_none, evicted_user_ids) for rooms that changed.
+    """
+    rooms = db.scalars(
+        select(Room).where(
+            Room.status.in_([ROOM_STATUS_WAITING, ROOM_STATUS_PLAYING]),
+        )
+    ).all()
+
+    changes: list[tuple[str, Room | None, list[UUID]]] = []
+    for room in rooms:
+        code = room.code
+        updated, evicted = evict_stale_players(db, room)
+        if evicted:
+            changes.append((code, updated, evicted))
+    return changes
 
 
 def touch_room_presence(db: Session, code: str, user_id: UUID) -> tuple[Room | None, list[UUID]]:
@@ -293,30 +339,14 @@ def transfer_host(
 
 
 def get_user_active_room(db: Session, user_id: UUID) -> Room | None:
+    """Read-only: return the user's active room without mutating membership."""
     membership = _get_active_room_for_user(db, user_id)
     if membership is None:
         return None
 
-    room = db.get(Room, membership.room_id)
-    if room is None:
-        return None
-
-    room, _ = evict_stale_players(db, room)
-    if room is None:
-        return None
-
-    if not any(rp.user_id == user_id for rp in room.players):
-        return None
-
-    return room
+    return db.get(Room, membership.room_id)
 
 
 def get_room(db: Session, code: str) -> Room:
-    room = _get_room_or_404(db, code)
-    room, _ = evict_stale_players(db, room)
-    if room is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Room not found.",
-        )
-    return room
+    """Read-only: return the room without running presence eviction."""
+    return _get_room_or_404(db, code)

@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import time
 from collections.abc import AsyncIterator, Awaitable, Callable
@@ -16,6 +17,7 @@ from app.api.rooms import router as rooms_router
 from app.api.session import router as session_router
 from app.api.ws import router as ws_router
 from app.config import settings
+from app.services.room_sweeper import run_room_sweeper
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +36,13 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         settings.cookie_samesite,
         settings.frontend_url,
     )
-    yield
+    stop_sweeper = asyncio.Event()
+    sweeper_task = asyncio.create_task(run_room_sweeper(stop_sweeper))
+    try:
+        yield
+    finally:
+        stop_sweeper.set()
+        await sweeper_task
 
 
 app = FastAPI(title=settings.app_name, debug=settings.debug, lifespan=lifespan)

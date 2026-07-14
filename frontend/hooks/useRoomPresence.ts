@@ -8,7 +8,7 @@ import { useSessionStore } from "@/stores/session";
 import { readPersistedRoomCode, useRoomStore } from "@/stores/room";
 import type { RoomError } from "@/types/room";
 
-const PRESENCE_INTERVAL_MS = 5_000;
+const PRESENCE_INTERVAL_MS = 20_000;
 
 /**
  * Sends periodic presence pings while the user is in a room.

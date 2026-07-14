@@ -203,6 +203,17 @@ export function RoomView() {
   }
 
   if (error && !room) {
+    if (error.code === "KICKED") {
+      return (
+        <ErrorPanel
+          message={error.message}
+          onRetry={() => {
+            window.location.href = "/";
+          }}
+          retryLabel="Back to home"
+        />
+      );
+    }
     return <ErrorPanel message={error.message} onRetry={retry} />;
   }
 

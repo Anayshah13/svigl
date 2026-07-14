@@ -158,6 +158,8 @@ export function useRoom(code: string, options: UseRoomOptions = {}) {
 
   const leaveInFlight = useRef(false);
   const joinInFlight = useRef(false);
+  const autoJoinAttempted = useRef(false);
+  const wasKicked = useRef(false);
   const normalizedCode = code.trim().toUpperCase();
   const codeValidationError = validateRoomCode(code);
 
@@ -181,6 +183,8 @@ export function useRoom(code: string, options: UseRoomOptions = {}) {
         setNotMember(true);
       } else {
         setNotMember(false);
+        // Membership confirmed — never auto-rejoin if a later sync drops us.
+        autoJoinAttempted.current = true;
         if (selfId) {
           useRoomStore.getState().setActiveRoom(nextRoom);
         }
@@ -375,6 +379,15 @@ export function useRoom(code: string, options: UseRoomOptions = {}) {
       normalizedCode,
       (nextRoom) => applyRoom(nextRoom),
       (roomError) => {
+        if (roomError.code === "KICKED") {
+          wasKicked.current = true;
+          setRoom(null);
+          setNotMember(true);
+          setError(roomError);
+          useRoomStore.getState().clearActiveRoom();
+          disconnectRoomSync();
+          return;
+        }
         if (!handleAuthError(roomError)) {
           setError(roomError);
         }
@@ -401,10 +414,13 @@ export function useRoom(code: string, options: UseRoomOptions = {}) {
     tabBlocked,
   ]);
 
-  // Auto-join when user lands on /room/{code} without membership (e.g. bookmark)
+  // Auto-join once on mount when landing on /room/{code} without membership (invite/bookmark).
+  // Never rejoin after a kick or after a later sync flips notMember.
   useEffect(() => {
-    if (!options.autoJoin || !authReady || loading || tabBlocked || joining) return;
+    if (!options.autoJoin || autoJoinAttempted.current || wasKicked.current) return;
+    if (!authReady || loading || tabBlocked || joining) return;
     if (!notMember || error) return;
+    autoJoinAttempted.current = true;
     void attemptJoin();
   }, [attemptJoin, authReady, error, joining, loading, notMember, options.autoJoin, tabBlocked]);
 

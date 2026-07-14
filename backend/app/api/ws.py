@@ -2,7 +2,8 @@
 WebSocket endpoint — one authenticated connection per user.
 
 Room membership changes via JOIN_ROOM / LEAVE_ROOM events on the same socket.
-REST remains responsible for create/join/leave room.
+REST remains responsible for create/join/leave room. WS disconnect does NOT
+remove DB membership — that happens via explicit leave/kick or grace eviction.
 """
 
 from __future__ import annotations
@@ -11,11 +12,9 @@ import asyncio
 import logging
 import time
 
-from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from app.db.session import SessionLocal
-from app.schemas.room import RoomResponse
-from app.services.room import leave_room
 from app.websocket.auth import authenticate_websocket
 from app.websocket.connection_manager import ConnectedClient, connection_manager
 from app.websocket.events import EventType, make_event, parse_client_message
@@ -31,47 +30,15 @@ HEARTBEAT_TIMEOUT_SECONDS = 30
 
 async def _handle_ws_disconnect(client: ConnectedClient) -> None:
     """
-    DB-level cleanup when a WebSocket drops (tab close, crash, heartbeat timeout).
-    Removes the player from the room, transfers host if needed, and broadcasts
-    the updated room state so remaining players see changes immediately.
+    Leave the in-memory room channel only.
+
+    DB membership is preserved so refresh / brief network loss can reconnect
+    within the presence grace window without host migration or rejoin churn.
     """
-    room_code = client.room_code
-    if room_code is None:
+    if client.room_code is None:
         return
 
     await room_manager.disconnect(client)
-    client.room_code = None
-
-    db = SessionLocal()
-    try:
-        room = leave_room(db, code=room_code, user_id=client.user_id)
-        if room is not None:
-            snapshot = RoomResponse.from_room(room).model_dump(mode="json")
-            await room_manager.broadcast(
-                room_code, EventType.ROOM_UPDATED, room=snapshot
-            )
-        else:
-            await room_manager.broadcast(
-                room_code,
-                EventType.PLAYER_LEFT,
-                player_id=str(client.user_id),
-                player_name=client.user_name,
-                room_deleted=True,
-            )
-    except HTTPException:
-        logger.debug(
-            "WS disconnect: player already removed user=%s room=%s",
-            client.user_id,
-            room_code,
-        )
-    except Exception:
-        logger.exception(
-            "WS disconnect cleanup failed user=%s room=%s",
-            client.user_id,
-            room_code,
-        )
-    finally:
-        db.close()
 
 
 @router.websocket("/ws")
@@ -159,7 +126,7 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
     finally:
         heartbeat_task.cancel()
         await _handle_ws_disconnect(client)
-        await connection_manager.unregister(user.id)
+        await connection_manager.unregister(client)
         logger.info(
             "WS socket_destroyed user=%s socket_id=%s",
             user.id,

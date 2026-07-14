@@ -8,6 +8,7 @@ the appropriate handler function.
 from __future__ import annotations
 
 import logging
+from datetime import datetime, timezone
 from uuid import UUID
 
 from fastapi import WebSocket
@@ -16,6 +17,7 @@ from sqlalchemy.orm import Session
 from app.db.session import SessionLocal
 from app.models.room import ROOM_STATUS_FINISHED, Room, RoomPlayer
 from app.schemas.room import RoomResponse
+from app.services.room import touch_membership_presence
 from app.websocket.connection_manager import ConnectedClient
 from app.websocket.events import EventType, WSMessage, make_event
 from app.websocket.room_manager import room_manager
@@ -33,6 +35,12 @@ async def handle_message(client: ConnectedClient, message: WSMessage) -> None:
 
 
 async def _handle_ping(client: ConnectedClient, _message: WSMessage) -> None:
+    if client.room_code is not None:
+        db = SessionLocal()
+        try:
+            touch_membership_presence(db, client.user_id, client.room_code)
+        finally:
+            db.close()
     await client.websocket.send_text(make_event(EventType.PONG))
 
 
@@ -65,12 +73,16 @@ async def _handle_join_room(client: ConnectedClient, message: WSMessage) -> None
 
     db = SessionLocal()
     try:
-        if not _get_membership(db, client.user_id, room_code):
+        membership = _get_membership(db, client.user_id, room_code)
+        if not membership:
             await client.websocket.send_text(
                 make_event(EventType.ERROR, detail="Not a member of this room")
             )
             await client.websocket.close(code=4004, reason="Not a member of this room")
             return
+
+        membership.last_seen_at = datetime.now(timezone.utc)
+        db.commit()
 
         if client.room_code and client.room_code != room_code:
             await room_manager.disconnect(client)

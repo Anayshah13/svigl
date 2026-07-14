@@ -17,6 +17,7 @@ from app.services.room import (
     transfer_host,
 )
 from app.websocket.notify import (
+    broadcast_room_change,
     fire_and_forget,
     notify_player_joined,
     notify_player_kicked,
@@ -87,10 +88,15 @@ def kick(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> RoomResponse:
-    # Resolve target name before removal
+    room_row = db.query(Room).filter(Room.code == code.upper()).first()
+    if room_row is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Room not found.",
+        )
+
     target_player = next(
-        (rp for rp in db.query(Room).filter(Room.code == code.upper()).first().players
-         if rp.user_id == body.player_id),
+        (rp for rp in room_row.players if rp.user_id == body.player_id),
         None,
     )
     target_name = target_player.user.name if target_player else "Unknown"
@@ -129,6 +135,8 @@ def presence(
 ) -> RoomResponse:
     room, evicted = touch_room_presence(db, code=code, user_id=current_user.id)
     if room is None:
+        if evicted:
+            fire_and_forget(broadcast_room_change(code.upper(), None))
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Room not found.",

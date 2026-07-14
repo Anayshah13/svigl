@@ -58,13 +58,23 @@ class RoomManager:
         if room_code is None:
             return
 
+        removed = False
         async with self._lock:
             room = self._rooms.get(room_code)
             if room is None:
+                client.room_code = None
                 return
-            room.clients.pop(client.user_id, None)
-            if not room.clients:
-                del self._rooms[room_code]
+            existing = room.clients.get(client.user_id)
+            # Only remove if this socket is still the registered one (reconnect-safe).
+            if existing is not None and existing.websocket is client.websocket:
+                room.clients.pop(client.user_id, None)
+                removed = True
+                if not room.clients:
+                    del self._rooms[room_code]
+            client.room_code = None
+
+        if not removed:
+            return
 
         await self.broadcast(
             room_code,
@@ -72,6 +82,19 @@ class RoomManager:
             player_id=str(client.user_id),
             player_name=client.user_name,
         )
+
+    async def disconnect_user(self, room_code: str, user_id: UUID) -> ConnectedClient | None:
+        """Force-remove a user from the in-memory room (e.g. after kick)."""
+        async with self._lock:
+            room = self._rooms.get(room_code)
+            if room is None:
+                return None
+            client = room.clients.pop(user_id, None)
+            if client is not None:
+                client.room_code = None
+                if not room.clients:
+                    del self._rooms[room_code]
+            return client
 
     async def broadcast(
         self, room_code: str, event_type: EventType, **payload: object

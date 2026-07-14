@@ -196,6 +196,12 @@ class AppWebSocketManager {
         detail: `code=${event.code} reason=${event.reason}`,
       });
 
+      // Preserve room for reconnect JOIN_ROOM; clear joined so joinRoom() won't early-return.
+      if (this.joinedRoomCode && !this.pendingJoinCode) {
+        this.pendingJoinCode = this.joinedRoomCode;
+      }
+      this.joinedRoomCode = null;
+
       if (this.socket === socket) {
         this.socket = null;
         this.socketId = null;
@@ -204,6 +210,7 @@ class AppWebSocketManager {
       if (this.intentionalClose) return;
 
       if (event.code === 4003 || event.code === 4004) {
+        this.pendingJoinCode = null;
         this.emitError({
           code: event.code === 4003 ? "AUTH_EXPIRED" : "NOT_IN_ROOM",
           message: event.reason || "Connection rejected",
@@ -226,10 +233,34 @@ class AppWebSocketManager {
   }
 
   private handleMessage(msg: WSMessage): void {
+    if (msg.type === "PLAYER_KICKED") {
+      const kickedId = msg.payload.player_id as string | undefined;
+      const kickedSelf =
+        Boolean(msg.payload.kicked) ||
+        (Boolean(kickedId) && kickedId === this.userId);
+
+      if (kickedSelf) {
+        this.joinedRoomCode = null;
+        this.pendingJoinCode = null;
+        this.emitError({
+          code: "KICKED",
+          message: (msg.payload.reason as string) || "You were kicked from the room.",
+        });
+        return;
+      }
+
+      const kickRoom = msg.payload.room as RoomResponse | undefined;
+      if (kickRoom) {
+        this.joinedRoomCode = kickRoom.code;
+        this.pendingJoinCode = null;
+        this.emitUpdate(mapWsRoom(kickRoom));
+      }
+      return;
+    }
+
     if (
       msg.type === "ROOM_UPDATED" ||
       msg.type === "PLAYER_JOINED" ||
-      msg.type === "PLAYER_KICKED" ||
       msg.type === "PLAYER_LEFT"
     ) {
       const roomData = msg.payload.room as RoomResponse | undefined;

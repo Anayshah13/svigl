@@ -32,6 +32,7 @@ export type RoomErrorCode =
   | "ALREADY_HOST"
   | "TARGET_NOT_IN_ROOM"
   | "TAB_BLOCKED"
+  | "KICKED"
   | "AUTH_EXPIRED"
   | "NETWORK_ERROR"
   | "SERVER_UNAVAILABLE"
@@ -59,6 +60,7 @@ export const ROOM_ERROR_MESSAGES: Record<RoomErrorCode, string> = {
   TARGET_NOT_IN_ROOM: "That player is not in this room.",
   TAB_BLOCKED:
     "This room is already open in another tab. Close the other tab, then refresh this page.",
+  KICKED: "You were kicked from the room.",
   AUTH_EXPIRED: "Your session expired. Please sign in again.",
   NETWORK_ERROR: "Couldn't reach the server. Check your connection and try again.",
   SERVER_UNAVAILABLE: "The server is temporarily unavailable. Please try again shortly.",

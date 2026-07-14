@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from uuid import UUID
 
 from fastapi import WebSocket
@@ -62,18 +62,31 @@ class ConnectionManager:
             )
             return existing
 
-    async def unregister(self, user_id: UUID) -> ConnectedClient | None:
-        """Remove a connection. Returns the removed client or None."""
+    async def unregister(self, client: ConnectedClient) -> bool:
+        """
+        Remove a connection only if it is still the active socket for that user.
+        Prevents a replaced (old) socket's finally block from dropping the new one.
+        """
         async with self._lock:
-            removed = self._connections.pop(user_id, None)
-            if removed is not None:
+            current = self._connections.get(client.user_id)
+            if current is None:
+                return False
+            if current.websocket is not client.websocket:
                 logger.info(
-                    "connection_manager unregister user=%s socket=%s active_count=%s",
-                    user_id,
-                    id(removed.websocket),
-                    len(self._connections),
+                    "connection_manager unregister_skipped user=%s old_socket=%s active_socket=%s",
+                    client.user_id,
+                    id(client.websocket),
+                    id(current.websocket),
                 )
-            return removed
+                return False
+            del self._connections[client.user_id]
+            logger.info(
+                "connection_manager unregister user=%s socket=%s active_count=%s",
+                client.user_id,
+                id(client.websocket),
+                len(self._connections),
+            )
+            return True
 
     def get(self, user_id: UUID) -> ConnectedClient | None:
         return self._connections.get(user_id)
