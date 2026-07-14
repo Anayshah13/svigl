@@ -18,6 +18,7 @@ from app.api.session import router as session_router
 from app.api.ws import router as ws_router
 from app.config import settings
 from app.services.room_sweeper import run_room_sweeper
+from app.websocket.notify import set_main_loop
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +30,7 @@ logging.basicConfig(
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    set_main_loop(asyncio.get_running_loop())
     logger.info(
         "startup complete cors_origins=%s cookie_secure=%s cookie_samesite=%s frontend_url=%s",
         settings.cors_origins,

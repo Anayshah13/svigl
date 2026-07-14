@@ -16,14 +16,15 @@ from app.services.room import (
     touch_room_presence,
     transfer_host,
 )
+from app.websocket.events import EventType
 from app.websocket.notify import (
-    broadcast_room_change,
     fire_and_forget,
     notify_player_joined,
     notify_player_kicked,
     notify_player_left,
     notify_room_updated,
 )
+from app.websocket.room_manager import room_manager
 
 router = APIRouter(prefix="/rooms", tags=["rooms"])
 
@@ -59,7 +60,8 @@ def join(
     db: Session = Depends(get_db),
 ) -> RoomResponse:
     room = join_room(db, code=code, user_id=current_user.id)
-    fire_and_forget(notify_player_joined(room, current_user.id, current_user.name))
+    # Serialize + schedule while the request DB session is still open.
+    notify_player_joined(room, current_user.id, current_user.name)
     return RoomResponse.from_room(room)
 
 
@@ -71,13 +73,9 @@ def leave(
 ) -> RoomResponse | dict[str, str]:
     room = leave_room(db, code=code, user_id=current_user.id)
     if room is None:
-        fire_and_forget(
-            notify_player_left(code.upper(), current_user.id, current_user.name)
-        )
+        notify_player_left(code.upper(), current_user.id, current_user.name)
         return {"detail": "Room deleted (no players remain)."}
-    fire_and_forget(
-        notify_player_left(code.upper(), current_user.id, current_user.name, room)
-    )
+    notify_player_left(code.upper(), current_user.id, current_user.name, room)
     return RoomResponse.from_room(room)
 
 
@@ -109,7 +107,7 @@ def kick(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Room not found.",
         )
-    fire_and_forget(notify_player_kicked(room, body.player_id, target_name))
+    notify_player_kicked(room, body.player_id, target_name)
     return RoomResponse.from_room(room)
 
 
@@ -123,7 +121,7 @@ def transfer(
     room = transfer_host(
         db, code=code, host_id=current_user.id, new_host_id=body.player_id
     )
-    fire_and_forget(notify_room_updated(room))
+    notify_room_updated(room)
     return RoomResponse.from_room(room)
 
 
@@ -136,13 +134,19 @@ def presence(
     room, evicted = touch_room_presence(db, code=code, user_id=current_user.id)
     if room is None:
         if evicted:
-            fire_and_forget(broadcast_room_change(code.upper(), None))
+            fire_and_forget(
+                room_manager.broadcast(
+                    code.upper(),
+                    EventType.PLAYER_LEFT,
+                    room_deleted=True,
+                )
+            )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Room not found.",
         )
     if evicted:
-        fire_and_forget(notify_room_updated(room))
+        notify_room_updated(room)
     return RoomResponse.from_room(room)
 
 

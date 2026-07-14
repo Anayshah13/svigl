@@ -11,34 +11,50 @@ import asyncio
 import logging
 
 from app.db.session import SessionLocal
+from app.schemas.room import RoomResponse
 from app.services.room import sweep_stale_rooms
-from app.websocket.notify import broadcast_room_change
+from app.websocket.notify import broadcast_room_change_async
 
 logger = logging.getLogger(__name__)
 
 SWEEP_INTERVAL_SECONDS = 15
 
 
-async def sweep_stale_memberships() -> None:
+def _sweep_and_snapshot() -> list[tuple[str, dict | None, list]]:
+    """Run eviction in a worker thread; return JSON-safe payloads."""
     db = SessionLocal()
     try:
-        changes = await asyncio.to_thread(sweep_stale_rooms, db)
+        changes = sweep_stale_rooms(db)
+        payloads: list[tuple[str, dict | None, list]] = []
         for room_code, room, evicted in changes:
+            snapshot = (
+                RoomResponse.from_room(room).model_dump(mode="json")
+                if room is not None
+                else None
+            )
+            payloads.append((room_code, snapshot, evicted))
+        return payloads
+    finally:
+        db.close()
+
+
+async def sweep_stale_memberships() -> None:
+    try:
+        changes = await asyncio.to_thread(_sweep_and_snapshot)
+        for room_code, snapshot, evicted in changes:
             logger.info(
                 "room_sweeper evicted room=%s count=%s deleted=%s",
                 room_code,
                 len(evicted),
-                room is None,
+                snapshot is None,
             )
-            await broadcast_room_change(
+            await broadcast_room_change_async(
                 room_code,
-                room,
+                snapshot,
                 player_id=evicted[0] if evicted else None,
             )
     except Exception:
         logger.exception("room_sweeper failed")
-    finally:
-        db.close()
 
 
 async def run_room_sweeper(stop_event: asyncio.Event) -> None:
