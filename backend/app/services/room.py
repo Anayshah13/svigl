@@ -1,5 +1,6 @@
 import random
 import string
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
@@ -8,17 +9,31 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.room import (
+    GAME_PHASE_LOBBY,
     ROOM_STATUS_FINISHED,
     ROOM_STATUS_PLAYING,
     ROOM_STATUS_WAITING,
+    GameSession,
+    GameSettings,
     Room,
     RoomPlayer,
 )
+from app.services.game import GameMutation, handle_player_departure
+
 
 _CODE_CHARS = string.ascii_uppercase
 _MAX_CODE_ATTEMPTS = 20
 # Grace window for refresh / brief network loss before membership eviction.
 PRESENCE_TTL_SECONDS = 45
+
+
+@dataclass
+class MembershipChange:
+    room: Room | None
+    game_mutation: GameMutation | None = None
+    host_changed: bool = False
+    previous_host_id: UUID | None = None
+    joined_as_waiting: bool = False
 
 
 def _utcnow() -> datetime:
@@ -53,23 +68,85 @@ def _get_active_room_for_user(db: Session, user_id: UUID) -> RoomPlayer | None:
     )
 
 
+def _load_room(
+    db: Session,
+    *,
+    code: str | None = None,
+    room_id: UUID | None = None,
+    for_update: bool = False,
+) -> Room | None:
+    """
+    Load a Room (collections use selectin, so no unique()/outer-join lock issues).
+
+    When ``for_update`` is set, lock only the ``rooms`` row first. Postgres rejects
+    ``FOR UPDATE`` on queries that LEFT OUTER JOIN nullable sides.
+    """
+    if for_update:
+        lock_stmt = select(Room.id)
+        if code is not None:
+            lock_stmt = lock_stmt.where(Room.code == code.upper())
+        elif room_id is not None:
+            lock_stmt = lock_stmt.where(Room.id == room_id)
+        else:
+            raise ValueError("code or room_id is required")
+        locked_id = db.execute(lock_stmt.with_for_update()).scalar_one_or_none()
+        if locked_id is None:
+            return None
+        return db.execute(select(Room).where(Room.id == locked_id)).scalar_one_or_none()
+
+    stmt = select(Room)
+    if code is not None:
+        stmt = stmt.where(Room.code == code.upper())
+    elif room_id is not None:
+        stmt = stmt.where(Room.id == room_id)
+    else:
+        raise ValueError("code or room_id is required")
+    return db.execute(stmt).scalar_one_or_none()
+
+
+def ensure_room_game_defaults(
+    db: Session, room: Room, *, commit: bool = True
+) -> Room:
+    """Backfill GameSettings / lobby GameSession for pre-lifecycle rooms."""
+    changed = False
+    if room.game_settings is None:
+        settings = GameSettings(room_id=room.id)
+        db.add(settings)
+        room.game_settings = settings
+        changed = True
+    if room.game_session is None:
+        session = GameSession(room_id=room.id, phase=GAME_PHASE_LOBBY)
+        db.add(session)
+        room.game_session = session
+        changed = True
+    if changed:
+        db.flush()
+        if commit:
+            db.commit()
+            db.refresh(room)
+    return room
+
+
 def _get_room_or_404(db: Session, code: str) -> Room:
-    room = db.scalar(select(Room).where(Room.code == code.upper()))
+    room = _load_room(db, code=code)
     if room is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Room not found.",
         )
-    return room
+    return ensure_room_game_defaults(db, room, commit=True)
 
 
-def _remove_player(db: Session, room: Room, user_id: UUID) -> Room | None:
-    """Remove a player from a room. Returns the room if it still exists, else None."""
+def _remove_player(db: Session, room: Room, user_id: UUID) -> MembershipChange:
+    """Remove a player from a room and apply game-departure side effects."""
     target = next((rp for rp in list(room.players) if rp.user_id == user_id), None)
     if target is None:
-        return room
+        return MembershipChange(room=room)
 
+    previous_host_id = room.host_id
     was_host = room.host_id == user_id
+    game_mutation = handle_player_departure(db, room, user_id)
+
     db.delete(target)
     db.flush()
 
@@ -83,14 +160,26 @@ def _remove_player(db: Session, room: Room, user_id: UUID) -> Room | None:
     if not remaining:
         db.delete(room)
         db.commit()
-        return None
+        return MembershipChange(
+            room=None,
+            game_mutation=game_mutation,
+            host_changed=False,
+            previous_host_id=previous_host_id,
+        )
 
+    host_changed = False
     if was_host:
         room.host_id = remaining[0].user_id
+        host_changed = True
 
     db.commit()
     db.refresh(room)
-    return room
+    return MembershipChange(
+        room=room,
+        game_mutation=game_mutation,
+        host_changed=host_changed,
+        previous_host_id=previous_host_id if host_changed else None,
+    )
 
 
 def touch_membership_presence(db: Session, user_id: UUID, room_code: str) -> bool:
@@ -118,30 +207,43 @@ def _get_membership(db: Session, user_id: UUID, room_code: str) -> RoomPlayer | 
     )
 
 
-def evict_stale_players(db: Session, room: Room) -> tuple[Room | None, list[UUID]]:
+def _aware(value: datetime) -> datetime:
+    return value if value.tzinfo is not None else value.replace(tzinfo=timezone.utc)
+
+
+def evict_stale_players(db: Session, room: Room) -> tuple[MembershipChange, list[UUID]]:
     """Drop players whose client has not sent a presence signal recently."""
     db.refresh(room)
     cutoff = _utcnow() - timedelta(seconds=PRESENCE_TTL_SECONDS)
     stale_user_ids = [
-        rp.user_id for rp in list(room.players) if rp.last_seen_at < cutoff
+        rp.user_id
+        for rp in list(room.players)
+        if _aware(rp.last_seen_at) < cutoff
     ]
 
-    current: Room | None = room
+    current = MembershipChange(room=room)
     evicted: list[UUID] = []
     for user_id in stale_user_ids:
-        if current is None:
+        if current.room is None:
             break
-        db.refresh(current)
-        current = _remove_player(db, current, user_id)
+        db.refresh(current.room)
+        change = _remove_player(db, current.room, user_id)
+        # Prefer the latest game mutation / host-change flags across the batch.
+        current = MembershipChange(
+            room=change.room,
+            game_mutation=change.game_mutation or current.game_mutation,
+            host_changed=change.host_changed or current.host_changed,
+            previous_host_id=change.previous_host_id or current.previous_host_id,
+        )
         evicted.append(user_id)
 
     return current, evicted
 
 
-def sweep_stale_rooms(db: Session) -> list[tuple[str, Room | None, list[UUID]]]:
+def sweep_stale_rooms(db: Session) -> list[tuple[str, MembershipChange, list[UUID]]]:
     """
     Evict stale memberships across all active rooms.
-    Returns (room_code, room_or_none, evicted_user_ids) for rooms that changed.
+    Returns (room_code, membership_change, evicted_user_ids) for rooms that changed.
     """
     rooms = db.scalars(
         select(Room).where(
@@ -149,8 +251,9 @@ def sweep_stale_rooms(db: Session) -> list[tuple[str, Room | None, list[UUID]]]:
         )
     ).all()
 
-    changes: list[tuple[str, Room | None, list[UUID]]] = []
+    changes: list[tuple[str, MembershipChange, list[UUID]]] = []
     for room in rooms:
+        ensure_room_game_defaults(db, room, commit=True)
         code = room.code
         updated, evicted = evict_stale_players(db, room)
         if evicted:
@@ -158,7 +261,9 @@ def sweep_stale_rooms(db: Session) -> list[tuple[str, Room | None, list[UUID]]]:
     return changes
 
 
-def touch_room_presence(db: Session, code: str, user_id: UUID) -> tuple[Room | None, list[UUID]]:
+def touch_room_presence(
+    db: Session, code: str, user_id: UUID
+) -> tuple[MembershipChange, list[UUID]]:
     """Record that a player is still connected and evict anyone who is not."""
     room = _get_room_or_404(db, code)
 
@@ -172,14 +277,15 @@ def touch_room_presence(db: Session, code: str, user_id: UUID) -> tuple[Room | N
     target.last_seen_at = _utcnow()
     db.flush()
 
-    room, evicted = evict_stale_players(db, room)
-    if room is None:
-        db.commit()
-        return None, evicted
+    change, evicted = evict_stale_players(db, room)
+    if change.room is None:
+        return change, evicted
 
-    db.commit()
-    db.refresh(room)
-    return room, evicted
+    # Presence touch already flushed; ensure commit if no eviction ran.
+    if not evicted:
+        db.commit()
+        db.refresh(change.room)
+    return change, evicted
 
 
 def create_room(db: Session, host_id: UUID, max_players: int) -> Room:
@@ -196,14 +302,15 @@ def create_room(db: Session, host_id: UUID, max_players: int) -> Room:
     db.add(room)
     db.flush()
 
-    player = RoomPlayer(room_id=room.id, user_id=host_id, last_seen_at=now)
-    db.add(player)
+    db.add(GameSettings(room_id=room.id))
+    db.add(GameSession(room_id=room.id, phase=GAME_PHASE_LOBBY))
+    db.add(RoomPlayer(room_id=room.id, user_id=host_id, last_seen_at=now))
     db.commit()
     db.refresh(room)
     return room
 
 
-def join_room(db: Session, code: str, user_id: UUID) -> Room:
+def join_room(db: Session, code: str, user_id: UUID) -> MembershipChange:
     room = _get_room_or_404(db, code)
 
     if room.status == ROOM_STATUS_FINISHED:
@@ -211,18 +318,21 @@ def join_room(db: Session, code: str, user_id: UUID) -> Room:
             status_code=status.HTTP_410_GONE,
             detail="This room has finished.",
         )
-    if room.status == ROOM_STATUS_PLAYING:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Game is already in progress.",
-        )
 
     already_in = next((rp for rp in room.players if rp.user_id == user_id), None)
     if already_in:
         already_in.last_seen_at = _utcnow()
         db.commit()
         db.refresh(room)
-        return room
+        waiting = (
+            room.game_session is not None
+            and room.game_session.phase != GAME_PHASE_LOBBY
+            and user_id
+            not in {
+                p.user_id for p in room.game_session.players if p.is_active
+            }
+        )
+        return MembershipChange(room=room, joined_as_waiting=waiting)
 
     existing = _get_active_room_for_user(db, user_id)
     if existing:
@@ -237,15 +347,29 @@ def join_room(db: Session, code: str, user_id: UUID) -> Room:
             detail="Room is full.",
         )
 
-    player = RoomPlayer(room_id=room.id, user_id=user_id, last_seen_at=_utcnow())
+    # Midgame join: allowed while PLAYING; player is waiting and excluded from rotation.
+    joined_as_waiting = (
+        room.status == ROOM_STATUS_PLAYING
+        and room.game_session is not None
+        and room.game_session.phase != GAME_PHASE_LOBBY
+    )
+
+    player = RoomPlayer(
+        room_id=room.id,
+        user_id=user_id,
+        last_seen_at=_utcnow(),
+        is_ready=False,
+    )
     db.add(player)
+    if room.game_session is not None and joined_as_waiting:
+        room.game_session.revision += 1
     db.commit()
     db.refresh(room)
-    return room
+    return MembershipChange(room=room, joined_as_waiting=joined_as_waiting)
 
 
-def leave_room(db: Session, code: str, user_id: UUID) -> Room | None:
-    """Remove a player from a room. Returns the room if it still exists, else None."""
+def leave_room(db: Session, code: str, user_id: UUID) -> MembershipChange:
+    """Remove a player from a room. Returns membership change details."""
     room = _get_room_or_404(db, code)
     return _remove_player(db, room, user_id)
 
@@ -270,7 +394,7 @@ def _get_member_or_409(room: Room, target_id: UUID) -> RoomPlayer:
 
 def kick_player(
     db: Session, code: str, host_id: UUID, target_id: UUID
-) -> Room | None:
+) -> MembershipChange:
     """
     Host removes another player from the room.
 
@@ -279,7 +403,7 @@ def kick_player(
     - Host trying to kick themselves → 409 (use leave instead)
     - Target not in room → 409
     - Room is FINISHED → 410
-    - Room deleted after kick (shouldn't happen since host stays) → None
+    - Room deleted after kick (shouldn't happen since host stays) → room=None
     """
     room = _get_room_or_404(db, code)
 
@@ -304,7 +428,7 @@ def kick_player(
 
 def transfer_host(
     db: Session, code: str, host_id: UUID, new_host_id: UUID
-) -> Room:
+) -> MembershipChange:
     """
     Transfer host role to another player in the room.
 
@@ -332,21 +456,31 @@ def transfer_host(
 
     _get_member_or_409(room, new_host_id)
 
+    previous_host_id = room.host_id
     room.host_id = new_host_id
+    if room.game_session is not None:
+        room.game_session.revision += 1
     db.commit()
     db.refresh(room)
-    return room
+    return MembershipChange(
+        room=room,
+        host_changed=True,
+        previous_host_id=previous_host_id,
+    )
 
 
 def get_user_active_room(db: Session, user_id: UUID) -> Room | None:
-    """Read-only: return the user's active room without mutating membership."""
+    """Return the user's active room, ensuring game defaults exist."""
     membership = _get_active_room_for_user(db, user_id)
     if membership is None:
         return None
 
-    return db.get(Room, membership.room_id)
+    room = _load_room(db, room_id=membership.room_id)
+    if room is None:
+        return None
+    return ensure_room_game_defaults(db, room)
 
 
 def get_room(db: Session, code: str) -> Room:
-    """Read-only: return the room without running presence eviction."""
+    """Return the room, ensuring game defaults exist."""
     return _get_room_or_404(db, code)

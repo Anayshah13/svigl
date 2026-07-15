@@ -1,10 +1,81 @@
 /** Room lifecycle status — mirrors backend values. */
 export type RoomStatus = "WAITING" | "PLAYING" | "FINISHED";
 
+export type GamePhase =
+  | "LOBBY"
+  | "COUNTDOWN"
+  | "WORD_SELECTION"
+  | "ROUND_ACTIVE"
+  | "ROUND_END"
+  | "GAME_FINISHED";
+
+export interface GameSettings {
+  rounds: number;
+  roundDurationSeconds: number;
+}
+
 export interface RoomPlayer {
   id: string;
   name: string;
   avatarUrl: string | null;
+  isReady: boolean;
+  isWaiting: boolean;
+  isConnected?: boolean;
+  score?: number;
+}
+
+export interface GameDrawer {
+  id: string;
+  name: string;
+  avatarUrl: string | null;
+}
+
+export interface ScoreEntry {
+  playerId: string;
+  score: number;
+  roundPoints: number;
+  hasGuessedCorrectly: boolean;
+  isActive: boolean;
+}
+
+export interface RoundGuessedEntry {
+  playerId: string;
+  playerName: string;
+  points: number;
+}
+
+/** Present on ROUND_ENDED / round-end snapshots. */
+export interface RoundSummary {
+  word: string | null;
+  drawerId: string | null;
+  guessed: RoundGuessedEntry[];
+  scores: ScoreEntry[];
+}
+
+export interface RoomGameState {
+  sessionId: string | null;
+  phase: GamePhase;
+  revision: number;
+  serverTime: string | null;
+  phaseEndsAt: string | null;
+  remainingSeconds: number | null;
+  roundNumber: number;
+  totalRounds: number;
+  drawer: GameDrawer | null;
+  activePlayerIds: string[];
+  waitingPlayerIds: string[];
+  /** Underscore mask for guessers, e.g. `_ _ _ _`. */
+  wordHint: string | null;
+  wordLength: number | null;
+  /** Only present for the drawer (or after round-end reveal). */
+  secretWord: string | null;
+  /** Only present for the drawer during WORD_SELECTION. */
+  wordChoices: string[] | null;
+  scores: ScoreEntry[];
+  guessedPlayerIds: string[];
+  winnerId: string | null;
+  /** Last round summary from ROUND_ENDED (cleared on next round). */
+  roundSummary: RoundSummary | null;
 }
 
 /** Public room shape — uses room code as the identifier, not database IDs. */
@@ -15,6 +86,23 @@ export interface Room {
   maxPlayers: number;
   createdAt: string;
   players: RoomPlayer[];
+  settings: GameSettings;
+  game: RoomGameState;
+  readyPlayerIds: string[];
+  waitingPlayerIds: string[];
+  canStart: boolean;
+  revision: number;
+}
+
+export type ChatMessageKind = "chat" | "system" | "correct_guess";
+
+export interface ChatMessage {
+  id: string;
+  kind: ChatMessageKind;
+  message: string;
+  playerId: string | null;
+  playerName: string | null;
+  at: number;
 }
 
 export type RoomErrorCode =
@@ -94,6 +182,34 @@ export type WSEventType =
   | "PLAYER_DISCONNECTED"
   | "ROOM_UPDATED"
   | "PLAYER_KICKED"
+  | "PLAYER_READY"
+  | "PLAYER_UNREADY"
+  | "HOST_UPDATE_SETTINGS"
+  | "START_GAME"
+  | "SELECT_WORD"
+  | "CHAT_MESSAGE"
+  | "GAME_STARTED"
+  | "COUNTDOWN_STARTED"
+  | "WORD_CHOICES_OFFERED"
+  | "WORD_SELECTED"
+  | "ROUND_STARTED"
+  | "ROUND_ENDED"
+  | "GAME_FINISHED"
+  | "TIMER_UPDATED"
+  | "PLAYER_WAITING"
+  | "GAME_STATE_UPDATED"
+  | "HOST_CHANGED"
+  | "PLAYER_GUESSED"
+  | "SCORES_UPDATED"
+  | "CANVAS_CLEAR"
+  | "CANVAS_SNAPSHOT_REQUEST"
+  | "SHAPE_CREATED"
+  | "SHAPE_UPDATED"
+  | "SHAPE_DELETED"
+  | "CANVAS_CLEARED"
+  | "UNDO"
+  | "REDO"
+  | "CANVAS_SNAPSHOT"
   | "ERROR";
 
 /** Wire format for all WebSocket messages. */

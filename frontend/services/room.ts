@@ -1,36 +1,7 @@
 import { ApiError, apiFetch, getApiUrl } from "@/lib/api";
 import { normalizeRoomCode } from "@/lib/room-code";
-import { ROOM_ERROR_MESSAGES, type Room, type RoomError, type RoomStatus } from "@/types/room";
-
-interface PlayerResponse {
-  id: string;
-  name: string;
-  avatar_url: string | null;
-}
-
-interface RoomResponse {
-  code: string;
-  host_id: string;
-  status: RoomStatus;
-  max_players: number;
-  created_at: string;
-  players: PlayerResponse[];
-}
-
-function mapRoom(data: RoomResponse): Room {
-  return {
-    code: data.code,
-    hostId: data.host_id,
-    status: data.status,
-    maxPlayers: data.max_players,
-    createdAt: data.created_at,
-    players: data.players.map((player) => ({
-      id: player.id,
-      name: player.name,
-      avatarUrl: player.avatar_url,
-    })),
-  };
-}
+import { mapRoomPayload } from "@/lib/room-payload";
+import { ROOM_ERROR_MESSAGES, type Room, type RoomError } from "@/types/room";
 
 function mapApiError(error: unknown): RoomError {
   if (error && typeof error === "object" && "code" in error && "message" in error) {
@@ -105,46 +76,50 @@ async function roomRequest<T>(path: string, init?: RequestInit): Promise<T> {
   }
 }
 
+function requireRoom(data: unknown): Room {
+  const room = mapRoomPayload(data);
+  if (!room) {
+    throw { code: "UNKNOWN", message: ROOM_ERROR_MESSAGES.UNKNOWN } satisfies RoomError;
+  }
+  return room;
+}
+
 export async function createRoom(maxPlayers = 8): Promise<Room> {
-  const data = await roomRequest<RoomResponse>("/rooms", {
+  const data = await roomRequest<unknown>("/rooms", {
     method: "POST",
     body: JSON.stringify({ max_players: maxPlayers }),
   });
-  return mapRoom(data);
+  return requireRoom(data);
 }
 
 export async function joinRoom(code: string): Promise<Room> {
   const normalized = normalizeRoomCode(code);
-  const data = await roomRequest<RoomResponse>(`/rooms/${normalized}/join`, {
+  const data = await roomRequest<unknown>(`/rooms/${normalized}/join`, {
     method: "POST",
   });
-  return mapRoom(data);
+  return requireRoom(data);
 }
 
 export async function leaveRoom(code: string): Promise<Room | null> {
   const normalized = normalizeRoomCode(code);
-  const data = await roomRequest<RoomResponse | { detail: string }>(
+  const data = await roomRequest<unknown>(
     `/rooms/${normalized}/leave`,
     { method: "POST" },
   );
 
-  if (data && "code" in data) {
-    return mapRoom(data);
-  }
-
-  return null;
+  return mapRoomPayload(data);
 }
 
 export async function fetchRoom(code: string): Promise<Room> {
   const normalized = normalizeRoomCode(code);
-  const data = await roomRequest<RoomResponse>(`/rooms/${normalized}`);
-  return mapRoom(data);
+  const data = await roomRequest<unknown>(`/rooms/${normalized}`);
+  return requireRoom(data);
 }
 
 export async function fetchActiveRoom(): Promise<Room | null> {
   try {
-    const data = await roomRequest<RoomResponse>("/rooms/active");
-    return mapRoom(data);
+    const data = await roomRequest<unknown>("/rooms/active");
+    return requireRoom(data);
   } catch (error) {
     const roomError = error as RoomError;
     if (roomError.code === "ROOM_NOT_FOUND") {
@@ -157,10 +132,10 @@ export async function fetchActiveRoom(): Promise<Room | null> {
 /** Keep the player marked as connected; also triggers stale-player eviction server-side. */
 export async function pingRoomPresence(code: string): Promise<Room> {
   const normalized = normalizeRoomCode(code);
-  const data = await roomRequest<RoomResponse>(`/rooms/${normalized}/presence`, {
+  const data = await roomRequest<unknown>(`/rooms/${normalized}/presence`, {
     method: "POST",
   });
-  return mapRoom(data);
+  return requireRoom(data);
 }
 
 /** Best-effort leave when the tab or window is closing. */
@@ -176,21 +151,21 @@ export function leaveRoomBeacon(code: string): void {
 /** Host kicks a player from the room. */
 export async function kickPlayer(code: string, playerId: string): Promise<Room> {
   const normalized = normalizeRoomCode(code);
-  const data = await roomRequest<RoomResponse>(`/rooms/${normalized}/kick`, {
+  const data = await roomRequest<unknown>(`/rooms/${normalized}/kick`, {
     method: "POST",
     body: JSON.stringify({ player_id: playerId }),
   });
-  return mapRoom(data);
+  return requireRoom(data);
 }
 
 /** Host transfers the host role to another player. */
 export async function transferHost(code: string, playerId: string): Promise<Room> {
   const normalized = normalizeRoomCode(code);
-  const data = await roomRequest<RoomResponse>(`/rooms/${normalized}/transfer-host`, {
+  const data = await roomRequest<unknown>(`/rooms/${normalized}/transfer-host`, {
     method: "POST",
     body: JSON.stringify({ player_id: playerId }),
   });
-  return mapRoom(data);
+  return requireRoom(data);
 }
 
 export function isUserInRoom(room: Room, userId: string | null): boolean {

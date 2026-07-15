@@ -17,6 +17,7 @@ from app.api.rooms import router as rooms_router
 from app.api.session import router as session_router
 from app.api.ws import router as ws_router
 from app.config import settings
+from app.services.game_runtime import game_runtime
 from app.services.room_sweeper import run_room_sweeper
 from app.websocket.notify import set_main_loop
 
@@ -38,6 +39,10 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         settings.cookie_samesite,
         settings.frontend_url,
     )
+    try:
+        await game_runtime.recover_active_sessions()
+    except Exception:
+        logger.exception("game session recovery failed")
     stop_sweeper = asyncio.Event()
     sweeper_task = asyncio.create_task(run_room_sweeper(stop_sweeper))
     try:

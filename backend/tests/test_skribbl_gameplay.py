@@ -1,0 +1,294 @@
+"""Tests for Skribbl word selection, guessing, scoring, and secrecy."""
+
+from __future__ import annotations
+
+import json
+import os
+import uuid
+from datetime import timedelta
+
+os.environ.setdefault("GOOGLE_CLIENT_ID", "test")
+os.environ.setdefault("GOOGLE_CLIENT_SECRET", "test")
+os.environ.setdefault("GOOGLE_REDIRECT_URI", "http://localhost/callback")
+os.environ.setdefault("FRONTEND_URL", "http://localhost:3000")
+os.environ.setdefault("SESSION_SECRET_KEY", "test-session")
+os.environ.setdefault("JWT_SECRET", "test-jwt")
+os.environ.setdefault("DATABASE_URL", "sqlite:///:memory:")
+os.environ.setdefault("COOKIE_SECURE", "false")
+os.environ.setdefault("COOKIE_SAMESITE", "lax")
+
+import pytest
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.pool import StaticPool
+
+from app.db.database import Base
+from app.models.room import (
+    GAME_PHASE_ROUND_ACTIVE,
+    GAME_PHASE_ROUND_END,
+    GAME_PHASE_WORD_SELECTION,
+)
+from app.models.user import User
+from app.schemas.room import RoomResponse
+from app.services.game import (
+    GameError,
+    advance_due_session,
+    guesser_points,
+    handle_player_departure,
+    select_word,
+    set_player_ready,
+    start_game,
+    submit_chat,
+    utcnow,
+)
+from app.services.room import create_room, join_room
+from app.services.words import word_hint_mask
+
+
+@pytest.fixture()
+def db() -> Session:
+    engine = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(engine)
+    SessionLocal = sessionmaker(bind=engine)
+    session = SessionLocal()
+    try:
+        yield session
+    finally:
+        session.close()
+        Base.metadata.drop_all(engine)
+
+
+def _user(db: Session, name: str) -> User:
+    user = User(
+        id=uuid.uuid4(),
+        provider="guest",
+        provider_id=str(uuid.uuid4()),
+        email=None,
+        name=name,
+        avatar_url=None,
+    )
+    db.add(user)
+    db.flush()
+    return user
+
+
+def _ready_and_start(db: Session, room_code: str, host_id, users) -> None:
+    for user in users:
+        set_player_ready(db, room_code, user.id, ready=True)
+    start_game(db, room_code, host_id)
+
+
+def _force_deadline(db: Session, room) -> object:
+    db.refresh(room)
+    sess = room.game_session
+    assert sess is not None
+    sess.deadline_at = utcnow() - timedelta(seconds=1)
+    db.commit()
+    return sess.id
+
+
+def _enter_word_selection(db: Session, room):
+    session_id = _force_deadline(db, room)
+    mutation = advance_due_session(db, session_id)
+    assert mutation is not None
+    assert mutation.phase == GAME_PHASE_WORD_SELECTION
+    db.refresh(room)
+    return room.game_session
+
+
+def _enter_round_with_word(db: Session, room, word: str | None = None):
+    session = _enter_word_selection(db, room)
+    choices = json.loads(session.word_choices_json)
+    assert len(choices) == 3
+    pick = word if word in choices else choices[0]
+    drawer_id = session.drawer_user_id
+    mutation = select_word(db, room.code, drawer_id, word=pick)
+    assert mutation.phase == GAME_PHASE_ROUND_ACTIVE
+    db.refresh(room)
+    return room.game_session, pick, drawer_id
+
+
+def test_word_choices_private_and_auto_pick(db: Session) -> None:
+    host = _user(db, "Host")
+    guest = _user(db, "Guest")
+    room = create_room(db, host_id=host.id, max_players=8)
+    join_room(db, code=room.code, user_id=guest.id)
+    _ready_and_start(db, room.code, host.id, [host, guest])
+    db.refresh(room)
+
+    session = _enter_word_selection(db, room)
+    choices = json.loads(session.word_choices_json)
+    public = RoomResponse.from_room(room)
+    assert public.game.word_choices is None
+    assert public.game.secret_word is None
+
+    drawer_snap = RoomResponse.from_room(room, viewer_id=session.drawer_user_id)
+    assert drawer_snap.game.word_choices == choices
+
+    # Timeout auto-picks
+    session_id = _force_deadline(db, room)
+    mutation = advance_due_session(db, session_id)
+    assert mutation is not None
+    assert mutation.phase == GAME_PHASE_ROUND_ACTIVE
+    assert mutation.private_drawer is not None
+    assert mutation.private_drawer.secret_word in choices
+    db.refresh(room)
+    public = RoomResponse.from_room(room)
+    assert public.game.secret_word is None
+    assert public.game.word_hint == word_hint_mask(room.game_session.secret_word)
+    drawer_snap = RoomResponse.from_room(
+        room, viewer_id=room.game_session.drawer_user_id
+    )
+    assert drawer_snap.game.secret_word == room.game_session.secret_word
+
+
+def test_select_word_and_guess_scoring(db: Session) -> None:
+    host = _user(db, "Host")
+    guest = _user(db, "Guest")
+    room = create_room(db, host_id=host.id, max_players=8)
+    join_room(db, code=room.code, user_id=guest.id)
+    _ready_and_start(db, room.code, host.id, [host, guest])
+    db.refresh(room)
+
+    session, word, drawer_id = _enter_round_with_word(db, room)
+    guesser_id = guest.id if drawer_id == host.id else host.id
+
+    # Drawer cannot guess
+    with pytest.raises(GameError) as exc:
+        submit_chat(db, room.code, drawer_id, text=word)
+    assert exc.value.code == "NOT_ALLOWED"
+
+    mutation = submit_chat(db, room.code, guesser_id, text=word.upper())
+    assert "PLAYER_GUESSED" in mutation.events
+    assert mutation.chat_events[0].kind == "correct_guess"
+    assert word.lower() not in mutation.chat_events[0].message.lower()
+    # Only two players → early round end
+    assert mutation.phase == GAME_PHASE_ROUND_END
+    assert "ROUND_ENDED" in mutation.events
+
+    db.refresh(room)
+    guesser = next(p for p in room.game_session.players if p.user_id == guesser_id)
+    drawer = next(p for p in room.game_session.players if p.user_id == drawer_id)
+    assert guesser.score > 0
+    assert drawer.score > 0
+    assert guesser.has_guessed_correctly is True
+
+    # Round summary reveals word; public snapshot may include it at ROUND_END
+    summary = mutation.round_summary
+    assert summary is not None
+    assert summary["word"] == word
+
+
+def test_correct_guessers_cannot_guess_again(db: Session) -> None:
+    host = _user(db, "Host")
+    guest = _user(db, "Guest")
+    third = _user(db, "Third")
+    room = create_room(db, host_id=host.id, max_players=8)
+    join_room(db, code=room.code, user_id=guest.id)
+    join_room(db, code=room.code, user_id=third.id)
+    _ready_and_start(db, room.code, host.id, [host, guest, third])
+    db.refresh(room)
+
+    session, word, drawer_id = _enter_round_with_word(db, room)
+    guessers = [u.id for u in (host, guest, third) if u.id != drawer_id]
+    first, second = guessers
+
+    mutation = submit_chat(db, room.code, first, text=word)
+    assert mutation.phase == GAME_PHASE_ROUND_ACTIVE
+    with pytest.raises(GameError) as exc:
+        submit_chat(db, room.code, first, text=word)
+    assert exc.value.code == "ALREADY_GUESSED"
+
+    mutation = submit_chat(db, room.code, second, text=word)
+    assert mutation.phase == GAME_PHASE_ROUND_END
+
+
+def test_earlier_guess_scores_higher(db: Session) -> None:
+    early = guesser_points(remaining_seconds=50, duration_seconds=60)
+    late = guesser_points(remaining_seconds=5, duration_seconds=60)
+    assert early > late
+    assert early <= 350
+    assert late >= 50
+
+
+def test_waiting_player_cannot_guess(db: Session) -> None:
+    host = _user(db, "Host")
+    guest = _user(db, "Guest")
+    late = _user(db, "Late")
+    room = create_room(db, host_id=host.id, max_players=8)
+    join_room(db, code=room.code, user_id=guest.id)
+    _ready_and_start(db, room.code, host.id, [host, guest])
+    db.refresh(room)
+    session, word, _drawer_id = _enter_round_with_word(db, room)
+
+    join_room(db, code=room.code, user_id=late.id)
+    with pytest.raises(GameError) as exc:
+        submit_chat(db, room.code, late.id, text=word)
+    assert exc.value.code == "WAITING"
+
+    # Waiting can still send non-secret chat
+    mutation = submit_chat(db, room.code, late.id, text="hello")
+    assert mutation.events == ("CHAT_MESSAGE",)
+    assert mutation.chat_events[0].message == "hello"
+
+
+def test_secret_never_in_public_snapshot_during_round(db: Session) -> None:
+    host = _user(db, "Host")
+    guest = _user(db, "Guest")
+    room = create_room(db, host_id=host.id, max_players=8)
+    join_room(db, code=room.code, user_id=guest.id)
+    _ready_and_start(db, room.code, host.id, [host, guest])
+    db.refresh(room)
+    session, word, drawer_id = _enter_round_with_word(db, room)
+
+    public = RoomResponse.from_room(room).model_dump(mode="json")
+    dumped = json.dumps(public)
+    assert word not in dumped
+    assert public["game"]["secret_word"] is None
+    assert public["game"]["word_hint"] is not None
+
+    guesser_id = guest.id if drawer_id == host.id else host.id
+    guesser_view = RoomResponse.from_room(room, viewer_id=guesser_id)
+    assert guesser_view.game.secret_word is None
+    drawer_view = RoomResponse.from_room(room, viewer_id=drawer_id)
+    assert drawer_view.game.secret_word == word
+
+
+def test_drawer_disconnect_during_word_selection(db: Session) -> None:
+    host = _user(db, "Host")
+    guest = _user(db, "Guest")
+    third = _user(db, "Third")
+    room = create_room(db, host_id=host.id, max_players=8)
+    join_room(db, code=room.code, user_id=guest.id)
+    join_room(db, code=room.code, user_id=third.id)
+    _ready_and_start(db, room.code, host.id, [host, guest, third])
+    db.refresh(room)
+    session = _enter_word_selection(db, room)
+    drawer_id = session.drawer_user_id
+
+    mutation = handle_player_departure(db, room, drawer_id)
+    db.commit()
+    assert mutation is not None
+    assert "ROUND_ENDED" in mutation.events
+    db.refresh(room)
+    assert room.game_session.phase == GAME_PHASE_ROUND_END
+
+
+def test_normal_chat_does_not_reveal_word(db: Session) -> None:
+    host = _user(db, "Host")
+    guest = _user(db, "Guest")
+    room = create_room(db, host_id=host.id, max_players=8)
+    join_room(db, code=room.code, user_id=guest.id)
+    _ready_and_start(db, room.code, host.id, [host, guest])
+    db.refresh(room)
+    session, word, drawer_id = _enter_round_with_word(db, room)
+    guesser_id = guest.id if drawer_id == host.id else host.id
+
+    mutation = submit_chat(db, room.code, guesser_id, text="not the word")
+    assert mutation.phase == GAME_PHASE_ROUND_ACTIVE
+    assert mutation.chat_events[0].kind == "chat"
+    assert mutation.chat_events[0].message == "not the word"

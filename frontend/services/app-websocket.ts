@@ -6,35 +6,53 @@
  */
 
 import { getWsUrl } from "@/lib/api";
+import { mapRoomPayload } from "@/lib/room-payload";
 import { nextSocketId, wsDebug } from "@/lib/ws-debug";
-import type { Room, RoomError, WSMessage } from "@/types/room";
-
-interface RoomResponse {
-  code: string;
-  host_id: string;
-  status: string;
-  max_players: number;
-  created_at: string;
-  players: Array<{ id: string; name: string; avatar_url: string | null }>;
-}
-
-function mapWsRoom(data: RoomResponse): Room {
-  return {
-    code: data.code,
-    hostId: data.host_id,
-    status: data.status as Room["status"],
-    maxPlayers: data.max_players,
-    createdAt: data.created_at,
-    players: data.players.map((p) => ({
-      id: p.id,
-      name: p.name,
-      avatarUrl: p.avatar_url,
-    })),
-  };
-}
+import type {
+  ChatMessage,
+  GameSettings,
+  Room,
+  RoomError,
+  WSEventType,
+  WSMessage,
+} from "@/types/room";
 
 type RoomUpdateHandler = (room: Room) => void;
 type RoomErrorHandler = (error: RoomError) => void;
+type ChatHandler = (message: ChatMessage) => void;
+type CanvasEventHandler = (type: WSEventType, payload: Record<string, unknown>) => void;
+
+const ROOM_SYNC_EVENTS: WSEventType[] = [
+  "ROOM_UPDATED",
+  "PLAYER_JOINED",
+  "PLAYER_LEFT",
+  "PLAYER_READY",
+  "PLAYER_UNREADY",
+  "GAME_STARTED",
+  "COUNTDOWN_STARTED",
+  "WORD_CHOICES_OFFERED",
+  "WORD_SELECTED",
+  "ROUND_STARTED",
+  "ROUND_ENDED",
+  "GAME_FINISHED",
+  "PLAYER_WAITING",
+  "GAME_STATE_UPDATED",
+  "HOST_CHANGED",
+  "PLAYER_GUESSED",
+  "SCORES_UPDATED",
+];
+
+const CANVAS_EVENTS: WSEventType[] = [
+  "CANVAS_CLEAR",
+  "CANVAS_CLEARED",
+  "CANVAS_SNAPSHOT_REQUEST",
+  "CANVAS_SNAPSHOT",
+  "SHAPE_CREATED",
+  "SHAPE_UPDATED",
+  "SHAPE_DELETED",
+  "UNDO",
+  "REDO",
+];
 
 class AppWebSocketManager {
   private socket: WebSocket | null = null;
@@ -47,9 +65,13 @@ class AppWebSocketManager {
   private reconnectAttempts = 0;
   private intentionalClose = false;
   private readonly maxReconnects = 10;
+  private latestRoom: Room | null = null;
+  private chatSeq = 0;
 
   private updateHandlers = new Set<RoomUpdateHandler>();
   private errorHandlers = new Set<RoomErrorHandler>();
+  private chatHandlers = new Set<ChatHandler>();
+  private canvasHandlers = new Set<CanvasEventHandler>();
 
   get activeSocketId(): string | null {
     return this.socketId;
@@ -66,6 +88,32 @@ class AppWebSocketManager {
       this.updateHandlers.delete(onUpdate);
       this.errorHandlers.delete(onError);
     };
+  }
+
+  subscribeChat(onChat: ChatHandler): () => void {
+    this.chatHandlers.add(onChat);
+    return () => {
+      this.chatHandlers.delete(onChat);
+    };
+  }
+
+  subscribeCanvas(onCanvas: CanvasEventHandler): () => void {
+    this.canvasHandlers.add(onCanvas);
+    return () => {
+      this.canvasHandlers.delete(onCanvas);
+    };
+  }
+
+  /**
+   * Send an arbitrary typed intent once joined.
+   * Returns false if the socket is not ready / not in a room.
+   */
+  sendRaw(type: WSEventType, payload: Record<string, unknown> = {}): boolean {
+    if (this.socket?.readyState !== WebSocket.OPEN || !this.joinedRoomCode) {
+      return false;
+    }
+    this.socket.send(JSON.stringify({ type, payload }));
+    return true;
   }
 
   connect(userId: string): void {
@@ -92,6 +140,7 @@ class AppWebSocketManager {
     this.clearTimers();
     this.joinedRoomCode = null;
     this.pendingJoinCode = null;
+    this.latestRoom = null;
 
     if (this.socket) {
       this.safeClose(this.socket);
@@ -99,6 +148,17 @@ class AppWebSocketManager {
     }
 
     this.socketId = null;
+  }
+
+  /** Seed baseline from REST so TIMER_UPDATED deltas can merge before JOIN ack. */
+  seedRoom(room: Room): void {
+    if (
+      this.latestRoom?.code === room.code &&
+      room.revision < this.latestRoom.revision
+    ) {
+      return;
+    }
+    this.latestRoom = room;
   }
 
   joinRoom(roomCode: string): void {
@@ -130,9 +190,43 @@ class AppWebSocketManager {
 
     this.pendingJoinCode = null;
     this.joinedRoomCode = null;
+    this.latestRoom = null;
 
     if (this.socket?.readyState === WebSocket.OPEN) {
       this.socket.send(JSON.stringify({ type: "LEAVE_ROOM", payload: {} }));
+    }
+  }
+
+  setReady(ready: boolean): void {
+    this.sendIntent(ready ? "PLAYER_READY" : "PLAYER_UNREADY");
+  }
+
+  updateSettings(settings: GameSettings): void {
+    this.sendIntent("HOST_UPDATE_SETTINGS", {
+      total_rounds: settings.rounds,
+      round_duration_seconds: settings.roundDurationSeconds,
+    });
+  }
+
+  startGame(): void {
+    this.sendIntent("START_GAME");
+  }
+
+  selectWord(word: string): void {
+    this.sendIntent("SELECT_WORD", { word });
+  }
+
+  sendChat(text: string): void {
+    this.sendIntent("CHAT_MESSAGE", { text });
+  }
+
+  /** Drawing sync intents — backend canvas handlers accept these event names. */
+  sendCanvasEvent(type: WSEventType, payload: Record<string, unknown> = {}): void {
+    if (!this.sendRaw(type, payload)) {
+      this.emitError({
+        code: "NETWORK_ERROR",
+        message: "Reconnect to the room before trying that again.",
+      });
     }
   }
 
@@ -232,6 +326,51 @@ class AppWebSocketManager {
     this.socket?.send(JSON.stringify({ type: "JOIN_ROOM", payload: { room_code: code } }));
   }
 
+  private sendIntent(
+    type: Extract<
+      WSEventType,
+      | "PLAYER_READY"
+      | "PLAYER_UNREADY"
+      | "HOST_UPDATE_SETTINGS"
+      | "START_GAME"
+      | "SELECT_WORD"
+      | "CHAT_MESSAGE"
+    >,
+    payload: Record<string, unknown> = {},
+  ): void {
+    if (this.socket?.readyState !== WebSocket.OPEN || !this.joinedRoomCode) {
+      this.emitError({
+        code: "NETWORK_ERROR",
+        message: "Reconnect to the room before trying that again.",
+      });
+      return;
+    }
+    this.socket.send(JSON.stringify({ type, payload }));
+  }
+
+  private applyRoomPayload(payload: Record<string, unknown>): Room | null {
+    const nextRoom = mapRoomPayload(payload, this.latestRoom);
+    if (!nextRoom) return null;
+    if (
+      this.latestRoom?.code === nextRoom.code &&
+      nextRoom.revision < this.latestRoom.revision
+    ) {
+      wsDebug("stale_room_revision_ignored", {
+        userId: this.userId,
+        socketId: this.socketId ?? undefined,
+        roomCode: nextRoom.code,
+        component: "AppWebSocketManager",
+        detail: `incoming=${nextRoom.revision} current=${this.latestRoom.revision}`,
+      });
+      return null;
+    }
+    this.latestRoom = nextRoom;
+    this.joinedRoomCode = nextRoom.code;
+    this.pendingJoinCode = null;
+    this.emitUpdate(nextRoom);
+    return nextRoom;
+  }
+
   private handleMessage(msg: WSMessage): void {
     if (msg.type === "PLAYER_KICKED") {
       const kickedId = msg.payload.player_id as string | undefined;
@@ -249,28 +388,70 @@ class AppWebSocketManager {
         return;
       }
 
-      const kickRoom = msg.payload.room as RoomResponse | undefined;
-      if (kickRoom) {
-        this.joinedRoomCode = kickRoom.code;
-        this.pendingJoinCode = null;
-        this.emitUpdate(mapWsRoom(kickRoom));
+      this.applyRoomPayload(msg.payload);
+      return;
+    }
+
+    if (msg.type === "TIMER_UPDATED") {
+      if (!this.latestRoom) {
+        wsDebug("timer_ignored_no_baseline", {
+          userId: this.userId,
+          socketId: this.socketId ?? undefined,
+          component: "AppWebSocketManager",
+        });
+        return;
+      }
+      this.applyRoomPayload(msg.payload);
+      return;
+    }
+
+    if (msg.type === "CHAT_MESSAGE") {
+      const kindRaw = msg.payload.kind;
+      const kind =
+        kindRaw === "system" || kindRaw === "correct_guess" || kindRaw === "chat"
+          ? kindRaw
+          : "chat";
+      const message =
+        typeof msg.payload.message === "string" ? msg.payload.message : "";
+      if (message) {
+        this.chatSeq += 1;
+        this.emitChat({
+          id: `chat-${this.chatSeq}-${Date.now()}`,
+          kind,
+          message,
+          playerId:
+            typeof msg.payload.player_id === "string" ? msg.payload.player_id : null,
+          playerName:
+            typeof msg.payload.player_name === "string"
+              ? msg.payload.player_name
+              : null,
+          at: Date.now(),
+        });
+      }
+      // Correct guesses also bump scores / guessed flags via room snapshot.
+      if (msg.payload.room || msg.payload.revision !== undefined) {
+        this.applyRoomPayload(msg.payload);
       }
       return;
     }
 
-    if (
-      msg.type === "ROOM_UPDATED" ||
-      msg.type === "PLAYER_JOINED" ||
-      msg.type === "PLAYER_LEFT"
-    ) {
-      const roomData = msg.payload.room as RoomResponse | undefined;
-      if (roomData) {
-        this.joinedRoomCode = roomData.code;
-        this.pendingJoinCode = null;
-        this.emitUpdate(mapWsRoom(roomData));
-      } else if (msg.payload.room_deleted) {
+    if (CANVAS_EVENTS.includes(msg.type)) {
+      for (const handler of this.canvasHandlers) {
+        handler(msg.type, msg.payload);
+      }
+      // Round-boundary clear also arrives as a lifecycle event with room snapshot.
+      if (msg.type === "CANVAS_CLEAR" && (msg.payload.room || msg.payload.revision !== undefined)) {
+        this.applyRoomPayload(msg.payload);
+      }
+      return;
+    }
+
+    if (ROOM_SYNC_EVENTS.includes(msg.type)) {
+      const next = this.applyRoomPayload(msg.payload);
+      if (!next && msg.payload.room_deleted) {
         this.joinedRoomCode = null;
         this.pendingJoinCode = null;
+        this.latestRoom = null;
         this.emitError({
           code: "ROOM_NOT_FOUND",
           message: "The room was closed.",
@@ -286,6 +467,7 @@ class AppWebSocketManager {
     if (msg.type === "ROOM_LEFT") {
       this.joinedRoomCode = null;
       this.pendingJoinCode = null;
+      this.latestRoom = null;
       return;
     }
 
@@ -350,6 +532,10 @@ class AppWebSocketManager {
 
   private emitError(error: RoomError): void {
     for (const handler of this.errorHandlers) handler(error);
+  }
+
+  private emitChat(message: ChatMessage): void {
+    for (const handler of this.chatHandlers) handler(message);
   }
 }
 

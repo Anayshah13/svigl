@@ -17,6 +17,7 @@ import {
   leaveRoom,
   transferHost as transferHostApi,
 } from "@/services/room";
+import { appWebSocket } from "@/services/app-websocket";
 import { useSessionStore } from "@/stores/session";
 import { useRoomStore } from "@/stores/room";
 import type { Room, RoomError } from "@/types/room";
@@ -160,6 +161,7 @@ export function useRoom(code: string, options: UseRoomOptions = {}) {
   const joinInFlight = useRef(false);
   const autoJoinAttempted = useRef(false);
   const wasKicked = useRef(false);
+  const latestRoomRef = useRef<Room | null>(null);
   const normalizedCode = code.trim().toUpperCase();
   const codeValidationError = validateRoomCode(code);
 
@@ -176,8 +178,17 @@ export function useRoom(code: string, options: UseRoomOptions = {}) {
 
   const applyRoom = useCallback(
     (nextRoom: Room) => {
+      const latestRoom = latestRoomRef.current;
+      if (
+        latestRoom?.code === nextRoom.code &&
+        nextRoom.revision < latestRoom.revision
+      ) {
+        return;
+      }
+      latestRoomRef.current = nextRoom;
       setRoom(nextRoom);
       setError(null);
+      appWebSocket.seedRoom(nextRoom);
 
       if (selfId && !isUserInRoom(nextRoom, selfId)) {
         setNotMember(true);
@@ -240,6 +251,7 @@ export function useRoom(code: string, options: UseRoomOptions = {}) {
     try {
       await leaveRoom(normalizedCode);
       disconnectRoomSync();
+      latestRoomRef.current = null;
       setRoom(null);
       setNotMember(false);
       useRoomStore.getState().clearActiveRoom();
@@ -256,7 +268,7 @@ export function useRoom(code: string, options: UseRoomOptions = {}) {
       leaveInFlight.current = false;
       setLeaving(false);
     }
-  }, [handleAuthError, leaving, normalizedCode, router]);
+  }, [handleAuthError, leaving, normalizedCode, router, selfId]);
 
   const kick = useCallback(
     async (targetId: string) => {
@@ -289,6 +301,31 @@ export function useRoom(code: string, options: UseRoomOptions = {}) {
     },
     [applyRoom, handleAuthError, normalizedCode],
   );
+
+  const setReady = useCallback((ready: boolean) => {
+    setError(null);
+    appWebSocket.setReady(ready);
+  }, []);
+
+  const updateSettings = useCallback((rounds: number, roundDurationSeconds: number) => {
+    setError(null);
+    appWebSocket.updateSettings({ rounds, roundDurationSeconds });
+  }, []);
+
+  const startGame = useCallback(() => {
+    setError(null);
+    appWebSocket.startGame();
+  }, []);
+
+  const selectWord = useCallback((word: string) => {
+    setError(null);
+    appWebSocket.selectWord(word);
+  }, []);
+
+  const sendChat = useCallback((text: string) => {
+    setError(null);
+    appWebSocket.sendChat(text);
+  }, []);
 
   // Invite links: unauthenticated visitors must sign in before the room can load.
   useEffect(() => {
@@ -381,6 +418,7 @@ export function useRoom(code: string, options: UseRoomOptions = {}) {
       (roomError) => {
         if (roomError.code === "KICKED") {
           wasKicked.current = true;
+          latestRoomRef.current = null;
           setRoom(null);
           setNotMember(true);
           setError(roomError);
@@ -442,6 +480,11 @@ export function useRoom(code: string, options: UseRoomOptions = {}) {
     leaveRoom: leave,
     kickPlayer: kick,
     transferHost: makeHost,
+    setReady,
+    updateSettings,
+    startGame,
+    selectWord,
+    sendChat,
     retry,
     attemptJoin,
   };

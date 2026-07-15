@@ -2,8 +2,9 @@
 WebSocket endpoint — one authenticated connection per user.
 
 Room membership changes via JOIN_ROOM / LEAVE_ROOM events on the same socket.
-REST remains responsible for create/join/leave room. WS disconnect does NOT
-remove DB membership — that happens via explicit leave/kick or grace eviction.
+REST leave/kick still apply immediately. A short disconnect grace also removes
+DB membership if the socket drops and the client does not rejoin quickly
+(tab close / kill), while allowing page reload to reconnect.
 """
 
 from __future__ import annotations
@@ -30,15 +31,21 @@ HEARTBEAT_TIMEOUT_SECONDS = 30
 
 async def _handle_ws_disconnect(client: ConnectedClient) -> None:
     """
-    Leave the in-memory room channel only.
+    Leave the in-memory room channel, then start a short disconnect grace.
 
-    DB membership is preserved so refresh / brief network loss can reconnect
-    within the presence grace window without host migration or rejoin churn.
+    Reload/reconnect within a few seconds keeps DB membership. Closed tabs that
+    never rejoin are removed so host migrates and drawer turns can skip.
     """
-    if client.room_code is None:
+    room_code = client.room_code
+    user_id = client.user_id
+    if room_code is None:
         return
 
     await room_manager.disconnect(client)
+
+    from app.services.disconnect_grace import schedule_disconnect_grace
+
+    schedule_disconnect_grace(room_code, user_id)
 
 
 @router.websocket("/ws")

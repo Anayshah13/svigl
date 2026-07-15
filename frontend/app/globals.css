@@ -133,6 +133,20 @@ html.has-active-room-bar main {
   max-width: 42rem;
 }
 
+/* In-game board: wide enough for scores | canvas | chat on laptops */
+.page-shell-game {
+  max-width: 90rem;
+  padding-block: 0.75rem;
+  min-height: 0;
+  flex: 1 1 auto;
+}
+
+@media (min-width: 640px) {
+  .page-shell-game {
+    padding-block: 1rem;
+  }
+}
+
 .safe-bottom {
   padding-bottom: max(1.25rem, env(safe-area-inset-bottom, 0px));
 }

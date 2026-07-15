@@ -34,9 +34,15 @@ export function RoomPresenceKeeper() {
   }, [authReady, selfId]);
 
   // Room membership on the same socket — no new WebSocket per room.
+  // Only leave the channel when we previously had a room code (avoid racing
+  // hydration and dropping TIMER_UPDATED / phase events).
   useEffect(() => {
-    if (!authReady || !selfId || !activeRoom?.code) {
-      appWebSocket.leaveRoom();
+    if (!authReady || !selfId) return;
+
+    if (!activeRoom?.code) {
+      if (appWebSocket.activeRoomCode) {
+        appWebSocket.leaveRoom();
+      }
       return;
     }
 

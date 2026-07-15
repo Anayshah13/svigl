@@ -14,6 +14,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { mapRoomPayload } from "@/lib/room-payload";
 import { WebSocketService } from "@/services/websocket";
 import { useSessionStore } from "@/stores/session";
 import { useRoomStore } from "@/stores/room";
@@ -36,30 +37,6 @@ interface RoomProviderProps {
   children: ReactNode;
 }
 
-interface RoomResponse {
-  code: string;
-  host_id: string;
-  status: string;
-  max_players: number;
-  created_at: string;
-  players: Array<{ id: string; name: string; avatar_url: string | null }>;
-}
-
-function mapRoomPayload(data: RoomResponse): Room {
-  return {
-    code: data.code,
-    hostId: data.host_id,
-    status: data.status as Room["status"],
-    maxPlayers: data.max_players,
-    createdAt: data.created_at,
-    players: data.players.map((p) => ({
-      id: p.id,
-      name: p.name,
-      avatarUrl: p.avatar_url,
-    })),
-  };
-}
-
 export function RoomProvider({ roomCode, initialRoom, children }: RoomProviderProps) {
   const selfId = useSessionStore((s) => s.selfId);
   const [room, setRoom] = useState<Room | null>(initialRoom ?? null);
@@ -72,11 +49,13 @@ export function RoomProvider({ roomCode, initialRoom, children }: RoomProviderPr
       switch (type) {
         case "ROOM_UPDATED":
         case "PLAYER_JOINED": {
-          const roomData = payload.room as RoomResponse | undefined;
+          const roomData = payload.room;
           if (roomData) {
-            const mapped = mapRoomPayload(roomData);
-            setRoom(mapped);
-            useRoomStore.getState().setActiveRoom(mapped);
+            setRoom((previous) => {
+              const mapped = mapRoomPayload(roomData, previous);
+              if (mapped) useRoomStore.getState().setActiveRoom(mapped);
+              return mapped ?? previous;
+            });
           }
           break;
         }
@@ -121,9 +100,9 @@ export function RoomProvider({ roomCode, initialRoom, children }: RoomProviderPr
             useRoomStore.getState().clearActiveRoom();
             setRoom(null);
           } else {
-            const roomData = payload.room as RoomResponse | undefined;
+            const roomData = payload.room;
             if (roomData) {
-              setRoom(mapRoomPayload(roomData));
+              setRoom((previous) => mapRoomPayload(roomData, previous) ?? previous);
             }
           }
           break;
