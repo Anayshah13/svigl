@@ -1,3 +1,5 @@
+import { getAccessToken } from "@/lib/access-token";
+
 /**
  * Backend HTTP base URL (no trailing slash).
  * Local default keeps `npm run dev` working without env files.
@@ -10,6 +12,16 @@ export function getApiUrl(): string {
     throw new Error("NEXT_PUBLIC_API_URL must be set in production");
   }
   return "http://localhost:8000";
+}
+
+/** Attach Bearer token when present (Safari ITP / cross-site cookie fallback). */
+export function withAuthHeaders(headers?: HeadersInit): Headers {
+  const next = new Headers(headers);
+  const token = getAccessToken();
+  if (token && !next.has("Authorization")) {
+    next.set("Authorization", `Bearer ${token}`);
+  }
+  return next;
 }
 
 /**
@@ -44,7 +56,7 @@ export class ApiError extends Error {
 }
 
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const headers = new Headers(init?.headers);
+  const headers = withAuthHeaders(init?.headers);
 
   if (init?.body !== undefined && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");

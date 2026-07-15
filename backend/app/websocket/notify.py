@@ -46,6 +46,7 @@ _EVENT_MAP: dict[str, EventType] = {
     "CHAT_MESSAGE": EventType.CHAT_MESSAGE,
     "PLAYER_GUESSED": EventType.PLAYER_GUESSED,
     "SCORES_UPDATED": EventType.SCORES_UPDATED,
+    "HINT_UPDATED": EventType.HINT_UPDATED,
     "CANVAS_CLEAR": EventType.CANVAS_CLEAR,
     "CANVAS_CLEARED": EventType.CANVAS_CLEARED,
     "SHAPE_CREATED": EventType.SHAPE_CREATED,
@@ -66,6 +67,55 @@ def set_main_loop(loop: asyncio.AbstractEventLoop) -> None:
 def _snapshot(room: Room, *, viewer_id: UUID | None = None) -> dict[str, Any]:
     """Eager JSON snapshot — safe to use after the request DB session closes."""
     return RoomResponse.from_room(room, viewer_id=viewer_id).model_dump(mode="json")
+
+
+def _snapshot_for_viewer(room_code: str, viewer_id: UUID) -> dict[str, Any] | None:
+    """Load a fresh viewer-scoped snapshot (used after the request DB session closes)."""
+    from app.db.session import SessionLocal
+
+    db = SessionLocal()
+    try:
+        room = db.query(Room).filter(Room.code == room_code.upper()).first()
+        if room is None:
+            return None
+        return _snapshot(room, viewer_id=viewer_id)
+    finally:
+        db.close()
+
+
+async def _broadcast_personalized(
+    room_code: str,
+    event_type: EventType,
+    *,
+    public_snapshot: dict[str, Any],
+    revision: int,
+    phase: str,
+    extras: dict[str, Any],
+) -> None:
+    """Send per-viewer room snapshots so correct guessers / drawer see private fields."""
+    room_state = room_manager.get_room(room_code)
+    if room_state is None or not room_state.clients:
+        await _broadcast(
+            room_code,
+            event_type,
+            room=public_snapshot,
+            revision=revision,
+            phase=phase,
+            **extras,
+        )
+        return
+
+    for user_id in list(room_state.clients.keys()):
+        viewer_snap = await asyncio.to_thread(_snapshot_for_viewer, room_code, user_id)
+        await room_manager.send_to_user(
+            room_code,
+            user_id,
+            event_type,
+            room=viewer_snap or public_snapshot,
+            revision=revision,
+            phase=phase,
+            **extras,
+        )
 
 
 def fire_and_forget(coro: Coroutine[Any, Any, Any]) -> None:
@@ -214,23 +264,39 @@ async def broadcast_game_events_async(
 
         if event_type == EventType.CHAT_MESSAGE:
             for chat in mutation.chat_events:
-                await _broadcast(
-                    mutation.room_code,
-                    event_type,
-                    kind=chat.kind,
-                    message=chat.message,
-                    player_id=chat.player_id,
-                    player_name=chat.player_name,
-                    revision=mutation.revision,
-                    phase=mutation.phase,
-                    room=snapshot,
-                )
+                payload = {
+                    "kind": chat.kind,
+                    "message": chat.message,
+                    "player_id": chat.player_id,
+                    "player_name": chat.player_name,
+                    "revision": mutation.revision,
+                    "phase": mutation.phase,
+                }
+                if chat.recipient_ids is not None:
+                    for recipient_id in chat.recipient_ids:
+                        await room_manager.send_to_user(
+                            mutation.room_code,
+                            recipient_id,
+                            event_type,
+                            room=snapshot,
+                            **payload,
+                        )
+                else:
+                    await _broadcast(
+                        mutation.room_code,
+                        event_type,
+                        room=snapshot,
+                        **payload,
+                    )
             continue
 
         if event_type == EventType.WORD_CHOICES_OFFERED:
             # Private to drawer — never broadcast choices room-wide.
             private = mutation.private_drawer
             if private is not None and private.word_choices:
+                drawer_snap = await asyncio.to_thread(
+                    _snapshot_for_viewer, mutation.room_code, private.user_id
+                )
                 await room_manager.send_to_user(
                     mutation.room_code,
                     private.user_id,
@@ -238,13 +304,16 @@ async def broadcast_game_events_async(
                     word_choices=list(private.word_choices),
                     revision=mutation.revision,
                     phase=mutation.phase,
-                    room=snapshot,
+                    room=drawer_snap or snapshot,
                 )
             continue
 
         if event_type in (EventType.ROUND_STARTED, EventType.WORD_SELECTED):
             private = mutation.private_drawer
             if private is not None and private.secret_word:
+                drawer_snap = await asyncio.to_thread(
+                    _snapshot_for_viewer, mutation.room_code, private.user_id
+                )
                 await room_manager.send_to_user(
                     mutation.room_code,
                     private.user_id,
@@ -257,7 +326,7 @@ async def broadcast_game_events_async(
                     or len(private.secret_word.replace(" ", "")),
                     revision=mutation.revision,
                     phase=mutation.phase,
-                    room=snapshot,
+                    room=drawer_snap or snapshot,
                     **{
                         k: v
                         for k, v in extras.items()
@@ -291,6 +360,48 @@ async def broadcast_game_events_async(
 
         if event_type == EventType.GAME_FINISHED and mutation.winner_user_id:
             extras.setdefault("winner_user_id", str(mutation.winner_user_id))
+
+        if event_type == EventType.PLAYER_GUESSED and mutation.private_to_user_id:
+            guesser_snap = await asyncio.to_thread(
+                _snapshot_for_viewer,
+                mutation.room_code,
+                mutation.private_to_user_id,
+            )
+            await room_manager.send_to_user(
+                mutation.room_code,
+                mutation.private_to_user_id,
+                event_type,
+                room=guesser_snap or snapshot,
+                revision=mutation.revision,
+                phase=mutation.phase,
+                secret_word=mutation.private_secret_word,
+                **extras,
+            )
+            # Public PLAYER_GUESSED without the secret.
+            await _broadcast(
+                mutation.room_code,
+                event_type,
+                room=snapshot,
+                revision=mutation.revision,
+                phase=mutation.phase,
+                **extras,
+            )
+            continue
+
+        if event_type in (
+            EventType.HINT_UPDATED,
+            EventType.GAME_STATE_UPDATED,
+            EventType.SCORES_UPDATED,
+        ):
+            await _broadcast_personalized(
+                mutation.room_code,
+                event_type,
+                public_snapshot=snapshot,
+                revision=mutation.revision,
+                phase=mutation.phase,
+                extras=extras,
+            )
+            continue
 
         await _broadcast(
             mutation.room_code,
@@ -395,6 +506,50 @@ def notify_player_kicked(room: Room, kicked_id: UUID, kicked_name: str) -> None:
     snapshot = _snapshot(room)
     fire_and_forget(
         _notify_player_kicked_async(code, snapshot, kicked_id, kicked_name)
+    )
+
+
+def notify_vote_kick_update(
+    room_code: str,
+    *,
+    target_id: UUID,
+    votes: int,
+    required: int,
+    player_count: int,
+    voter_ids: list[str],
+    kicked: bool = False,
+    retracted: bool = False,
+    cleared: bool = False,
+) -> None:
+    """Broadcast vote-kick tally (or a clear) to everyone in the room channel."""
+    fire_and_forget(
+        _broadcast(
+            room_code,
+            EventType.VOTE_KICK_UPDATE,
+            target_id=str(target_id),
+            votes=votes,
+            required=required,
+            player_count=player_count,
+            voter_ids=voter_ids,
+            kicked=kicked,
+            retracted=retracted,
+            cleared=cleared,
+        )
+    )
+
+
+def notify_vote_kick_room_cleared(room_code: str) -> None:
+    """Tell clients to wipe all in-progress vote-kick tallies for the room."""
+    fire_and_forget(
+        _broadcast(
+            room_code,
+            EventType.VOTE_KICK_UPDATE,
+            cleared=True,
+            votes=0,
+            required=0,
+            player_count=0,
+            voter_ids=[],
+        )
     )
 
 

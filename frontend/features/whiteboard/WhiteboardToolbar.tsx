@@ -96,7 +96,7 @@ function ToolButton({
       disabled={disabled}
       onClick={onClick}
       className={cn(
-        "inline-flex h-10 w-10 items-center justify-center rounded-xl transition-all duration-150",
+        "inline-flex h-11 w-11 shrink-0 touch-manipulation items-center justify-center rounded-xl transition-all duration-150 sm:h-10 sm:w-10",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-plum/40",
         "disabled:pointer-events-none disabled:opacity-40",
         active
@@ -131,7 +131,7 @@ export function WhiteboardToolbar({
   return (
     <div
       className={cn(
-        "flex flex-nowrap items-center gap-3 overflow-x-auto rounded-2xl border border-plum/15 bg-white/90 px-3 py-2.5 shadow-sm backdrop-blur-sm",
+        "flex flex-nowrap items-center gap-2 overflow-x-auto overscroll-x-contain rounded-2xl border border-plum/15 bg-white/90 px-2 py-2 shadow-sm backdrop-blur-sm touch-pan-x sm:gap-3 sm:px-3 sm:py-2.5",
         className,
       )}
       role="toolbar"
@@ -165,7 +165,7 @@ export function WhiteboardToolbar({
             disabled={disabled}
             onClick={() => onColorChange(c)}
             className={cn(
-              "h-7 w-7 rounded-full border-2 transition-transform duration-150",
+              "h-8 w-8 shrink-0 touch-manipulation rounded-full border-2 transition-transform duration-150 sm:h-7 sm:w-7",
               "disabled:pointer-events-none disabled:opacity-40",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-plum/40",
               color.toLowerCase() === c.toLowerCase()
@@ -216,7 +216,7 @@ export function WhiteboardToolbar({
             disabled={disabled}
             onClick={() => onStrokeWidthChange(w)}
             className={cn(
-              "inline-flex h-10 w-10 items-center justify-center rounded-xl transition-all",
+              "inline-flex h-11 w-11 shrink-0 touch-manipulation items-center justify-center rounded-xl transition-all sm:h-10 sm:w-10",
               "disabled:pointer-events-none disabled:opacity-40",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-plum/40",
               strokeWidth === w

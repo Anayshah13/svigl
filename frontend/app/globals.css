@@ -45,6 +45,7 @@ body {
   color: var(--ink);
   font-family: var(--font-dm-sans), system-ui, sans-serif;
   min-height: 100vh;
+  min-height: 100dvh;
 }
 
 main {
@@ -80,6 +81,7 @@ html.has-active-room-bar main {
 
 .glass-panel {
   background: var(--bg-surface);
+  -webkit-backdrop-filter: blur(16px);
   backdrop-filter: blur(16px);
   border: 1px solid rgba(255, 255, 255, 0.75);
   box-shadow: var(--shadow-soft);
@@ -133,17 +135,26 @@ html.has-active-room-bar main {
   max-width: 42rem;
 }
 
-/* In-game board: wide enough for scores | canvas | chat on laptops */
+/* In-game board: fill viewport under sticky header; no page scroll */
 .page-shell-game {
   max-width: 90rem;
-  padding-block: 0.75rem;
+  padding-block: 0.5rem;
+  padding-bottom: 0;
   min-height: 0;
   flex: 1 1 auto;
+  /* header is h-14 (3.5rem); account for safe-area on notched phones */
+  height: calc(100dvh - 3.5rem - env(safe-area-inset-top, 0px));
+  max-height: calc(100dvh - 3.5rem - env(safe-area-inset-top, 0px));
+  overflow: hidden;
 }
 
 @media (min-width: 640px) {
   .page-shell-game {
-    padding-block: 1rem;
+    padding-block: 0.75rem;
+    padding-bottom: 0.25rem;
+    /* header is sm:h-16 (4rem) */
+    height: calc(100dvh - 4rem - env(safe-area-inset-top, 0px));
+    max-height: calc(100dvh - 4rem - env(safe-area-inset-top, 0px));
   }
 }
 

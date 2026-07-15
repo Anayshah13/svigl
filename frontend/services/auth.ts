@@ -1,5 +1,6 @@
+import { clearAccessToken, getAccessToken, setAccessToken } from "@/lib/access-token";
 import { getGuestDeviceId } from "@/lib/guest";
-import { getApiUrl } from "@/lib/api";
+import { getApiUrl, withAuthHeaders } from "@/lib/api";
 import { formatDisplayName } from "@/lib/names";
 import { sanitizePostAuthRedirect, storePostAuthRedirect } from "@/lib/post-auth-redirect";
 
@@ -11,6 +12,8 @@ export interface AuthUser {
   username: string;
   avatarUrl: string | null;
   provider: AuthProvider;
+  drawingsDone: number;
+  likesReceived: number;
 }
 
 interface MeResponse {
@@ -19,6 +22,9 @@ interface MeResponse {
   email: string | null;
   name: string;
   avatar_url: string | null;
+  drawings_done?: number;
+  likes_received?: number;
+  access_token?: string;
 }
 
 export interface UpdateProfileInput {
@@ -42,6 +48,8 @@ function mapMeResponse(data: MeResponse): AuthUser {
     username: formatDisplayName(data.name),
     avatarUrl: data.avatar_url,
     provider: data.provider,
+    drawingsDone: data.drawings_done ?? 0,
+    likesReceived: data.likes_received ?? 0,
   };
 }
 
@@ -84,6 +92,9 @@ export async function startGuestSignIn(): Promise<AuthUser> {
   }
 
   const data = (await response.json()) as MeResponse;
+  if (data.access_token) {
+    setAccessToken(data.access_token);
+  }
   const user = mapMeResponse(data);
   authLog("/auth/guest response", { userId: user.id, provider: user.provider });
   return user;
@@ -96,10 +107,15 @@ export async function fetchAuthSession(): Promise<AuthUser | null> {
     authLog("/me request started");
     sessionRequest = fetch(`${getApiUrl()}/me`, {
       credentials: "include",
+      headers: withAuthHeaders(),
     })
       .then(async (response) => {
-        authLog("/me response", { status: response.status });
+        authLog("/me response", {
+          status: response.status,
+          hasBearer: Boolean(getAccessToken()),
+        });
         if (response.status === 401) {
+          clearAccessToken();
           return null;
         }
 
@@ -131,7 +147,7 @@ export async function updateProfile(input: UpdateProfileInput): Promise<AuthUser
   const response = await fetch(`${getApiUrl()}/me`, {
     method: "PATCH",
     credentials: "include",
-    headers: { "Content-Type": "application/json" },
+    headers: withAuthHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(body),
   });
 
@@ -151,7 +167,9 @@ export async function signOut(): Promise<void> {
   await fetch(`${getApiUrl()}/logout`, {
     method: "POST",
     credentials: "include",
+    headers: withAuthHeaders(),
   });
 
+  clearAccessToken();
   window.location.href = "/sign-in";
 }

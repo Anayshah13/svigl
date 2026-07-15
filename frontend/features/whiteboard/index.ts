@@ -11,7 +11,7 @@ export type { WhiteboardProps } from "./Whiteboard";
 
 export { WhiteboardCanvas } from "./WhiteboardCanvas";
 export { WhiteboardToolbar } from "./WhiteboardToolbar";
-export { ShapeList, ShapeNode, BezierDraftOverlay } from "./ShapeRenderer";
+export { ShapeList, ShapeNode, BezierDraftOverlay, SelectionOverlay } from "./ShapeRenderer";
 
 export { useWhiteboard } from "./useWhiteboard";
 export type {
@@ -53,6 +53,13 @@ export {
   arrowHeadPoints,
   rotateTransform,
   skewTransform,
+  hitTestShape,
+  hitTestShapes,
+  translateShape,
+  resizeRectFromCorner,
+  resizeEllipseFromCorner,
+  distToSegment,
+  offsetTransform,
 } from "./geometry";
 
 export type {

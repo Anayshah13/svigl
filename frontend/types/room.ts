@@ -94,7 +94,12 @@ export interface Room {
   revision: number;
 }
 
-export type ChatMessageKind = "chat" | "system" | "correct_guess";
+export type ChatMessageKind =
+  | "chat"
+  | "system"
+  | "correct_guess"
+  | "close_guess"
+  | "private_chat";
 
 export interface ChatMessage {
   id: string;
@@ -182,6 +187,8 @@ export type WSEventType =
   | "PLAYER_DISCONNECTED"
   | "ROOM_UPDATED"
   | "PLAYER_KICKED"
+  | "VOTE_KICK"
+  | "VOTE_KICK_UPDATE"
   | "PLAYER_READY"
   | "PLAYER_UNREADY"
   | "HOST_UPDATE_SETTINGS"
@@ -201,6 +208,7 @@ export type WSEventType =
   | "HOST_CHANGED"
   | "PLAYER_GUESSED"
   | "SCORES_UPDATED"
+  | "HINT_UPDATED"
   | "CANVAS_CLEAR"
   | "CANVAS_SNAPSHOT_REQUEST"
   | "SHAPE_CREATED"

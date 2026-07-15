@@ -49,6 +49,19 @@ class ScoreEntryResponse(BaseModel):
     is_active: bool = True
 
 
+class RoundGuessedEntryResponse(BaseModel):
+    player_id: UUID
+    player_name: str
+    points: int = 0
+
+
+class RoundSummaryResponse(BaseModel):
+    word: str | None = None
+    drawer_id: UUID | None = None
+    guessed: list[RoundGuessedEntryResponse] = Field(default_factory=list)
+    scores: list[ScoreEntryResponse] = Field(default_factory=list)
+
+
 class GameStateResponse(BaseModel):
     session_id: UUID | None
     phase: str
@@ -65,7 +78,7 @@ class GameStateResponse(BaseModel):
     rotation_start_offset: int
     total_rounds: int
     settings: GameSettingsResponse
-    # Public word fields — never the secret unless viewer is drawer.
+    # Public word fields — never the secret unless viewer is drawer / correct guesser.
     word_hint: str | None = None
     word_length: int | None = None
     secret_word: str | None = None
@@ -73,6 +86,7 @@ class GameStateResponse(BaseModel):
     scores: list[ScoreEntryResponse] = Field(default_factory=list)
     guessed_player_ids: list[UUID] = Field(default_factory=list)
     winner_id: UUID | None = None
+    round_summary: RoundSummaryResponse | None = None
 
 
 class RoomResponse(BaseModel):
@@ -97,7 +111,8 @@ class RoomResponse(BaseModel):
         cls, room: object, *, viewer_id: UUID | None = None
     ) -> "RoomResponse":
         from app.models.room import Room
-        from app.services.words import word_hint_mask
+        from app.services.game import public_word_hint, session_round_summary
+        from app.services.words import spaced_word
 
         assert isinstance(room, Room)
         now = datetime.now(timezone.utc)
@@ -180,6 +195,12 @@ class RoomResponse(BaseModel):
             is_drawer_viewer = (
                 viewer_id is not None and viewer_id == session.drawer_user_id
             )
+            viewer_guessed = False
+            if viewer_id is not None:
+                viewer_guessed = any(
+                    player.user_id == viewer_id and player.has_guessed_correctly
+                    for player in session.players
+                )
             secret = session.secret_word
             word_hint = None
             word_length = None
@@ -190,10 +211,10 @@ class RoomResponse(BaseModel):
                 GAME_PHASE_ROUND_ACTIVE,
                 GAME_PHASE_ROUND_END,
             ):
-                word_hint = word_hint_mask(secret)
+                word_hint = public_word_hint(session)
                 word_length = len(secret.replace(" ", ""))
             if session.phase == GAME_PHASE_WORD_SELECTION and session.word_choices_json:
-                # Length unknown until selected; expose choice count only via private.
+                # Length unknown until selected; expose choices only to the drawer.
                 pass
             if is_drawer_viewer:
                 if session.phase == GAME_PHASE_WORD_SELECTION and session.word_choices_json:
@@ -211,13 +232,21 @@ class RoomResponse(BaseModel):
                     GAME_PHASE_WORD_SELECTION,
                 ):
                     secret_for_viewer = secret
+            # Correct guessers see the full word filled in during the round.
+            if (
+                viewer_guessed
+                and secret
+                and session.phase == GAME_PHASE_ROUND_ACTIVE
+            ):
+                secret_for_viewer = secret
+                word_hint = spaced_word(secret)
             # Reveal full word to everyone only at round end / finished summary window.
             if secret and session.phase in (
                 GAME_PHASE_ROUND_END,
                 GAME_PHASE_GAME_FINISHED,
             ):
                 secret_for_viewer = secret
-                word_hint = word_hint_mask(secret)
+                word_hint = spaced_word(secret)
                 word_length = len(secret.replace(" ", ""))
 
             scores = [
@@ -238,6 +267,31 @@ class RoomResponse(BaseModel):
                 for player in session.players
                 if player.has_guessed_correctly
             ]
+
+            round_summary = None
+            raw_summary = session_round_summary(session)
+            if raw_summary is not None:
+                guessed_rows = []
+                for item in raw_summary.get("guessed") or []:
+                    if not isinstance(item, dict):
+                        continue
+                    pid = item.get("player_id")
+                    if pid is None:
+                        continue
+                    guessed_rows.append(
+                        RoundGuessedEntryResponse(
+                            player_id=UUID(str(pid)),
+                            player_name=str(item.get("player_name") or "Player"),
+                            points=int(item.get("points") or 0),
+                        )
+                    )
+                drawer_raw = raw_summary.get("drawer_id")
+                round_summary = RoundSummaryResponse(
+                    word=raw_summary.get("word"),
+                    drawer_id=UUID(str(drawer_raw)) if drawer_raw else None,
+                    guessed=guessed_rows,
+                    scores=scores,
+                )
 
             game = GameStateResponse(
                 session_id=session.id,
@@ -265,6 +319,7 @@ class RoomResponse(BaseModel):
                 scores=scores,
                 guessed_player_ids=guessed_ids,
                 winner_id=session.winner_user_id,
+                round_summary=round_summary,
             )
             revision = session.revision
             can_start = (

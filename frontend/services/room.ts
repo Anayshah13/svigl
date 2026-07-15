@@ -1,4 +1,4 @@
-import { ApiError, apiFetch, getApiUrl } from "@/lib/api";
+import { ApiError, apiFetch, getApiUrl, withAuthHeaders } from "@/lib/api";
 import { normalizeRoomCode } from "@/lib/room-code";
 import { mapRoomPayload } from "@/lib/room-payload";
 import { ROOM_ERROR_MESSAGES, type Room, type RoomError } from "@/types/room";
@@ -145,6 +145,7 @@ export function leaveRoomBeacon(code: string): void {
     method: "POST",
     credentials: "include",
     keepalive: true,
+    headers: withAuthHeaders(),
   });
 }
 

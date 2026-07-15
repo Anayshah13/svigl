@@ -15,6 +15,7 @@ from app.services.game import (
     GameMutation,
     active_sessions,
     advance_due_session,
+    maybe_reveal_hint,
     utcnow,
 )
 from app.services.room import _aware
@@ -168,7 +169,9 @@ class GameRuntime:
                         deadline_at=deadline_at,
                     )
 
-                await asyncio.sleep(1)
+                # Advance immediately when a deadline is due so COUNTDOWN → WORD_SELECTION
+                # (and similar) does not sit on a blank 0s screen for a full second.
+                await asyncio.sleep(0.05 if remaining == 0 else 1)
         except asyncio.CancelledError:
             raise
         except Exception:
@@ -185,6 +188,8 @@ class GameRuntime:
         db = SessionLocal()
         try:
             mutation = advance_due_session(db, session_id)
+            if mutation is None:
+                mutation = maybe_reveal_hint(db, session_id)
             session = (
                 db.query(GameSession).filter(GameSession.id == session_id).first()
             )

@@ -5,9 +5,18 @@
  * REST is still responsible for create/join/leave; this layer only syncs.
  */
 
+import { getAccessToken } from "@/lib/access-token";
 import { getWsUrl } from "@/lib/api";
 import { mapRoomPayload } from "@/lib/room-payload";
 import { nextSocketId, wsDebug } from "@/lib/ws-debug";
+
+function buildAuthenticatedWsUrl(path = "/ws"): string {
+  const base = getWsUrl(path);
+  const token = getAccessToken();
+  if (!token) return base;
+  const sep = base.includes("?") ? "&" : "?";
+  return `${base}${sep}access_token=${encodeURIComponent(token)}`;
+}
 import type {
   ChatMessage,
   GameSettings,
@@ -21,6 +30,19 @@ type RoomUpdateHandler = (room: Room) => void;
 type RoomErrorHandler = (error: RoomError) => void;
 type ChatHandler = (message: ChatMessage) => void;
 type CanvasEventHandler = (type: WSEventType, payload: Record<string, unknown>) => void;
+
+export interface VoteKickTally {
+  targetId: string;
+  votes: number;
+  required: number;
+  playerCount: number;
+  voterIds: string[];
+  kicked: boolean;
+  retracted: boolean;
+  cleared: boolean;
+}
+
+type VoteKickHandler = (tally: VoteKickTally) => void;
 
 const ROOM_SYNC_EVENTS: WSEventType[] = [
   "ROOM_UPDATED",
@@ -40,6 +62,7 @@ const ROOM_SYNC_EVENTS: WSEventType[] = [
   "HOST_CHANGED",
   "PLAYER_GUESSED",
   "SCORES_UPDATED",
+  "HINT_UPDATED",
 ];
 
 const CANVAS_EVENTS: WSEventType[] = [
@@ -72,6 +95,7 @@ class AppWebSocketManager {
   private errorHandlers = new Set<RoomErrorHandler>();
   private chatHandlers = new Set<ChatHandler>();
   private canvasHandlers = new Set<CanvasEventHandler>();
+  private voteKickHandlers = new Set<VoteKickHandler>();
 
   get activeSocketId(): string | null {
     return this.socketId;
@@ -101,6 +125,13 @@ class AppWebSocketManager {
     this.canvasHandlers.add(onCanvas);
     return () => {
       this.canvasHandlers.delete(onCanvas);
+    };
+  }
+
+  subscribeVoteKick(onVote: VoteKickHandler): () => void {
+    this.voteKickHandlers.add(onVote);
+    return () => {
+      this.voteKickHandlers.delete(onVote);
     };
   }
 
@@ -220,6 +251,10 @@ class AppWebSocketManager {
     this.sendIntent("CHAT_MESSAGE", { text });
   }
 
+  voteKick(targetId: string, retract = false): void {
+    this.sendIntent("VOTE_KICK", { target_id: targetId, retract });
+  }
+
   /** Drawing sync intents — backend canvas handlers accept these event names. */
   sendCanvasEvent(type: WSEventType, payload: Record<string, unknown> = {}): void {
     if (!this.sendRaw(type, payload)) {
@@ -236,14 +271,14 @@ class AppWebSocketManager {
     const id = nextSocketId();
     this.socketId = id;
 
-    const wsUrl = getWsUrl("/ws");
+    const wsUrl = buildAuthenticatedWsUrl("/ws");
 
     wsDebug("socket_created", {
       userId: this.userId,
       socketId: id,
       roomCode: this.pendingJoinCode ?? this.joinedRoomCode,
       component: "AppWebSocketManager",
-      detail: wsUrl,
+      detail: getWsUrl("/ws"),
     });
 
     const socket = new WebSocket(wsUrl);
@@ -335,6 +370,7 @@ class AppWebSocketManager {
       | "START_GAME"
       | "SELECT_WORD"
       | "CHAT_MESSAGE"
+      | "VOTE_KICK"
     >,
     payload: Record<string, unknown> = {},
   ): void {
@@ -408,7 +444,11 @@ class AppWebSocketManager {
     if (msg.type === "CHAT_MESSAGE") {
       const kindRaw = msg.payload.kind;
       const kind =
-        kindRaw === "system" || kindRaw === "correct_guess" || kindRaw === "chat"
+        kindRaw === "system" ||
+        kindRaw === "correct_guess" ||
+        kindRaw === "close_guess" ||
+        kindRaw === "private_chat" ||
+        kindRaw === "chat"
           ? kindRaw
           : "chat";
       const message =
@@ -435,6 +475,30 @@ class AppWebSocketManager {
       return;
     }
 
+    if (msg.type === "VOTE_KICK_UPDATE") {
+      const cleared = Boolean(msg.payload.cleared);
+      const targetId =
+        typeof msg.payload.target_id === "string" ? msg.payload.target_id : "";
+      const voterIds = Array.isArray(msg.payload.voter_ids)
+        ? msg.payload.voter_ids.filter((id): id is string => typeof id === "string")
+        : [];
+      const tally: VoteKickTally = {
+        targetId,
+        votes: typeof msg.payload.votes === "number" ? msg.payload.votes : 0,
+        required: typeof msg.payload.required === "number" ? msg.payload.required : 0,
+        playerCount:
+          typeof msg.payload.player_count === "number" ? msg.payload.player_count : 0,
+        voterIds,
+        kicked: Boolean(msg.payload.kicked),
+        retracted: Boolean(msg.payload.retracted),
+        cleared,
+      };
+      for (const handler of this.voteKickHandlers) {
+        handler(tally);
+      }
+      return;
+    }
+
     if (CANVAS_EVENTS.includes(msg.type)) {
       for (const handler of this.canvasHandlers) {
         handler(msg.type, msg.payload);
@@ -447,6 +511,20 @@ class AppWebSocketManager {
     }
 
     if (ROOM_SYNC_EVENTS.includes(msg.type)) {
+      if (msg.type === "GAME_STARTED") {
+        for (const handler of this.voteKickHandlers) {
+          handler({
+            targetId: "",
+            votes: 0,
+            required: 0,
+            playerCount: 0,
+            voterIds: [],
+            kicked: false,
+            retracted: false,
+            cleared: true,
+          });
+        }
+      }
       const next = this.applyRoomPayload(msg.payload);
       if (!next && msg.payload.room_deleted) {
         this.joinedRoomCode = null;

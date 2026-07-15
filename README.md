@@ -99,6 +99,8 @@ COOKIE_SECURE=false
 COOKIE_SAMESITE=lax
 ```
 
+> **Safari / iPad note:** With the frontend on Vercel and API on Railway, Safari blocks cross-site cookies (ITP). The app falls back to a Bearer token in `sessionStorage` (guest login response body, Google OAuth hash) and passes it on HTTP + WebSocket. Cookies still work in Chrome. For a cleaner production setup, put both on the same site (e.g. `svigl.com` + `api.svigl.com`) and use `COOKIE_SAMESITE=lax`.
+
 > **Google OAuth setup:** Go to [Google Cloud Console](https://console.cloud.google.com/) → APIs & Services → Credentials → Create OAuth 2.0 Client ID. Add `http://localhost:8000/auth/google/callback` as an authorised redirect URI. For production, also add `https://<your-railway-host>/auth/google/callback`.
 
 ### 3. `frontend/.env.local`

@@ -229,4 +229,39 @@ describe("mapRoomPayload", () => {
     expect(ended?.game.roundSummary?.word).toBe("cats");
     expect(ended?.game.roundSummary?.guessed[0]?.points).toBe(200);
   });
+
+  it("keeps ROUND_ENDED guessed list across GAME_STATE_UPDATED without summary", () => {
+    const room = mapRoomPayload(snapshot);
+    const ended = mapRoomPayload(
+      {
+        room_code: "TEST",
+        revision: 11,
+        phase: "ROUND_END",
+        word: "cats",
+        drawer_id: "alice",
+        guessed: [{ player_id: "bob", player_name: "Bob", points: 200 }],
+      },
+      room,
+    );
+    const followUp = mapRoomPayload(
+      {
+        room: {
+          ...snapshot,
+          revision: 12,
+          game: {
+            ...snapshot.game,
+            phase: "ROUND_END",
+            revision: 12,
+            guessed_player_ids: ["bob"],
+            secret_word: "cats",
+          },
+        },
+      },
+      ended,
+    );
+
+    expect(followUp?.game.roundSummary?.guessed).toHaveLength(1);
+    expect(followUp?.game.roundSummary?.guessed[0]?.playerId).toBe("bob");
+    expect(followUp?.game.roundSummary?.word).toBe("cats");
+  });
 });

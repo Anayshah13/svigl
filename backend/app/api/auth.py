@@ -14,7 +14,7 @@ from app.auth.redirects import build_frontend_auth_error_url, build_frontend_aut
 from app.auth.repository import authenticate_guest
 from app.db.session import get_db
 from app.models.user import User
-from app.schemas.user import GuestAuthRequest, UserResponse
+from app.schemas.user import GuestAuthRequest, GuestAuthResponse, UserResponse
 
 logger = logging.getLogger(__name__)
 
@@ -60,7 +60,7 @@ async def google_callback(
     token = create_access_token(user_id=user.id, email=user.email, path=path)
     next_path = pop_post_auth_redirect(request)
     response = RedirectResponse(
-        build_frontend_auth_success_url(next_path),
+        build_frontend_auth_success_url(next_path, access_token=token),
         status_code=status.HTTP_302_FOUND,
     )
     set_auth_cookie(response, token, path=path)
@@ -75,13 +75,13 @@ async def google_callback(
     return response
 
 
-@router.post("/guest", response_model=UserResponse)
+@router.post("/guest", response_model=GuestAuthResponse)
 def guest_login(
     request: Request,
     body: GuestAuthRequest,
     response: Response,
     db: Session = Depends(get_db),
-) -> User:
+) -> GuestAuthResponse:
     path = str(request.url.path)
     guest_device_id = str(body.guest_device_id)
 
@@ -109,4 +109,14 @@ def guest_login(
         provider=user.provider,
         is_new_guest=user.created_at == user.updated_at,
     )
-    return user
+    # access_token in the body: Safari blocks cross-site Set-Cookie (ITP).
+    return GuestAuthResponse(
+        id=user.id,
+        provider=user.provider,
+        email=user.email,
+        name=user.name,
+        avatar_url=user.avatar_url,
+        created_at=user.created_at,
+        updated_at=user.updated_at,
+        access_token=token,
+    )

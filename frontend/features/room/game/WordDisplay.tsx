@@ -1,32 +1,22 @@
 "use client";
 
-import { usePhaseCountdown } from "@/hooks/usePhaseCountdown";
 import { cn } from "@/lib/cn";
-import {
-  parseHintSlots,
-  revealIndices,
-  revealSlotCount,
-  roundProgress,
-} from "@/lib/word-display";
+import { parseHintSlots } from "@/lib/word-display";
 import type { RoomGameState } from "@/types/room";
 
 export function WordDisplay({
   game,
   isDrawer,
-  roundDurationSeconds,
+  hasGuessed = false,
   className,
 }: {
   game: RoomGameState;
   isDrawer: boolean;
-  roundDurationSeconds: number;
+  hasGuessed?: boolean;
+  /** Kept for call-site compatibility; hints are server-authoritative. */
+  roundDurationSeconds?: number;
   className?: string;
 }) {
-  const remaining = usePhaseCountdown(
-    game.phaseEndsAt,
-    game.serverTime,
-    game.remainingSeconds,
-  );
-
   if (isDrawer && game.secretWord) {
     return (
       <div className={cn("flex flex-col items-center gap-1 sm:items-end", className)}>
@@ -52,6 +42,31 @@ export function WordDisplay({
     );
   }
 
+  // Correct guessers see the full word filled in (server sends secret / filled hint).
+  if (hasGuessed && game.secretWord) {
+    const slots = game.secretWord.split("").map((ch) => (ch === " " ? " " : ch));
+    return (
+      <div
+        className={cn("flex flex-wrap items-center justify-center gap-1.5", className)}
+        aria-label={`Word: ${game.secretWord}`}
+      >
+        {slots.map((slot, index) =>
+          slot === " " ? (
+            <span key={`gap-${index}`} className="w-2" aria-hidden />
+          ) : (
+            <span
+              key={`${index}-${slot}`}
+              className="inline-flex h-8 min-w-[1.35rem] items-center justify-center border-b-2 border-green px-1 font-mono text-lg font-bold uppercase text-green sm:h-9 sm:min-w-[1.5rem] sm:text-xl"
+            >
+              {slot}
+            </span>
+          ),
+        )}
+      </div>
+    );
+  }
+
+  // Server-authoritative progressive hints (letters only when revealed).
   let slots = parseHintSlots(game.wordHint);
   if (slots.length === 0 && game.wordLength) {
     slots = Array.from({ length: game.wordLength }, () => "_");
@@ -65,20 +80,6 @@ export function WordDisplay({
     );
   }
 
-  const progress = roundProgress(
-    game.phaseEndsAt,
-    Math.max(1, roundDurationSeconds),
-    remaining,
-  );
-  const hasServerLetters = slots.some((s) => s !== "_");
-  const open = hasServerLetters
-    ? new Set<number>()
-    : revealIndices(
-        slots.length,
-        revealSlotCount(slots.length, progress),
-        `${game.sessionId ?? ""}:${game.roundNumber}:${game.wordLength ?? slots.length}`,
-      );
-
   return (
     <div
       className={cn("flex flex-wrap items-center justify-center gap-1.5", className)}
@@ -86,17 +87,12 @@ export function WordDisplay({
     >
       {slots.map((slot, index) => {
         const revealed = slot !== "_";
-        const softOpen = open.has(index);
         return (
           <span
             key={`${index}-${slot}`}
             className={cn(
               "inline-flex h-8 min-w-[1.35rem] items-center justify-center border-b-2 px-1 font-mono text-lg font-bold uppercase sm:h-9 sm:min-w-[1.5rem] sm:text-xl",
-              revealed
-                ? "border-green text-green"
-                : softOpen
-                  ? "border-plum/40 text-ink-muted"
-                  : "border-ink/70 text-ink",
+              revealed ? "border-green text-green" : "border-ink/70 text-ink",
             )}
           >
             {revealed ? slot : "\u00A0"}

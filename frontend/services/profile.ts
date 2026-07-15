@@ -1,58 +1,30 @@
-import type { GalleryEntry } from "@/types/domain";
-import { MOCK_GALLERY_ENTRIES } from "@/services/data/galleryEntries";
+import { profileHandle } from "@/lib/names";
 
 export interface ProfileStats {
   username: string;
   handle: string;
-  level: number;
-  xp: number;
-  xpNext: number;
-  drawingsPublished: number;
-  totalUpvotes: number;
+  drawingsDone: number;
+  likesReceived: number;
 }
 
 export interface ProfileData {
   stats: ProfileStats;
-  drawings: GalleryEntry[];
+  drawings: [];
 }
 
-function emptyProfile(name: string): ProfileData {
-  return {
-    stats: {
-      username: name,
-      handle: `@${name.toUpperCase().slice(0, 4) || "PLAY"}`,
-      level: 1,
-      xp: 0,
-      xpNext: 500,
-      drawingsPublished: 0,
-      totalUpvotes: 0,
-    },
-    drawings: [],
-  };
-}
-
-export async function fetchProfile(username?: string): Promise<ProfileData> {
+export async function fetchProfile(
+  username?: string,
+  opts?: { drawingsDone?: number; likesReceived?: number },
+): Promise<ProfileData> {
   const name = username?.trim() || "Player";
-  const drawings = MOCK_GALLERY_ENTRIES.filter(
-    (entry) => entry.authorName.toLowerCase() === name.toLowerCase(),
-  );
-
-  if (drawings.length === 0) {
-    return emptyProfile(name);
-  }
-
-  const totalUpvotes = drawings.reduce((sum, entry) => sum + entry.upvotes, 0);
-
   return {
     stats: {
       username: name,
-      handle: `@${name.toUpperCase().slice(0, 4)}`,
-      level: 2,
-      xp: 320,
-      xpNext: 500,
-      drawingsPublished: drawings.length,
-      totalUpvotes,
+      handle: profileHandle(name),
+      drawingsDone: opts?.drawingsDone ?? 0,
+      likesReceived: opts?.likesReceived ?? 0,
     },
-    drawings,
+    // Published gallery is not wired yet.
+    drawings: [],
   };
 }

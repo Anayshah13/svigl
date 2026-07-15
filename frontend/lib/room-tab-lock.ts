@@ -23,7 +23,10 @@ function getTabId(): string {
 
   let tabId = sessionStorage.getItem(TAB_ID_KEY);
   if (!tabId) {
-    tabId = crypto.randomUUID();
+    tabId =
+      typeof crypto.randomUUID === "function"
+        ? crypto.randomUUID()
+        : `tab-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     sessionStorage.setItem(TAB_ID_KEY, tabId);
   }
   return tabId;

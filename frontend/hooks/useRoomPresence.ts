@@ -1,7 +1,11 @@
 "use client";
 
 import { useEffect } from "react";
-import { initPageLifecycle, isPageReload } from "@/lib/page-lifecycle";
+import {
+  canDetectReloadReliably,
+  initPageLifecycle,
+  isPageReload,
+} from "@/lib/page-lifecycle";
 import { releaseRoomTab } from "@/lib/room-tab-lock";
 import { isUserInRoom, leaveRoomBeacon, pingRoomPresence } from "@/services/room";
 import { useSessionStore } from "@/stores/session";
@@ -65,6 +69,11 @@ export function useRoomPresence(roomCode: string | null, enabled: boolean): void
 
       // Reload also fires pagehide; do not leave or clear persisted room state.
       if (isPageReload()) return;
+
+      // Safari / iPad: no Navigation API — reload vs close is indistinguishable.
+      // Skip REST leave so a toolbar refresh does not kick the player; the
+      // WebSocket disconnect grace removes membership for true tab closes.
+      if (!canDetectReloadReliably()) return;
 
       leaveRoomBeacon(roomCode);
       releaseRoomTab(selfId, roomCode);

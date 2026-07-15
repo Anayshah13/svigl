@@ -22,12 +22,16 @@ logger = logging.getLogger(__name__)
 
 def authenticate_websocket(ws: WebSocket, db: Session) -> User | None:
     """
-    Authenticate a WebSocket connection using the JWT from cookies.
-    Returns the User if valid, None otherwise.
+    Authenticate a WebSocket using the JWT from cookies or `access_token` query.
+
+    Query-param auth is required on Safari when the frontend and API are on
+    different sites (ITP blocks third-party cookies on the WS handshake).
     """
     token = ws.cookies.get(AUTH_COOKIE_NAME)
     if not token:
-        logger.debug("WS auth failed: no cookie")
+        token = ws.query_params.get("access_token")
+    if not token:
+        logger.debug("WS auth failed: no cookie or access_token")
         return None
 
     try:

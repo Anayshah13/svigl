@@ -6,13 +6,10 @@ import { motion } from "framer-motion";
 import { FadeIn, FadeInItem, FadeInStagger } from "@/components/motion/FadeIn";
 import { Card } from "@/components/ui/Card";
 import { UserAvatar } from "@/components/ui/UserAvatar";
-import { SvgRenderer } from "@/features/drawing/SvgRenderer";
 import { ProfileEditor } from "@/features/profile/ProfileEditor";
 import { formatDisplayName, profileHandle } from "@/lib/names";
-import { fetchProfile } from "@/services/profile";
+import { fetchAuthSession } from "@/services/auth";
 import { useSessionStore } from "@/stores/session";
-import type { GalleryEntry } from "@/types/domain";
-import type { ProfileStats } from "@/services/profile";
 
 function StatCard({
   icon,
@@ -37,28 +34,6 @@ function StatCard({
   );
 }
 
-function DrawingCard({ entry }: { entry: GalleryEntry }) {
-  return (
-    <FadeInItem>
-      <motion.article
-        whileHover={{ y: -4 }}
-        className="overflow-hidden rounded-2xl border border-gray-200/80 bg-white shadow-(--shadow-soft)"
-      >
-        <div className="dot-grid aspect-4/3 bg-white">
-          <SvgRenderer document={entry.replay} className="h-full w-full" />
-        </div>
-        <div className="flex items-center justify-between p-4">
-          <div>
-            <p className="font-semibold text-ink">{entry.word}</p>
-            <p className="text-xs text-gray-400">{entry.upvotes} upvotes</p>
-          </div>
-          <span className="flex items-center gap-1 text-sm text-gray-400">♥ {entry.upvotes}</span>
-        </div>
-      </motion.article>
-    </FadeInItem>
-  );
-}
-
 function providerLabel(provider: string | undefined): string {
   if (provider === "google") return "Google account";
   if (provider === "guest") return "Guest account";
@@ -69,22 +44,24 @@ export function ProfileView() {
   const authUser = useSessionStore((s) => s.authUser);
   const displayName = useSessionStore((s) => s.displayName);
   const authReady = useSessionStore((s) => s.authReady);
-  const [stats, setStats] = useState<ProfileStats | null>(null);
-  const [drawings, setDrawings] = useState<GalleryEntry[]>([]);
+  const setAuth = useSessionStore((s) => s.setAuth);
   const [loading, setLoading] = useState(true);
   const [profileVersion, setProfileVersion] = useState(0);
 
   const rawName = authUser?.username ?? (displayName || "Guest");
   const displayUsername = formatDisplayName(rawName);
   const avatarUrl = authUser?.avatarUrl ?? null;
+  const handle = profileHandle(displayUsername);
+  const drawingsDone = authUser?.drawingsDone ?? 0;
+  const likesReceived = authUser?.likesReceived ?? 0;
 
   useEffect(() => {
     let cancelled = false;
-    void fetchProfile(displayUsername)
-      .then((profile) => {
-        if (cancelled) return;
-        setStats(profile.stats);
-        setDrawings(profile.drawings);
+    setLoading(true);
+    void fetchAuthSession()
+      .then((user) => {
+        if (cancelled || !user) return;
+        setAuth(user);
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -92,7 +69,7 @@ export function ProfileView() {
     return () => {
       cancelled = true;
     };
-  }, [displayUsername, profileVersion]);
+  }, [profileVersion, setAuth]);
 
   if (!authReady) {
     return (
@@ -121,12 +98,6 @@ export function ProfileView() {
     );
   }
 
-  const xp = stats?.xp ?? 0;
-  const xpNext = stats?.xpNext ?? 500;
-  const level = stats?.level ?? 1;
-  const xpProgress = Math.min((xp / xpNext) * 100, 100);
-  const handle = stats?.handle ?? profileHandle(displayUsername);
-
   return (
     <div className="page-shell max-w-6xl gap-8 sm:gap-10">
       <FadeIn>
@@ -153,14 +124,16 @@ export function ProfileView() {
                   <span className="rounded-full bg-plum-light px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-plum sm:text-[11px]">
                     {providerLabel(authUser?.provider)}
                   </span>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 sm:text-xs">{handle}</span>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 sm:text-xs">
+                    {handle}
+                  </span>
                 </div>
 
                 <h1 className="mt-2 text-2xl font-bold tracking-tight text-ink sm:mt-3 sm:text-3xl md:text-4xl">
                   {displayUsername}
                 </h1>
                 <p className="mt-2 max-w-lg text-sm leading-relaxed text-ink-muted">
-                  Sketching things since round 1. Your gallery, stats, and identity live here.
+                  Your drawings from games and the likes they earn show up here.
                 </p>
 
                 {authUser ? (
@@ -172,38 +145,13 @@ export function ProfileView() {
                     />
                   </div>
                 ) : null}
-
-                <div className="mt-6">
-                  <div className="mb-2 flex justify-between text-sm">
-                    <span className="font-semibold text-plum">{xp.toLocaleString()} XP</span>
-                    <span className="text-gray-400">{xpNext.toLocaleString()} for next level</span>
-                  </div>
-                  <div className="h-2.5 overflow-hidden rounded-full bg-gray-100">
-                    <motion.div
-                      className="h-full rounded-full bg-linear-to-r from-plum to-pink"
-                      initial={{ width: 0 }}
-                      animate={{ width: `${xpProgress}%` }}
-                      transition={{ duration: 1, ease: [0.22, 1, 0.36, 1] }}
-                    />
-                  </div>
-                </div>
               </div>
-
-              <motion.div
-                whileHover={{ rotate: 5, scale: 1.05 }}
-                className="flex h-20 w-full shrink-0 flex-row items-center justify-center gap-3 rounded-2xl bg-plum-light shadow-(--shadow-soft) sm:h-24 sm:w-24 sm:flex-col sm:gap-0"
-              >
-                <span className="text-2xl">🏆</span>
-                <span className="text-xs font-bold text-plum">Level {level}</span>
-              </motion.div>
             </div>
           </motion.div>
 
           <FadeInStagger className="grid grid-cols-2 gap-3 sm:gap-4">
-            <StatCard icon="✏️" value={stats?.drawingsPublished ?? 0} label="Drawings" />
-            <StatCard icon="♥" value={stats?.totalUpvotes ?? 0} label="Upvotes" />
-            <StatCard icon="⚡" value={level} label="Level" />
-            <StatCard icon="🎯" value={`${Math.round(xpProgress)}%`} label="Next level" />
+            <StatCard icon="✏️" value={drawingsDone} label="Drawings" />
+            <StatCard icon="♥" value={likesReceived} label="Likes" />
           </FadeInStagger>
         </div>
       </FadeIn>
@@ -216,35 +164,25 @@ export function ProfileView() {
               <h2 className="text-xl font-bold text-ink sm:text-2xl">Drawings by {displayUsername}</h2>
             </div>
             <span className="self-start rounded-full bg-gray-100 px-3 py-1 text-sm text-gray-500 sm:self-auto">
-              {drawings.length} total
+              0 total
             </span>
           </div>
         </FadeIn>
 
-        {loading && (
+        {loading ? (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {Array.from({ length: 3 }, (_, i) => (
               <div key={i} className="aspect-4/3 animate-pulse rounded-2xl bg-gray-100" />
             ))}
           </div>
-        )}
-
-        {!loading && drawings.length === 0 && (
+        ) : (
           <Card className="border-dashed bg-white/80 py-12 text-center">
             <p className="text-3xl">🎨</p>
             <p className="mt-3 font-medium text-gray-700">No published drawings yet</p>
             <p className="mt-2 text-sm text-ink-muted">
-              Publish drawings from a game round to fill this gallery.
+              Publishing from game rounds is coming soon.
             </p>
           </Card>
-        )}
-
-        {!loading && drawings.length > 0 && (
-          <FadeInStagger className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {drawings.map((entry) => (
-              <DrawingCard key={entry.id} entry={entry} />
-            ))}
-          </FadeInStagger>
         )}
       </section>
     </div>

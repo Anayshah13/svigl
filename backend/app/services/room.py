@@ -139,10 +139,13 @@ def _get_room_or_404(db: Session, code: str) -> Room:
 
 def _remove_player(db: Session, room: Room, user_id: UUID) -> MembershipChange:
     """Remove a player from a room and apply game-departure side effects."""
+    from app.services.vote_kick import clear_room_votes, clear_votes_involving_player
+
     target = next((rp for rp in list(room.players) if rp.user_id == user_id), None)
     if target is None:
         return MembershipChange(room=room)
 
+    room_code = room.code
     previous_host_id = room.host_id
     was_host = room.host_id == user_id
     game_mutation = handle_player_departure(db, room, user_id)
@@ -160,6 +163,7 @@ def _remove_player(db: Session, room: Room, user_id: UUID) -> MembershipChange:
     if not remaining:
         db.delete(room)
         db.commit()
+        clear_room_votes(room_code)
         return MembershipChange(
             room=None,
             game_mutation=game_mutation,
@@ -174,6 +178,7 @@ def _remove_player(db: Session, room: Room, user_id: UUID) -> MembershipChange:
 
     db.commit()
     db.refresh(room)
+    clear_votes_involving_player(room_code, user_id)
     return MembershipChange(
         room=room,
         game_mutation=game_mutation,

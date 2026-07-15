@@ -7,6 +7,45 @@ import { cn } from "@/lib/cn";
 import { formatDisplayName } from "@/lib/names";
 import type { ChatMessage } from "@/types/room";
 
+/**
+ * Lift the chat form above the mobile virtual keyboard using visualViewport.
+ * Returns pixels of keyboard overlap at the bottom of the layout viewport.
+ */
+function useKeyboardBottomInset(active: boolean): number {
+  const [inset, setInset] = React.useState(0);
+
+  React.useEffect(() => {
+    if (!active) {
+      setInset(0);
+      return;
+    }
+
+    const vv = window.visualViewport;
+    if (!vv) return;
+
+    const update = () => {
+      // How much of the layout viewport is covered by the keyboard / browser chrome
+      const covered = Math.max(
+        0,
+        window.innerHeight - vv.height - vv.offsetTop,
+      );
+      setInset(covered);
+    };
+
+    update();
+    vv.addEventListener("resize", update);
+    vv.addEventListener("scroll", update);
+    window.addEventListener("resize", update);
+    return () => {
+      vv.removeEventListener("resize", update);
+      vv.removeEventListener("scroll", update);
+      window.removeEventListener("resize", update);
+    };
+  }, [active]);
+
+  return inset;
+}
+
 export function ChatPanel({
   messages,
   canGuess,
@@ -23,7 +62,9 @@ export function ChatPanel({
   placeholder?: string;
 }) {
   const [draft, setDraft] = React.useState("");
+  const [inputFocused, setInputFocused] = React.useState(false);
   const listRef = React.useRef<HTMLDivElement>(null);
+  const keyboardInset = useKeyboardBottomInset(inputFocused);
 
   React.useEffect(() => {
     const el = listRef.current;
@@ -42,32 +83,51 @@ export function ChatPanel({
   return (
     <div
       className={cn(
-        "flex h-full min-h-[16rem] flex-col overflow-hidden rounded-3xl border border-plum/15 bg-white/90 lg:min-h-0",
+        "flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-plum/15 bg-white/90 sm:rounded-3xl",
         className,
       )}
+      style={
+        keyboardInset > 0
+          ? { transform: `translateY(-${keyboardInset}px)` }
+          : undefined
+      }
     >
-      <div className="border-b border-plum/10 px-4 py-3">
-        <h2 className="text-xs font-bold uppercase tracking-wider text-ink-muted">
+      <div className="shrink-0 border-b border-plum/10 px-3 py-2 sm:px-4 sm:py-3">
+        <h2 className="text-[10px] font-bold uppercase tracking-wider text-ink-muted sm:text-xs">
           Chat
         </h2>
       </div>
 
-      <div ref={listRef} className="flex-1 space-y-1.5 overflow-y-auto px-3 py-3">
+      {/* Fixed flex child: messages scroll internally, never grow the page */}
+      <div
+        ref={listRef}
+        className="min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain px-2 py-2 sm:space-y-1.5 sm:px-3 sm:py-3"
+      >
         {messages.length === 0 ? (
-          <p className="px-1 text-sm text-ink-muted">Guesses and chat appear here.</p>
+          <p className="px-1 text-xs text-ink-muted sm:text-sm">
+            Guesses and chat appear here.
+          </p>
         ) : (
           messages.map((msg) => {
-            const isSystem = msg.kind === "system" || msg.kind === "correct_guess";
+            const isSystem =
+              msg.kind === "system" ||
+              msg.kind === "correct_guess" ||
+              msg.kind === "close_guess";
+            const isPrivate = msg.kind === "private_chat";
             return (
               <p
                 key={msg.id}
                 className={cn(
-                  "rounded-xl px-2.5 py-1.5 text-sm",
+                  "rounded-xl px-2 py-1 text-xs sm:px-2.5 sm:py-1.5 sm:text-sm",
                   msg.kind === "correct_guess"
                     ? "bg-green-light font-semibold text-green"
-                    : isSystem
-                      ? "bg-plum-light/50 font-medium text-plum"
-                      : "text-ink",
+                    : msg.kind === "close_guess"
+                      ? "bg-green-light/70 font-medium text-green"
+                      : isPrivate
+                        ? "bg-green-light/50 text-ink"
+                        : isSystem
+                          ? "bg-plum-light/50 font-medium text-plum"
+                          : "text-ink",
                 )}
               >
                 {!isSystem && msg.playerName ? (
@@ -82,23 +142,37 @@ export function ChatPanel({
         )}
       </div>
 
-      <form onSubmit={submit} className="border-t border-plum/10 p-3">
-        <div className="flex gap-2">
+      <form
+        onSubmit={submit}
+        className="shrink-0 border-t border-plum/10 p-2 pb-[max(0.5rem,env(safe-area-inset-bottom,0px))] sm:p-3 sm:pb-3"
+      >
+        <div className="flex gap-1.5 sm:gap-2">
           <Input
             value={draft}
             onChange={(event) => setDraft(event.currentTarget.value)}
+            onFocus={() => setInputFocused(true)}
+            onBlur={() => setInputFocused(false)}
             placeholder={canGuess ? placeholder : disabledReason ?? "Chat disabled"}
             disabled={!canGuess}
             maxLength={200}
             autoComplete="off"
+            enterKeyHint="send"
             aria-label="Guess or chat message"
+            className="min-h-10 text-sm"
           />
-          <Button type="submit" size="sm" disabled={!canGuess || !draft.trim()}>
+          <Button
+            type="submit"
+            size="sm"
+            disabled={!canGuess || !draft.trim()}
+            className="min-h-10 shrink-0 touch-manipulation px-3"
+          >
             Send
           </Button>
         </div>
         {!canGuess && disabledReason ? (
-          <p className="mt-2 text-xs text-ink-muted">{disabledReason}</p>
+          <p className="mt-1.5 hidden text-xs text-ink-muted sm:mt-2 sm:block">
+            {disabledReason}
+          </p>
         ) : null}
       </form>
     </div>

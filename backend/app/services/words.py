@@ -36,16 +36,122 @@ def normalize_guess(text: str) -> str:
     return _WHITESPACE_RE.sub(" ", text.strip().lower())
 
 
-def word_hint_mask(word: str) -> str:
-    """Public mask like `_ _ _   _ _ _` for multi-word prompts."""
+def letter_slot_indices(word: str) -> list[int]:
+    """Character indices in `word` that are guessable letters (not spaces)."""
+    return [index for index, ch in enumerate(word) if ch != " "]
+
+
+def word_hint_mask(word: str, revealed: set[int] | frozenset[int] | None = None) -> str:
+    """Public mask like `_ _ _   _ _ _`, optionally with some letters revealed."""
+    revealed = revealed or set()
     chars: list[str] = []
-    for ch in word:
+    for index, ch in enumerate(word):
         if ch == " ":
             chars.append(" ")
+        elif index in revealed:
+            chars.append(ch)
         else:
             chars.append("_")
     return " ".join(chars)
 
 
+def spaced_word(word: str) -> str:
+    """Full word in hint slot format (`c a t s`)."""
+    return word_hint_mask(word, set(range(len(word))))
+
+
 def words_match(secret: str, guess: str) -> bool:
     return normalize_guess(secret) == normalize_guess(guess)
+
+
+def levenshtein(a: str, b: str) -> int:
+    if a == b:
+        return 0
+    if not a:
+        return len(b)
+    if not b:
+        return len(a)
+    prev = list(range(len(b) + 1))
+    for i, ca in enumerate(a, start=1):
+        cur = [i]
+        for j, cb in enumerate(b, start=1):
+            insert = cur[j - 1] + 1
+            delete = prev[j] + 1
+            replace = prev[j - 1] + (0 if ca == cb else 1)
+            cur.append(min(insert, delete, replace))
+        prev = cur
+    return prev[-1]
+
+
+def close_guess_threshold(word_length: int) -> int:
+    """Max Levenshtein distance considered 'close' for a word of this length."""
+    if word_length <= 0:
+        return 0
+    if word_length <= 3:
+        return 1
+    if word_length <= 6:
+        return 2
+    return max(2, word_length // 4)
+
+
+def is_close_guess(secret: str, guess: str) -> bool:
+    """True when guess is near the secret but not exact (Skribbl-style)."""
+    s = normalize_guess(secret)
+    g = normalize_guess(guess)
+    if not g or g == s:
+        return False
+    # Ignore wildly different lengths.
+    if abs(len(s) - len(g)) > close_guess_threshold(len(s)):
+        return False
+    return levenshtein(s, g) <= close_guess_threshold(len(s))
+
+
+def letters_to_reveal_count(word: str) -> int:
+    """How many letter slots will eventually be revealed during the round."""
+    n = len(letter_slot_indices(word))
+    if n <= 1:
+        return 0
+    if n == 2:
+        return 1
+    # Leave about half blank so the word is still guessable.
+    return max(1, n // 2)
+
+
+def hint_reveal_interval_seconds(word: str, round_duration_seconds: int) -> float:
+    """Seconds between progressive letter reveals (capped)."""
+    count = max(letters_to_reveal_count(word), 1)
+    raw = float(round_duration_seconds) / float(count)
+    # Longer words → more reveals → shorter raw interval; keep in a sensible band.
+    return max(4.0, min(18.0, raw))
+
+
+def reveal_order(word: str, *, seed: str) -> list[int]:
+    """Deterministic order of letter indices to reveal."""
+    indices = letter_slot_indices(word)
+    if not indices:
+        return []
+    # Fisher–Yates with a simple seeded LCG so all servers agree.
+    state = 2166136261
+    for ch in seed:
+        state ^= ord(ch)
+        state = (state * 16777619) & 0xFFFFFFFF
+    order = list(indices)
+    for i in range(len(order) - 1, 0, -1):
+        state = (1664525 * state + 1013904223) & 0xFFFFFFFF
+        j = state % (i + 1)
+        order[i], order[j] = order[j], order[i]
+    return order
+
+
+def target_reveal_count(
+    word: str,
+    *,
+    round_duration_seconds: int,
+    elapsed_seconds: float,
+) -> int:
+    """How many letters should be visible given elapsed round time."""
+    total = letters_to_reveal_count(word)
+    if total <= 0:
+        return 0
+    interval = hint_reveal_interval_seconds(word, round_duration_seconds)
+    return min(total, int(elapsed_seconds // interval))

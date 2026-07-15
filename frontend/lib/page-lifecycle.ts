@@ -2,7 +2,8 @@
  * Distinguish page reload from tab/window close.
  *
  * `pagehide` fires for both, so we must not leave a room on reload.
- * Uses the Navigation API (reload navigations) with a keyboard fallback.
+ * Chromium: Navigation API + keyboard. Safari/iPad: no reliable client signal —
+ * callers should skip aggressive leave and rely on server disconnect grace.
  */
 
 const RELOAD_FLAG = "svigl:page-reloading";
@@ -20,37 +21,66 @@ interface AppNavigation {
 }
 
 let initialized = false;
+let navigationApiAvailable = false;
+
+function markReload(): void {
+  try {
+    sessionStorage.setItem(RELOAD_FLAG, "1");
+  } catch {
+    /* ignore */
+  }
+}
 
 export function initPageLifecycle(): void {
   if (typeof window === "undefined" || initialized) return;
   initialized = true;
 
   window.addEventListener("pageshow", () => {
-    sessionStorage.removeItem(RELOAD_FLAG);
+    try {
+      sessionStorage.removeItem(RELOAD_FLAG);
+    } catch {
+      /* ignore */
+    }
   });
 
   window.addEventListener("keydown", (event) => {
     if (event.key === "F5") {
-      sessionStorage.setItem(RELOAD_FLAG, "1");
+      markReload();
       return;
     }
 
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "r") {
-      sessionStorage.setItem(RELOAD_FLAG, "1");
+      markReload();
     }
   });
 
   const navigation = (window as Window & { navigation?: AppNavigation }).navigation;
   if (navigation) {
+    navigationApiAvailable = true;
     navigation.addEventListener("navigate", (event) => {
       if (event.navigationType === "reload") {
-        sessionStorage.setItem(RELOAD_FLAG, "1");
+        markReload();
       }
     });
   }
 }
 
-/** True while a reload is in progress (set before `pagehide`, cleared on `pageshow`). */
+/**
+ * True when we positively detected a reload (Navigation API or keyboard).
+ * False does not mean "tab close" — Safari often cannot detect reload at all.
+ */
 export function isPageReload(): boolean {
-  return sessionStorage.getItem(RELOAD_FLAG) === "1";
+  try {
+    return sessionStorage.getItem(RELOAD_FLAG) === "1";
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * When false (Safari/iPad), do not REST-leave on `pagehide` — reload and close
+ * are indistinguishable. Server disconnect grace cleans up closed tabs.
+ */
+export function canDetectReloadReliably(): boolean {
+  return navigationApiAvailable;
 }

@@ -31,8 +31,11 @@ export function WordSelectPanel({
           Word selection
         </p>
         <h2 className="mt-3 text-2xl font-bold text-ink">
-          {drawerName} is choosing a word
+          Drawer is picking a word…
         </h2>
+        <p className="mt-2 text-sm font-medium text-ink-muted">
+          {drawerName} is choosing what to draw
+        </p>
         <p
           className="mt-4 font-mono text-5xl font-bold tabular-nums text-green"
           aria-live="polite"
@@ -40,7 +43,7 @@ export function WordSelectPanel({
           {remaining ?? "—"}
         </p>
         <p className="mt-3 text-sm text-ink-muted">
-          Hang tight — drawing starts soon.
+          Drawing starts as soon as they pick.
         </p>
       </div>
     );

@@ -110,16 +110,20 @@ function mapRoundSummary(
   value: unknown,
   previous: RoundSummary | null | undefined,
 ): RoundSummary | null {
-  if (value === null) return null;
+  // Keep the prior ROUND_ENDED summary when a later GAME_STATE_UPDATED omits it.
+  if (value == null) return previous ?? null;
   const source = object(value);
   if (!hasAny(source, ["word", "drawer_id", "drawerId", "guessed", "scores"])) {
     return previous ?? null;
   }
   const scores = mapScores(source.scores);
+  const guessed = mapRoundGuessed(source.guessed);
   return {
-    word: stringValue(source.word) ?? null,
-    drawerId: stringValue(source.drawerId, source.drawer_id) ?? null,
-    guessed: mapRoundGuessed(source.guessed),
+    word: stringValue(source.word) ?? previous?.word ?? null,
+    drawerId:
+      stringValue(source.drawerId, source.drawer_id) ?? previous?.drawerId ?? null,
+    // Prefer explicit guessed arrays (including empty) over stale previous data.
+    guessed: hasAny(source, ["guessed"]) ? guessed : previous?.guessed ?? [],
     scores: scores ?? previous?.scores ?? [],
   };
 }

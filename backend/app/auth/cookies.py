@@ -7,8 +7,20 @@ from app.config import settings
 AUTH_COOKIE_NAME = "svigl_access_token"
 
 
+def get_bearer_token(request: Request) -> str | None:
+    """Extract Bearer token from Authorization header (Safari cross-site cookie fallback)."""
+    header = request.headers.get("authorization")
+    if not header:
+        return None
+    scheme, _, value = header.partition(" ")
+    if scheme.lower() != "bearer" or not value.strip():
+        return None
+    return value.strip()
+
+
 def get_token_from_request(request: Request) -> str | None:
-    return request.cookies.get(AUTH_COOKIE_NAME)
+    """Prefer cookie; fall back to Authorization Bearer for Safari ITP / cross-site."""
+    return request.cookies.get(AUTH_COOKIE_NAME) or get_bearer_token(request)
 
 
 def set_auth_cookie(response: Response, token: str, *, path: str) -> None:

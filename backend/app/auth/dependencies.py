@@ -21,7 +21,7 @@ def get_current_user(
     path = str(request.url.path)
     token = get_token_from_request(request)
     if token is None:
-        log_auth_event("me_unauthenticated", path=path, authenticated=False, reason="missing_cookie")
+        log_auth_event("me_unauthenticated", path=path, authenticated=False, reason="missing_token")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Not authenticated.",

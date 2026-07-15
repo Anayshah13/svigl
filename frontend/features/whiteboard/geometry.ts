@@ -90,6 +90,369 @@ export function composeTransforms(...parts: string[]): string {
   return parts.filter(Boolean).join(" ");
 }
 
+/** Shift rotate/skew origin points embedded in an SVG transform string. */
+export function offsetTransform(transform: string, dx: number, dy: number): string {
+  if (!transform || (!dx && !dy)) return transform;
+  let next = transform;
+  next = next.replace(
+    /rotate\(([-\d.]+)[,\s]+([-\d.]+)[,\s]+([-\d.]+)\)/g,
+    (_m, deg: string, cx: string, cy: string) =>
+      `rotate(${deg} ${Number(cx) + dx} ${Number(cy) + dy})`,
+  );
+  next = next.replace(
+    /translate\(([-\d.]+)[,\s]+([-\d.]+)\)\s*skewX\(([-\d.]+)\)\s*translate\(([-\d.]+)[,\s]+([-\d.]+)\)/g,
+    (
+      _m,
+      ox: string,
+      oy: string,
+      skew: string,
+      nx: string,
+      ny: string,
+    ) =>
+      `translate(${Number(ox) + dx} ${Number(oy) + dy}) skewX(${skew}) translate(${Number(nx) - dx} ${Number(ny) - dy})`,
+  );
+  return next;
+}
+
+export function parseRotate(
+  transform: string,
+): { deg: number; cx: number; cy: number } | null {
+  const m = /rotate\(([-\d.]+)[,\s]+([-\d.]+)[,\s]+([-\d.]+)\)/.exec(transform);
+  if (!m) return null;
+  return { deg: Number(m[1]), cx: Number(m[2]), cy: Number(m[3]) };
+}
+
+/** Inverse-rotate a point around a center (degrees). */
+export function unrotatePoint(
+  p: Point,
+  cx: number,
+  cy: number,
+  degrees: number,
+): Point {
+  if (!degrees) return p;
+  const rad = (-degrees * Math.PI) / 180;
+  const cos = Math.cos(rad);
+  const sin = Math.sin(rad);
+  const dx = p.x - cx;
+  const dy = p.y - cy;
+  return { x: cx + dx * cos - dy * sin, y: cy + dx * sin + dy * cos };
+}
+
+function cubicAt(
+  t: number,
+  p0: Point,
+  p1: Point,
+  p2: Point,
+  p3: Point,
+): Point {
+  const u = 1 - t;
+  return {
+    x: u * u * u * p0.x + 3 * u * u * t * p1.x + 3 * u * t * t * p2.x + t * t * t * p3.x,
+    y: u * u * u * p0.y + 3 * u * u * t * p1.y + 3 * u * t * t * p2.y + t * t * t * p3.y,
+  };
+}
+
+/** Distance from point to line segment a→b. */
+export function distToSegment(p: Point, a: Point, b: Point): number {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const len2 = dx * dx + dy * dy;
+  if (len2 < 1e-8) return dist(p, a);
+  let t = ((p.x - a.x) * dx + (p.y - a.y) * dy) / len2;
+  t = clamp(t, 0, 1);
+  return dist(p, { x: a.x + t * dx, y: a.y + t * dy });
+}
+
+function distToCubic(
+  p: Point,
+  start: Point,
+  cp1: Point,
+  cp2: Point,
+  end: Point,
+  samples = 24,
+): number {
+  let min = Infinity;
+  let prev = start;
+  for (let i = 1; i <= samples; i++) {
+    const pt = cubicAt(i / samples, start, cp1, cp2, end);
+    min = Math.min(min, distToSegment(p, prev, pt));
+    prev = pt;
+  }
+  return min;
+}
+
+export function pointInRect(
+  p: Point,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  pad = 0,
+): boolean {
+  return (
+    p.x >= x - pad &&
+    p.x <= x + w + pad &&
+    p.y >= y - pad &&
+    p.y <= y + h + pad
+  );
+}
+
+export function pointInEllipse(
+  p: Point,
+  cx: number,
+  cy: number,
+  rx: number,
+  ry: number,
+  pad = 0,
+): boolean {
+  const erx = rx + pad;
+  const ery = ry + pad;
+  if (erx <= 0 || ery <= 0) return false;
+  const nx = (p.x - cx) / erx;
+  const ny = (p.y - cy) / ery;
+  return nx * nx + ny * ny <= 1;
+}
+
+/** Rough AABB for a fill path from its d attribute (M/L/C numbers). */
+export function fillPathBounds(
+  d: string,
+): { x: number; y: number; width: number; height: number } | null {
+  const nums = d.match(/-?\d*\.?\d+/g);
+  if (!nums || nums.length < 4) return null;
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (let i = 0; i + 1 < nums.length; i += 2) {
+    const x = Number(nums[i]);
+    const y = Number(nums[i + 1]);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+    minX = Math.min(minX, x);
+    minY = Math.min(minY, y);
+    maxX = Math.max(maxX, x);
+    maxY = Math.max(maxY, y);
+  }
+  if (!Number.isFinite(minX)) return null;
+  return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+}
+
+/**
+ * Geometric hit-test for a single shape (local SVG coords).
+ * Stroke shapes use distance threshold; closed shapes use fill or stroke ring.
+ */
+export function hitTestShape(
+  shape: WhiteboardShape,
+  point: Point,
+  threshold = 10,
+): boolean {
+  const pad = Math.max(threshold, shape.strokeWidth / 2 + 4);
+  let p = point;
+
+  // Undo leading translate (used by fill moves)
+  const tm = /^translate\(([-\d.]+)[,\s]+([-\d.]+)\)/.exec((shape.transform || "").trim());
+  if (tm) {
+    p = { x: p.x - Number(tm[1]), y: p.y - Number(tm[2]) };
+  }
+
+  const rot = parseRotate(shape.transform);
+  if (rot) {
+    p = unrotatePoint(p, rot.cx, rot.cy, rot.deg);
+  }
+
+  switch (shape.geometry.kind) {
+    case "bezier": {
+      const g = shape.geometry;
+      return distToCubic(p, g.start, g.cp1, g.cp2, g.end) <= pad;
+    }
+    case "rectangle": {
+      const g = shape.geometry;
+      return pointInRect(p, g.x, g.y, g.width, g.height, pad);
+    }
+    case "ellipse": {
+      const g = shape.geometry;
+      return pointInEllipse(p, g.cx, g.cy, g.rx, g.ry, pad);
+    }
+    case "arrow": {
+      const g = shape.geometry;
+      return distToSegment(p, g.start, g.end) <= pad;
+    }
+    case "fill": {
+      const b = fillPathBounds(shape.geometry.d);
+      if (!b) return false;
+      return pointInRect(p, b.x, b.y, b.width, b.height, pad);
+    }
+    default:
+      return false;
+  }
+}
+
+/** Top-most shape under the point (last in list wins). */
+export function hitTestShapes(
+  shapes: WhiteboardShape[],
+  point: Point,
+  threshold = 10,
+): WhiteboardShape | null {
+  for (let i = shapes.length - 1; i >= 0; i--) {
+    const s = shapes[i];
+    if (hitTestShape(s, point, threshold)) return s;
+  }
+  return null;
+}
+
+export type RectCorner = "nw" | "ne" | "sw" | "se";
+
+export function rectCorners(g: {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}): Record<RectCorner, Point> {
+  return {
+    nw: { x: g.x, y: g.y },
+    ne: { x: g.x + g.width, y: g.y },
+    sw: { x: g.x, y: g.y + g.height },
+    se: { x: g.x + g.width, y: g.y + g.height },
+  };
+}
+
+export function ellipseHandles(g: {
+  cx: number;
+  cy: number;
+  rx: number;
+  ry: number;
+}): Record<RectCorner, Point> {
+  return {
+    nw: { x: g.cx - g.rx, y: g.cy - g.ry },
+    ne: { x: g.cx + g.rx, y: g.cy - g.ry },
+    sw: { x: g.cx - g.rx, y: g.cy + g.ry },
+    se: { x: g.cx + g.rx, y: g.cy + g.ry },
+  };
+}
+
+export function hitCorner(
+  p: Point,
+  corners: Record<RectCorner, Point>,
+  radius = 12,
+): RectCorner | null {
+  for (const key of ["nw", "ne", "sw", "se"] as RectCorner[]) {
+    if (dist(p, corners[key]) <= radius) return key;
+  }
+  return null;
+}
+
+/** Translate a shape's geometry (and transform origins) by dx/dy. */
+export function translateShape(
+  shape: WhiteboardShape,
+  dx: number,
+  dy: number,
+): WhiteboardShape {
+  if (!dx && !dy) return shape;
+  const transform = offsetTransform(shape.transform, dx, dy);
+  const g = shape.geometry;
+  switch (g.kind) {
+    case "bezier":
+      return {
+        ...shape,
+        transform,
+        geometry: {
+          ...g,
+          start: { x: g.start.x + dx, y: g.start.y + dy },
+          end: { x: g.end.x + dx, y: g.end.y + dy },
+          cp1: { x: g.cp1.x + dx, y: g.cp1.y + dy },
+          cp2: { x: g.cp2.x + dx, y: g.cp2.y + dy },
+        },
+      };
+    case "rectangle":
+      return {
+        ...shape,
+        transform,
+        geometry: { ...g, x: g.x + dx, y: g.y + dy },
+      };
+    case "ellipse":
+      return {
+        ...shape,
+        transform,
+        geometry: { ...g, cx: g.cx + dx, cy: g.cy + dy },
+      };
+    case "arrow":
+      return {
+        ...shape,
+        transform,
+        geometry: {
+          ...g,
+          start: { x: g.start.x + dx, y: g.start.y + dy },
+          end: { x: g.end.x + dx, y: g.end.y + dy },
+        },
+      };
+    case "fill": {
+      const existing = shape.transform || "";
+      const m = /^translate\(([-\d.]+)[,\s]+([-\d.]+)\)\s*(.*)$/.exec(existing.trim());
+      if (m) {
+        const tx = Number(m[1]) + dx;
+        const ty = Number(m[2]) + dy;
+        const rest = m[3] ?? "";
+        return {
+          ...shape,
+          transform: composeTransforms(`translate(${tx} ${ty})`, rest),
+        };
+      }
+      return {
+        ...shape,
+        transform: composeTransforms(`translate(${dx} ${dy})`, existing),
+      };
+    }
+    default:
+      return shape;
+  }
+}
+
+export function resizeRectFromCorner(
+  g: { x: number; y: number; width: number; height: number },
+  corner: RectCorner,
+  point: Point,
+  keepSquare: boolean,
+): { x: number; y: number; width: number; height: number } {
+  let x0 = g.x;
+  let y0 = g.y;
+  let x1 = g.x + g.width;
+  let y1 = g.y + g.height;
+  if (corner === "nw") {
+    x0 = point.x;
+    y0 = point.y;
+  } else if (corner === "ne") {
+    x1 = point.x;
+    y0 = point.y;
+  } else if (corner === "sw") {
+    x0 = point.x;
+    y1 = point.y;
+  } else {
+    x1 = point.x;
+    y1 = point.y;
+  }
+  return normalizeRect(x0, y0, x1, y1, keepSquare);
+}
+
+export function resizeEllipseFromCorner(
+  g: { cx: number; cy: number; rx: number; ry: number },
+  corner: RectCorner,
+  point: Point,
+  keepCircle: boolean,
+): { cx: number; cy: number; rx: number; ry: number } {
+  const box = {
+    x: g.cx - g.rx,
+    y: g.cy - g.ry,
+    width: g.rx * 2,
+    height: g.ry * 2,
+  };
+  const next = resizeRectFromCorner(box, corner, point, keepCircle);
+  return {
+    cx: next.x + next.width / 2,
+    cy: next.y + next.height / 2,
+    rx: Math.max(0.5, next.width / 2),
+    ry: Math.max(0.5, next.height / 2),
+  };
+}
+
 /** Arrowhead triangle at `end`, pointing along start→end. */
 export function arrowHeadPoints(
   start: Point,

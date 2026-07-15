@@ -3,7 +3,9 @@
 import { UserAvatar } from "@/components/ui/UserAvatar";
 import { cn } from "@/lib/cn";
 import { formatDisplayName } from "@/lib/names";
+import type { VoteKickTally } from "@/services/app-websocket";
 import type { Room, ScoreEntry } from "@/types/room";
+import { VoteKickButton } from "../VoteKickButton";
 
 function resolveScores(room: Room): ScoreEntry[] {
   if (room.game.scores.length > 0) {
@@ -24,27 +26,36 @@ export function Scoreboard({
   room,
   currentPlayerId,
   className,
+  voteTallies,
+  onVoteKick,
 }: {
   room: Room;
   currentPlayerId?: string;
   className?: string;
+  voteTallies?: Record<string, VoteKickTally>;
+  onVoteKick?: (targetId: string) => void;
 }) {
   const scores = resolveScores(room);
   const drawerId = room.game.drawer?.id;
+  const playerCount = room.players.length;
+  const canVoteKickDrawer =
+    onVoteKick != null &&
+    room.game.phase === "ROUND_ACTIVE" &&
+    drawerId != null;
 
   return (
     <aside
       className={cn(
-        "flex h-full min-h-[12rem] flex-col overflow-hidden rounded-3xl border border-plum/15 bg-white/90 lg:min-h-0",
+        "flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-plum/15 bg-white/90 sm:rounded-3xl",
         className,
       )}
     >
-      <div className="border-b border-plum/10 px-4 py-3">
-        <h2 className="text-xs font-bold uppercase tracking-wider text-ink-muted">
+      <div className="shrink-0 border-b border-plum/10 px-2.5 py-2 sm:px-4 sm:py-3">
+        <h2 className="text-[10px] font-bold uppercase tracking-wider text-ink-muted sm:text-xs">
           Scores
         </h2>
       </div>
-      <ol className="flex-1 space-y-1 overflow-y-auto p-2">
+      <ol className="min-h-0 flex-1 space-y-0.5 overflow-y-auto overscroll-contain p-1.5 sm:space-y-1 sm:p-2">
         {scores.map((entry, index) => {
           const player = room.players.find((p) => p.id === entry.playerId);
           const name = player?.name ?? "Player";
@@ -56,42 +67,54 @@ export function Scoreboard({
             <li
               key={entry.playerId}
               className={cn(
-                "flex items-center gap-2.5 rounded-2xl px-2.5 py-2",
+                "flex items-center gap-1.5 rounded-xl px-1.5 py-1.5 sm:gap-2.5 sm:rounded-2xl sm:px-2.5 sm:py-2",
                 guessed ? "bg-green-light/60" : "hover:bg-plum-light/40",
                 isSelf && "ring-1 ring-plum/20",
               )}
             >
-              <span className="w-5 text-center text-xs font-bold text-ink-muted">
+              <span className="hidden w-5 text-center text-xs font-bold text-ink-muted sm:block">
                 {index + 1}
               </span>
               <UserAvatar
                 name={name}
                 avatarUrl={player?.avatarUrl ?? null}
-                className="h-8 w-8 shrink-0 text-xs"
+                className="h-7 w-7 shrink-0 text-[10px] sm:h-8 sm:w-8 sm:text-xs"
               />
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-semibold text-ink">
+                <p className="truncate text-xs font-semibold text-ink sm:text-sm">
                   {formatDisplayName(name)}
                   {isDrawer ? (
-                    <span className="ml-1.5 text-[10px] font-bold uppercase tracking-wide text-plum">
+                    <span className="ml-1 hidden text-[10px] font-bold uppercase tracking-wide text-plum sm:inline">
                       Drawing
                     </span>
                   ) : null}
                   {guessed ? (
-                    <span className="ml-1.5 text-[10px] font-bold uppercase tracking-wide text-green">
+                    <span className="ml-1 hidden text-[10px] font-bold uppercase tracking-wide text-green sm:inline">
                       Got it
                     </span>
                   ) : null}
                 </p>
                 {!entry.isActive ? (
-                  <p className="text-[11px] font-medium text-ink-muted">Waiting</p>
+                  <p className="hidden text-[11px] font-medium text-ink-muted sm:block">
+                    Waiting
+                  </p>
                 ) : entry.roundPoints > 0 ? (
-                  <p className="text-[11px] font-medium text-green">
+                  <p className="hidden text-[11px] font-medium text-green sm:block">
                     +{entry.roundPoints} this turn
                   </p>
                 ) : null}
               </div>
-              <span className="shrink-0 font-mono text-sm font-bold tabular-nums text-ink">
+              {canVoteKickDrawer && isDrawer && !isSelf && onVoteKick ? (
+                <VoteKickButton
+                  targetId={entry.playerId}
+                  selfId={currentPlayerId}
+                  playerCount={playerCount}
+                  tally={voteTallies?.[entry.playerId]}
+                  onToggle={onVoteKick}
+                  compact
+                />
+              ) : null}
+              <span className="shrink-0 font-mono text-xs font-bold tabular-nums text-ink sm:text-sm">
                 {entry.score}
               </span>
             </li>

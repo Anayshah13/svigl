@@ -31,6 +31,10 @@ class EventType(StrEnum):
     ROOM_UPDATED = "ROOM_UPDATED"
     PLAYER_KICKED = "PLAYER_KICKED"
 
+    # Majority vote-kick (client → server cast; server → client tally)
+    VOTE_KICK = "VOTE_KICK"
+    VOTE_KICK_UPDATE = "VOTE_KICK_UPDATE"
+
     # Game lifecycle (client → server)
     PLAYER_READY = "PLAYER_READY"
     PLAYER_UNREADY = "PLAYER_UNREADY"
@@ -53,6 +57,7 @@ class EventType(StrEnum):
     HOST_CHANGED = "HOST_CHANGED"
     PLAYER_GUESSED = "PLAYER_GUESSED"
     SCORES_UPDATED = "SCORES_UPDATED"
+    HINT_UPDATED = "HINT_UPDATED"
 
     # Collaborative canvas (client ↔ server)
     SHAPE_CREATED = "SHAPE_CREATED"

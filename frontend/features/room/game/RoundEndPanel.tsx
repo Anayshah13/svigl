@@ -30,7 +30,7 @@ export function RoundEndPanel({ room }: { room: Room }) {
         )}
       </h2>
 
-      {summary && summary.guessed.length > 0 ? (
+      {summary?.guessed && summary.guessed.length > 0 ? (
         <ul className="mx-auto mt-5 max-w-sm space-y-2 text-left">
           {summary.guessed.map((entry) => (
             <li
@@ -44,6 +44,13 @@ export function RoundEndPanel({ room }: { room: Room }) {
             </li>
           ))}
         </ul>
+      ) : summary ? (
+        <p className="mt-4 text-sm text-ink-muted">Nobody guessed this round.</p>
+      ) : game.guessedPlayerIds.length > 0 ? (
+        <p className="mt-4 text-sm font-medium text-green">
+          {game.guessedPlayerIds.length} player
+          {game.guessedPlayerIds.length === 1 ? "" : "s"} guessed correctly.
+        </p>
       ) : (
         <p className="mt-4 text-sm text-ink-muted">Nobody guessed this round.</p>
       )}

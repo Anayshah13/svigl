@@ -3,7 +3,7 @@
 import * as React from "react";
 import { HistoryStack } from "./history";
 import { throttle } from "./throttle";
-import { cloneShapes, createId } from "./geometry";
+import { cloneShape, cloneShapes, createId } from "./geometry";
 import { exportShapes, importShapes } from "./serialize";
 import type {
   HistoryOp,
@@ -66,6 +66,9 @@ export interface WhiteboardController {
   setFillTolerance: (n: number) => void;
   draft: DraftStroke | null;
   bezierDraft: DraftBezier | null;
+  /** Currently selected shape id (drawer only). */
+  selectedId: string | null;
+  selectShape: (id: string | null) => void;
   canUndo: boolean;
   canRedo: boolean;
   isDrawer: boolean;
@@ -84,6 +87,17 @@ export interface WhiteboardController {
   importDocument: (payload: unknown) => void;
   /** Imperative commit helpers used by the canvas. */
   commitShape: (shape: WhiteboardShape) => void;
+  /**
+   * Live-update a shape during drag (syncs via onShapeUpdated, no history yet).
+   * Pass the pre-edit snapshot once at pointer-down via `beginUpdate`.
+   */
+  previewShapeUpdate: (shape: WhiteboardShape) => void;
+  /** Begin an edit session — stores `before` for history on commit. */
+  beginShapeUpdate: (before: WhiteboardShape) => void;
+  /** Finish edit: push history once + flush sync. */
+  commitShapeUpdate: () => void;
+  /** Cancel in-progress edit and restore `before`. */
+  cancelShapeUpdate: () => void;
   setDraft: React.Dispatch<React.SetStateAction<DraftStroke | null>>;
   setBezierDraft: React.Dispatch<React.SetStateAction<DraftBezier | null>>;
   commitBezierDraft: () => void;
@@ -110,12 +124,13 @@ export function useWhiteboard(options: UseWhiteboardOptions = {}): WhiteboardCon
   const [shapes, setShapes] = React.useState<WhiteboardShape[]>(() =>
     cloneShapes(initialShapes),
   );
-  const [tool, setTool] = React.useState<WhiteboardTool>("bezier");
-  const [color, setColor] = React.useState<string>(PRESET_COLORS[0]);
-  const [strokeWidth, setStrokeWidth] = React.useState<StrokeWidth>(STROKE_WIDTHS[1]);
+  const [tool, setToolState] = React.useState<WhiteboardTool>("bezier");
+  const [color, setColorState] = React.useState<string>(PRESET_COLORS[0]);
+  const [strokeWidth, setStrokeWidthState] = React.useState<StrokeWidth>(STROKE_WIDTHS[1]);
   const [fillTolerance, setFillTolerance] = React.useState(initialTolerance);
   const [draft, setDraft] = React.useState<DraftStroke | null>(null);
   const [bezierDraft, setBezierDraft] = React.useState<DraftBezier | null>(null);
+  const [selectedId, setSelectedId] = React.useState<string | null>(null);
   const [canUndo, setCanUndo] = React.useState(false);
   const [canRedo, setCanRedo] = React.useState(false);
   const [isFilling, setIsFilling] = React.useState(false);
@@ -123,6 +138,7 @@ export function useWhiteboard(options: UseWhiteboardOptions = {}): WhiteboardCon
   const historyRef = React.useRef(new HistoryStack());
   const shapesRef = React.useRef(shapes);
   shapesRef.current = shapes;
+  const editBeforeRef = React.useRef<WhiteboardShape | null>(null);
 
   const callbacksRef = React.useRef({
     onShapeCreated,
@@ -151,7 +167,21 @@ export function useWhiteboard(options: UseWhiteboardOptions = {}): WhiteboardCon
     [],
   );
 
-  React.useEffect(() => () => emitShapesChange.cancel(), [emitShapesChange]);
+  const emitShapeUpdated = React.useMemo(
+    () =>
+      throttle((shape: WhiteboardShape) => {
+        callbacksRef.current.onShapeUpdated?.(shape);
+      }, SYNC_INTERVAL_MS),
+    [],
+  );
+
+  React.useEffect(
+    () => () => {
+      emitShapesChange.cancel();
+      emitShapeUpdated.cancel();
+    },
+    [emitShapesChange, emitShapeUpdated],
+  );
 
   const syncHistoryFlags = React.useCallback(() => {
     setCanUndo(historyRef.current.canUndo);
@@ -167,6 +197,69 @@ export function useWhiteboard(options: UseWhiteboardOptions = {}): WhiteboardCon
     [emitShapesChange],
   );
 
+  const selectShape = React.useCallback(
+    (id: string | null) => {
+      if (!isDrawer) {
+        setSelectedId(null);
+        return;
+      }
+      setSelectedId(id);
+    },
+    [isDrawer],
+  );
+
+  const applyStyleToSelected = React.useCallback(
+    (patch: Partial<Pick<WhiteboardShape, "stroke" | "strokeWidth" | "fill">>) => {
+      if (!isDrawer || !selectedId) return;
+      const before = shapesRef.current.find((s) => s.id === selectedId);
+      if (!before) return;
+      const after: WhiteboardShape = {
+        ...before,
+        ...patch,
+        // Flood fills use fill color as the paint
+        ...(before.geometry.kind === "fill" && patch.stroke
+          ? { fill: patch.stroke, stroke: patch.stroke }
+          : {}),
+      };
+      if (
+        after.stroke === before.stroke &&
+        after.strokeWidth === before.strokeWidth &&
+        after.fill === before.fill
+      ) {
+        return;
+      }
+      historyRef.current.push({ type: "update", before: cloneShape(before), after: cloneShape(after) });
+      syncHistoryFlags();
+      const next = shapesRef.current.map((s) => (s.id === after.id ? after : s));
+      replaceShapes(next);
+      callbacksRef.current.onShapeUpdated?.(after);
+      emitShapesChange.flush();
+    },
+    [isDrawer, selectedId, replaceShapes, syncHistoryFlags, emitShapesChange],
+  );
+
+  const setColor = React.useCallback(
+    (c: string) => {
+      setColorState(c);
+      applyStyleToSelected({ stroke: c });
+    },
+    [applyStyleToSelected],
+  );
+
+  const setStrokeWidth = React.useCallback(
+    (w: StrokeWidth) => {
+      setStrokeWidthState(w);
+      applyStyleToSelected({ strokeWidth: w });
+    },
+    [applyStyleToSelected],
+  );
+
+  const setTool = React.useCallback((t: WhiteboardTool) => {
+    setToolState(t);
+    // Starting a new tool mode clears an active bezier draft but keeps selection
+    // so users can still restyle. Fill tool can paint over selection.
+  }, []);
+
   const commitShape = React.useCallback(
     (shape: WhiteboardShape) => {
       const op: HistoryOp = { type: "add", shape };
@@ -174,11 +267,65 @@ export function useWhiteboard(options: UseWhiteboardOptions = {}): WhiteboardCon
       syncHistoryFlags();
       const next = [...shapesRef.current, shape];
       replaceShapes(next);
+      setSelectedId(null);
       callbacksRef.current.onShapeCreated?.(shape);
       emitShapesChange.flush();
     },
     [replaceShapes, syncHistoryFlags, emitShapesChange],
   );
+
+  const beginShapeUpdate = React.useCallback((before: WhiteboardShape) => {
+    editBeforeRef.current = cloneShape(before);
+  }, []);
+
+  const previewShapeUpdate = React.useCallback(
+    (shape: WhiteboardShape) => {
+      const next = shapesRef.current.map((s) => (s.id === shape.id ? shape : s));
+      replaceShapes(next, false);
+      emitShapeUpdated(shape);
+    },
+    [replaceShapes, emitShapeUpdated],
+  );
+
+  const commitShapeUpdate = React.useCallback(() => {
+    const before = editBeforeRef.current;
+    editBeforeRef.current = null;
+    if (!before) {
+      emitShapeUpdated.flush();
+      emitShapesChange.flush();
+      return;
+    }
+    const after = shapesRef.current.find((s) => s.id === before.id);
+    if (!after) {
+      emitShapeUpdated.flush();
+      emitShapesChange.flush();
+      return;
+    }
+    // No-op edit
+    if (JSON.stringify(before) === JSON.stringify(after)) {
+      emitShapeUpdated.cancel();
+      return;
+    }
+    historyRef.current.push({
+      type: "update",
+      before: cloneShape(before),
+      after: cloneShape(after),
+    });
+    syncHistoryFlags();
+    emitShapeUpdated.flush();
+    emitShapesChange.flush();
+  }, [syncHistoryFlags, emitShapeUpdated, emitShapesChange]);
+
+  const cancelShapeUpdate = React.useCallback(() => {
+    const before = editBeforeRef.current;
+    editBeforeRef.current = null;
+    emitShapeUpdated.cancel();
+    if (!before) return;
+    const next = shapesRef.current.map((s) => (s.id === before.id ? before : s));
+    replaceShapes(next);
+    callbacksRef.current.onShapeUpdated?.(before);
+    emitShapesChange.flush();
+  }, [replaceShapes, emitShapeUpdated, emitShapesChange]);
 
   const undo = React.useCallback(() => {
     if (!isDrawer) return;
@@ -186,8 +333,8 @@ export function useWhiteboard(options: UseWhiteboardOptions = {}): WhiteboardCon
     if (!result) return;
     syncHistoryFlags();
     replaceShapes(result.shapes);
+    setSelectedId(null);
     callbacksRef.current.onUndo?.(result.op);
-    // Mirror inverse for sync consumers
     switch (result.op.type) {
       case "add":
         callbacksRef.current.onShapeDeleted?.(result.op.shape.id);
@@ -199,7 +346,6 @@ export function useWhiteboard(options: UseWhiteboardOptions = {}): WhiteboardCon
         callbacksRef.current.onShapeUpdated?.(result.op.before);
         break;
       case "clear":
-        // restored shapes — emit full snapshot
         break;
       case "replace":
         break;
@@ -213,6 +359,7 @@ export function useWhiteboard(options: UseWhiteboardOptions = {}): WhiteboardCon
     if (!result) return;
     syncHistoryFlags();
     replaceShapes(result.shapes);
+    setSelectedId(null);
     callbacksRef.current.onRedo?.(result.op);
     switch (result.op.type) {
       case "add":
@@ -239,6 +386,7 @@ export function useWhiteboard(options: UseWhiteboardOptions = {}): WhiteboardCon
     if (prev.length === 0) return;
     historyRef.current.push({ type: "clear", shapes: prev });
     syncHistoryFlags();
+    setSelectedId(null);
     replaceShapes([]);
     callbacksRef.current.onClear?.();
     emitShapesChange.flush();
@@ -250,6 +398,8 @@ export function useWhiteboard(options: UseWhiteboardOptions = {}): WhiteboardCon
       syncHistoryFlags();
       setDraft(null);
       setBezierDraft(null);
+      setSelectedId(null);
+      editBeforeRef.current = null;
       replaceShapes(cloneShapes(next), true);
       emitShapesChange.flush();
     },
@@ -266,14 +416,16 @@ export function useWhiteboard(options: UseWhiteboardOptions = {}): WhiteboardCon
 
   const applyRemoteDelete = React.useCallback(
     (shapeId: string) => {
+      if (selectedId === shapeId) setSelectedId(null);
       replaceShapes(shapesRef.current.filter((s) => s.id !== shapeId));
     },
-    [replaceShapes],
+    [replaceShapes, selectedId],
   );
 
   const applyRemoteClear = React.useCallback(() => {
     historyRef.current.clear();
     syncHistoryFlags();
+    setSelectedId(null);
     replaceShapes([]);
   }, [replaceShapes, syncHistoryFlags]);
 
@@ -325,20 +477,41 @@ export function useWhiteboard(options: UseWhiteboardOptions = {}): WhiteboardCon
       if (mod && e.key.toLowerCase() === "z" && !e.shiftKey) {
         e.preventDefault();
         undo();
-      } else if (mod && (e.key.toLowerCase() === "y" || (e.key.toLowerCase() === "z" && e.shiftKey))) {
+      } else if (
+        mod &&
+        (e.key.toLowerCase() === "y" || (e.key.toLowerCase() === "z" && e.shiftKey))
+      ) {
         e.preventDefault();
         redo();
       } else if (e.key === "Enter" && bezierDraft) {
         e.preventDefault();
         commitBezierDraft();
-      } else if (e.key === "Escape" && bezierDraft) {
-        e.preventDefault();
-        cancelBezierDraft();
+      } else if (e.key === "Escape") {
+        if (bezierDraft) {
+          e.preventDefault();
+          cancelBezierDraft();
+        } else if (selectedId) {
+          e.preventDefault();
+          setSelectedId(null);
+        }
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [isDrawer, undo, redo, bezierDraft, commitBezierDraft, cancelBezierDraft]);
+  }, [
+    isDrawer,
+    undo,
+    redo,
+    bezierDraft,
+    commitBezierDraft,
+    cancelBezierDraft,
+    selectedId,
+  ]);
+
+  // Clear selection when drawer privilege is revoked
+  React.useEffect(() => {
+    if (!isDrawer) setSelectedId(null);
+  }, [isDrawer]);
 
   return {
     shapes,
@@ -352,6 +525,8 @@ export function useWhiteboard(options: UseWhiteboardOptions = {}): WhiteboardCon
     setFillTolerance,
     draft,
     bezierDraft,
+    selectedId,
+    selectShape,
     canUndo,
     canRedo,
     isDrawer,
@@ -366,6 +541,10 @@ export function useWhiteboard(options: UseWhiteboardOptions = {}): WhiteboardCon
     exportDocument,
     importDocument,
     commitShape,
+    previewShapeUpdate,
+    beginShapeUpdate,
+    commitShapeUpdate,
+    cancelShapeUpdate,
     setDraft,
     setBezierDraft,
     commitBezierDraft,

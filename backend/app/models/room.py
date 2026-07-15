@@ -177,6 +177,10 @@ class GameSession(Base):
     secret_word: Mapped[str | None] = mapped_column(String(64), nullable=True)
     # JSON-encoded list of up to 3 choices offered to the drawer.
     word_choices_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # JSON list of character indices revealed in the public word hint.
+    hint_revealed_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Last ROUND_ENDED summary — kept through ROUND_END for snapshot clients.
+    last_round_summary_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     round_started_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )

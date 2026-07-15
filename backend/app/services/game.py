@@ -6,8 +6,10 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.models.user import User
 from app.models.room import (
     GAME_PHASE_COUNTDOWN,
     GAME_PHASE_GAME_FINISHED,
@@ -23,14 +25,17 @@ from app.models.room import (
     RoomPlayer,
 )
 from app.services.words import (
+    is_close_guess,
     normalize_guess,
     pick_word_choices,
+    reveal_order,
+    target_reveal_count,
     word_hint_mask,
     words_match,
 )
 
 COUNTDOWN_SECONDS = 3
-WORD_SELECTION_SECONDS = 15
+WORD_SELECTION_SECONDS = 10
 ROUND_END_SECONDS = 2
 GAME_FINISHED_SECONDS = 5
 MIN_ROUND_DURATION = 15
@@ -62,10 +67,12 @@ class GameError(Exception):
 
 @dataclass(frozen=True)
 class ChatEvent:
-    kind: str  # "chat" | "system" | "correct_guess"
+    kind: str  # "chat" | "system" | "correct_guess" | "close_guess" | "private_chat"
     message: str
     player_id: str | None = None
     player_name: str | None = None
+    # None = room-wide; otherwise only these users receive the message.
+    recipient_ids: tuple[UUID, ...] | None = None
 
 
 @dataclass(frozen=True)
@@ -90,6 +97,9 @@ class GameMutation:
     winner_user_id: UUID | None = None
     # Extra event payload fields merged into WS broadcasts for listed events.
     event_extras: dict[str, dict] = field(default_factory=dict)
+    # When set, PLAYER_GUESSED / similar private fields go only to this user.
+    private_to_user_id: UUID | None = None
+    private_secret_word: str | None = None
 
 
 def utcnow() -> datetime:
@@ -155,6 +165,7 @@ def _set_word_choices(session: GameSession, choices: list[str]) -> None:
 def _clear_round_word_state(session: GameSession) -> None:
     session.secret_word = None
     session.word_choices_json = None
+    session.hint_revealed_json = None
     session.round_started_at = None
 
 
@@ -162,6 +173,52 @@ def _reset_round_guess_flags(session: GameSession) -> None:
     for player in session.players:
         player.has_guessed_correctly = False
         player.round_points = 0
+
+
+def _parse_hint_revealed(session: GameSession) -> set[int]:
+    if not session.hint_revealed_json:
+        return set()
+    try:
+        raw = json.loads(session.hint_revealed_json)
+    except json.JSONDecodeError:
+        return set()
+    if not isinstance(raw, list):
+        return set()
+    return {int(item) for item in raw if isinstance(item, int) or str(item).isdigit()}
+
+
+def _set_hint_revealed(session: GameSession, revealed: set[int]) -> None:
+    session.hint_revealed_json = json.dumps(sorted(revealed))
+
+
+def _parse_round_summary(session: GameSession) -> dict | None:
+    if not session.last_round_summary_json:
+        return None
+    try:
+        raw = json.loads(session.last_round_summary_json)
+    except json.JSONDecodeError:
+        return None
+    return raw if isinstance(raw, dict) else None
+
+
+def _store_round_summary(session: GameSession, summary: dict) -> None:
+    session.last_round_summary_json = json.dumps(summary)
+
+
+def _correct_guesser_ids(session: GameSession) -> list[UUID]:
+    return [
+        player.user_id
+        for player in session.players
+        if player.is_active and player.has_guessed_correctly
+    ]
+
+
+def _private_chat_recipients(session: GameSession) -> tuple[UUID, ...]:
+    """Correct guessers + drawer can see the private post-guess channel."""
+    recipients = set(_correct_guesser_ids(session))
+    if session.drawer_user_id is not None:
+        recipients.add(session.drawer_user_id)
+    return tuple(recipients)
 
 
 def _player_name(room: Room, user_id: UUID) -> str:
@@ -276,6 +333,8 @@ def update_game_settings(
 
 
 def start_game(db: Session, room_code: str, user_id: UUID) -> GameMutation:
+    from app.services.vote_kick import clear_room_votes
+
     room = _room_for_update(db, room_code)
     _assert_host(room, user_id)
     if len(room.players) < 2:
@@ -286,6 +345,8 @@ def start_game(db: Session, room_code: str, user_id: UUID) -> GameMutation:
     session = _ensure_lobby_session(db, room)
     if session.phase != GAME_PHASE_LOBBY:
         raise GameError("ROOM_STARTED", "The game has already started.")
+
+    clear_room_votes(room.code)
 
     settings = room.game_settings
     for frozen_player in list(session.players):
@@ -412,6 +473,8 @@ def _phase_deadline(seconds: int) -> datetime:
 
 
 def _return_to_lobby(room: Room, session: GameSession) -> None:
+    from app.services.vote_kick import clear_room_votes
+
     session.phase = GAME_PHASE_LOBBY
     session.deadline_at = None
     session.drawer_user_id = None
@@ -426,12 +489,14 @@ def _return_to_lobby(room: Room, session: GameSession) -> None:
         frozen.is_active = False
         frozen.has_guessed_correctly = False
         frozen.round_points = 0
+    clear_room_votes(room.code)
 
 
 def _begin_word_selection(session: GameSession) -> PrivateDrawerPayload:
     """Offer 3 word choices to the current drawer."""
     _reset_round_guess_flags(session)
     _clear_round_word_state(session)
+    session.last_round_summary_json = None
     choices = pick_word_choices(3)
     _set_word_choices(session, choices)
     session.phase = GAME_PHASE_WORD_SELECTION
@@ -446,6 +511,7 @@ def _begin_word_selection(session: GameSession) -> PrivateDrawerPayload:
 def _begin_round_active(session: GameSession, word: str) -> PrivateDrawerPayload:
     session.secret_word = word
     session.word_choices_json = None
+    session.hint_revealed_json = None
     session.phase = GAME_PHASE_ROUND_ACTIVE
     session.round_started_at = utcnow()
     session.deadline_at = _phase_deadline(session.round_duration_seconds)
@@ -464,7 +530,11 @@ def _build_round_summary(room: Room, session: GameSession) -> dict:
             "points": player.round_points,
         }
         for player in sorted(
-            (p for p in session.players if p.has_guessed_correctly),
+            (
+                p
+                for p in session.players
+                if p.has_guessed_correctly and p.user_id != session.drawer_user_id
+            ),
             key=lambda item: (-item.round_points, item.rotation_index),
         )
     ]
@@ -476,10 +546,25 @@ def _build_round_summary(room: Room, session: GameSession) -> dict:
     }
 
 
-def _end_round_active(room: Room, session: GameSession) -> tuple[list[str], dict]:
+def _record_drawing_done(db: Session, drawer_user_id: UUID | None) -> None:
+    """Bump the drawer's lifetime drawings_done counter when a drawing turn ends."""
+    if drawer_user_id is None:
+        return
+    drawer = db.scalar(select(User).where(User.id == drawer_user_id))
+    if drawer is None:
+        return
+    drawer.drawings_done = int(drawer.drawings_done or 0) + 1
+
+
+def _end_round_active(db: Session, room: Room, session: GameSession) -> tuple[list[str], dict]:
+    from app.services.vote_kick import clear_room_votes
+
+    _record_drawing_done(db, session.drawer_user_id)
+    clear_room_votes(room.code)
     session.phase = GAME_PHASE_ROUND_END
     session.deadline_at = _phase_deadline(ROUND_END_SECONDS)
     summary = _build_round_summary(room, session)
+    _store_round_summary(session, summary)
     return ["ROUND_ENDED", "GAME_STATE_UPDATED", "SCORES_UPDATED"], summary
 
 
@@ -520,6 +605,7 @@ def select_word(
     private = _begin_round_active(session, match)
     session.revision += 1
     db.commit()
+    hint = word_hint_mask(match)
     return GameMutation(
         room.code,
         ("WORD_SELECTED", "ROUND_STARTED", "CANVAS_CLEAR", "GAME_STATE_UPDATED"),
@@ -530,7 +616,10 @@ def select_word(
         scores=_scoreboard(session),
         event_extras={
             "WORD_SELECTED": {"word_length": len(match.replace(" ", ""))},
-            "ROUND_STARTED": {"word_hint": word_hint_mask(match)},
+            "ROUND_STARTED": {
+                "word_hint": hint,
+                "word_length": len(match.replace(" ", "")),
+            },
         },
     )
 
@@ -559,6 +648,33 @@ def submit_chat(
     secret = session.secret_word
     is_round = session.phase == GAME_PHASE_ROUND_ACTIVE and secret is not None
     matches_secret = is_round and words_match(secret, cleaned)
+    frozen = next(
+        (player for player in session.players if player.user_id == user_id),
+        None,
+    )
+    already_correct = bool(frozen and frozen.has_guessed_correctly)
+
+    # Correct guessers may chat privately with other correct guessers + drawer.
+    if is_round and already_correct and session.drawer_user_id != user_id:
+        recipients = _private_chat_recipients(session)
+        session.revision += 1
+        db.commit()
+        return GameMutation(
+            room.code,
+            ("CHAT_MESSAGE",),
+            session.phase,
+            session.revision,
+            session_id=session.id,
+            chat_events=(
+                ChatEvent(
+                    kind="private_chat",
+                    message=cleaned,
+                    player_id=str(user_id),
+                    player_name=player_name,
+                    recipient_ids=recipients,
+                ),
+            ),
+        )
 
     # Never leak the secret word into public chat.
     if matches_secret:
@@ -566,15 +682,8 @@ def submit_chat(
             raise GameError("WAITING", "Waiting players cannot guess.")
         if session.drawer_user_id == user_id:
             raise GameError("NOT_ALLOWED", "The drawer cannot guess.")
-        frozen = next(
-            (player for player in session.players if player.user_id == user_id),
-            None,
-        )
         if frozen is None or not frozen.is_active:
             raise GameError("WAITING", "Only active players can guess.")
-        if frozen.has_guessed_correctly:
-            # Already guessed — swallow the word leak, no chat echo.
-            raise GameError("ALREADY_GUESSED", "You already guessed correctly.")
 
         now = utcnow()
         if session.deadline_at is not None:
@@ -620,9 +729,8 @@ def submit_chat(
         summary = None
         stop_timer = False
         if _all_eligible_guessed(session):
-            end_events, summary = _end_round_active(room, session)
-            events = end_events + ["CHAT_MESSAGE", "PLAYER_GUESSED", "SCORES_UPDATED"]
             # Keep CHAT / PLAYER_GUESSED before ROUND_ENDED for client UX.
+            _, summary = _end_round_active(db, room, session)
             events = [
                 "CHAT_MESSAGE",
                 "PLAYER_GUESSED",
@@ -642,6 +750,8 @@ def submit_chat(
             chat_events=(chat,),
             round_summary=summary,
             scores=_scoreboard(session),
+            private_to_user_id=user_id,
+            private_secret_word=secret,
             event_extras={
                 "PLAYER_GUESSED": {
                     "player_id": str(user_id),
@@ -653,14 +763,41 @@ def submit_chat(
             },
         )
 
-    # Normal chat (including during lobby / non-guess phases).
+    # Close-guess nudge (private to guesser) + public wrong guess chat.
+    chat_events: list[ChatEvent] = []
+    if (
+        is_round
+        and secret is not None
+        and not waiting
+        and session.drawer_user_id != user_id
+        and frozen is not None
+        and frozen.is_active
+        and not already_correct
+        and is_close_guess(secret, cleaned)
+    ):
+        chat_events.append(
+            ChatEvent(
+                kind="close_guess",
+                message=f"Your guess '{cleaned}' is close!",
+                player_id=str(user_id),
+                player_name=player_name,
+                recipient_ids=(user_id,),
+            )
+        )
+
+    # Drawer cannot send public chat during the active round.
+    if is_round and session.drawer_user_id == user_id:
+        raise GameError("NOT_ALLOWED", "The drawer cannot chat during the round.")
+
     session.revision += 1
     db.commit()
-    chat = ChatEvent(
-        kind="chat",
-        message=cleaned,
-        player_id=str(user_id),
-        player_name=player_name,
+    chat_events.append(
+        ChatEvent(
+            kind="chat",
+            message=cleaned,
+            player_id=str(user_id),
+            player_name=player_name,
+        )
     )
     return GameMutation(
         room.code,
@@ -668,7 +805,62 @@ def submit_chat(
         session.phase,
         session.revision,
         session_id=session.id,
-        chat_events=(chat,),
+        chat_events=tuple(chat_events),
+    )
+
+
+def maybe_reveal_hint(db: Session, session_id: UUID) -> GameMutation | None:
+    """Progressively reveal letters during ROUND_ACTIVE (server-authoritative)."""
+    session = (
+        db.query(GameSession)
+        .filter(GameSession.id == session_id)
+        .with_for_update()
+        .first()
+    )
+    if (
+        session is None
+        or session.phase != GAME_PHASE_ROUND_ACTIVE
+        or not session.secret_word
+        or session.round_started_at is None
+    ):
+        return None
+
+    elapsed = max(
+        0.0, (utcnow() - _aware(session.round_started_at)).total_seconds()
+    )
+    target = target_reveal_count(
+        session.secret_word,
+        round_duration_seconds=session.round_duration_seconds,
+        elapsed_seconds=elapsed,
+    )
+    current = _parse_hint_revealed(session)
+    if target <= len(current):
+        return None
+
+    order = reveal_order(
+        session.secret_word,
+        seed=f"{session.id}:{session.secret_word}:{session.current_turn}",
+    )
+    next_revealed = set(order[:target])
+    if next_revealed == current:
+        return None
+
+    _set_hint_revealed(session, next_revealed)
+    session.revision += 1
+    hint = word_hint_mask(session.secret_word, next_revealed)
+    db.commit()
+    return GameMutation(
+        session.room.code,
+        ("HINT_UPDATED", "GAME_STATE_UPDATED"),
+        session.phase,
+        session.revision,
+        session_id=session.id,
+        event_extras={
+            "HINT_UPDATED": {
+                "word_hint": hint,
+                "word_length": len(session.secret_word.replace(" ", "")),
+            }
+        },
     )
 
 
@@ -719,9 +911,12 @@ def advance_due_session(db: Session, session_id: UUID) -> GameMutation | None:
             ("WORD_SELECTED", "ROUND_STARTED", "CANVAS_CLEAR", "GAME_STATE_UPDATED")
         )
         event_extras["WORD_SELECTED"] = {"word_length": len(word.replace(" ", ""))}
-        event_extras["ROUND_STARTED"] = {"word_hint": word_hint_mask(word)}
+        event_extras["ROUND_STARTED"] = {
+            "word_hint": word_hint_mask(word),
+            "word_length": len(word.replace(" ", "")),
+        }
     elif session.phase == GAME_PHASE_ROUND_ACTIVE:
-        end_events, summary = _end_round_active(session.room, session)
+        end_events, summary = _end_round_active(db, session.room, session)
         events.extend(end_events)
         event_extras["ROUND_ENDED"] = summary
         event_extras["SCORES_UPDATED"] = {"scores": list(_scoreboard(session))}
@@ -827,10 +1022,17 @@ def handle_player_departure(
                 stop_timer = True
         elif session.phase in (GAME_PHASE_WORD_SELECTION, GAME_PHASE_ROUND_ACTIVE):
             # Keep secret_word for ROUND_ENDED reveal when drawing had started.
+            from app.services.vote_kick import clear_room_votes
+
+            was_drawing = session.phase == GAME_PHASE_ROUND_ACTIVE
             session.word_choices_json = None
             session.phase = GAME_PHASE_ROUND_END
             session.deadline_at = utcnow() + timedelta(seconds=ROUND_END_SECONDS)
+            if was_drawing:
+                _record_drawing_done(db, session.drawer_user_id)
+                clear_room_votes(room.code)
             summary = _build_round_summary(room, session)
+            _store_round_summary(session, summary)
             events.insert(0, "ROUND_ENDED")
             event_extras["ROUND_ENDED"] = summary
         # ROUND_END: keep phase/deadline; next tick picks the next active drawer.
@@ -840,7 +1042,7 @@ def handle_player_departure(
         and len(_eligible_guessers(session)) > 0
     ):
         # Last remaining guesser already correct — end early after departure.
-        end_events, summary = _end_round_active(room, session)
+        end_events, summary = _end_round_active(db, room, session)
         events = end_events
         event_extras["ROUND_ENDED"] = summary
 
@@ -880,14 +1082,17 @@ def is_waiting_player(room: Room, user_id: UUID) -> bool:
 def public_word_hint(session: GameSession | None) -> str | None:
     if session is None or not session.secret_word:
         return None
-    if session.phase in (
-        GAME_PHASE_ROUND_ACTIVE,
-        GAME_PHASE_ROUND_END,
-        GAME_PHASE_GAME_FINISHED,
-    ):
-        if session.phase == GAME_PHASE_ROUND_END:
-            # Round summary reveals the word separately; hint still useful mid-summary.
-            return word_hint_mask(session.secret_word)
-        if session.phase == GAME_PHASE_ROUND_ACTIVE:
-            return word_hint_mask(session.secret_word)
+    if session.phase == GAME_PHASE_ROUND_ACTIVE:
+        return word_hint_mask(session.secret_word, _parse_hint_revealed(session))
+    if session.phase in (GAME_PHASE_ROUND_END, GAME_PHASE_GAME_FINISHED):
+        # Round summary reveals the word; keep a full mask for layout consistency.
+        return word_hint_mask(session.secret_word, set(range(len(session.secret_word))))
     return None
+
+
+def session_round_summary(session: GameSession | None) -> dict | None:
+    if session is None:
+        return None
+    if session.phase not in (GAME_PHASE_ROUND_END, GAME_PHASE_GAME_FINISHED):
+        return None
+    return _parse_round_summary(session)

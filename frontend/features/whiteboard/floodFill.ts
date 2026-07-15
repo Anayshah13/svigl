@@ -193,31 +193,54 @@ export function maskToPath(mask: Uint8Array, width: number, height: number): str
   return parts.join(" ");
 }
 
+async function loadSvgImage(svgMarkup: string): Promise<HTMLImageElement> {
+  // Prefer data: URLs — Safari is stricter about blob: SVG → canvas → getImageData.
+  const encoded = encodeURIComponent(svgMarkup)
+    .replace(/'/g, "%27")
+    .replace(/"/g, "%22");
+  const dataUrl = `data:image/svg+xml;charset=utf-8,${encoded}`;
+
+  try {
+    return await new Promise<HTMLImageElement>((resolve, reject) => {
+      const image = new Image();
+      image.onload = () => resolve(image);
+      image.onerror = () => reject(new Error("data-url"));
+      image.src = dataUrl;
+    });
+  } catch {
+    const blob = new Blob([svgMarkup], { type: "image/svg+xml;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    try {
+      return await new Promise<HTMLImageElement>((resolve, reject) => {
+        const image = new Image();
+        image.onload = () => resolve(image);
+        image.onerror = () => reject(new Error("Failed to rasterize SVG for flood fill"));
+        image.src = url;
+      });
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  }
+}
+
 async function rasterizeSvg(
   svgMarkup: string,
   width: number,
   height: number,
 ): Promise<ImageData> {
-  const blob = new Blob([svgMarkup], { type: "image/svg+xml;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
+  const img = await loadSvgImage(svgMarkup);
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  if (!ctx) throw new Error("2D context unavailable for flood fill");
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, width, height);
+  ctx.drawImage(img, 0, 0, width, height);
   try {
-    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
-      const image = new Image();
-      image.onload = () => resolve(image);
-      image.onerror = () => reject(new Error("Failed to rasterize SVG for flood fill"));
-      image.src = url;
-    });
-    const canvas = document.createElement("canvas");
-    canvas.width = width;
-    canvas.height = height;
-    const ctx = canvas.getContext("2d", { willReadFrequently: true });
-    if (!ctx) throw new Error("2D context unavailable for flood fill");
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, width, height);
-    ctx.drawImage(img, 0, 0, width, height);
     return ctx.getImageData(0, 0, width, height);
-  } finally {
-    URL.revokeObjectURL(url);
+  } catch {
+    throw new Error("Failed to read flood-fill pixels (canvas tainted)");
   }
 }
 

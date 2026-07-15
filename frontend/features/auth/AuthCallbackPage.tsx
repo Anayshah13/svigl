@@ -1,7 +1,9 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useRef } from "react";import { fetchAuthSession } from "@/services/auth";
+import { useEffect, useRef } from "react";
+import { consumeAccessTokenFromUrl } from "@/lib/access-token";
+import { fetchAuthSession } from "@/services/auth";
 import { useSessionStore } from "@/stores/session";
 import {
   clearStoredPostAuthRedirect,
@@ -18,6 +20,9 @@ export function AuthCallbackPage() {
   useEffect(() => {
     if (startedRef.current) return;
     startedRef.current = true;
+
+    // Safari: OAuth cookie is third-party; JWT arrives in the callback URL instead.
+    consumeAccessTokenFromUrl();
 
     if (sessionStorage.getItem(AUTH_CALLBACK_KEY) === "done") {
       const destination = resolvePostAuthRedirect(searchParams.get("next"));
@@ -42,15 +47,16 @@ export function AuthCallbackPage() {
         const destination = resolvePostAuthRedirect(searchParams.get("next"));
         clearStoredPostAuthRedirect();
         router.replace(destination);
-      })      .catch(() => {
+      })
+      .catch(() => {
         sessionStorage.removeItem(AUTH_CALLBACK_KEY);
         router.replace("/sign-in?error=Could%20not%20verify%20your%20session.");
       });
   }, [router, searchParams]);
+
   return (
     <div className="flex flex-1 items-center justify-center px-6 py-24">
       <p className="text-sm font-medium text-ink-muted">Signing you in…</p>
     </div>
   );
 }
-

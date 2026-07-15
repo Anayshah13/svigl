@@ -312,6 +312,105 @@ async def _handle_chat_message(client: ConnectedClient, message: WSMessage) -> N
     )
 
 
+async def _handle_vote_kick(client: ConnectedClient, message: WSMessage) -> None:
+    """Cast or retract a majority vote-kick against another room member."""
+    from fastapi import HTTPException
+
+    from app.services.game_runtime import apply_mutation_side_effects
+    from app.services.vote_kick import cast_vote_kick
+    from app.websocket.notify import (
+        notify_game_mutation,
+        notify_host_changed,
+        notify_player_kicked,
+        notify_vote_kick_update,
+    )
+
+    if client.room_code is None:
+        await _send_error(
+            client.websocket,
+            "Join a room before sending vote-kick.",
+            code="NOT_IN_ROOM",
+        )
+        return
+
+    raw_target = message.payload.get("target_id") or message.payload.get("player_id")
+    if not raw_target or not isinstance(raw_target, str):
+        await _send_error(
+            client.websocket, "target_id is required.", code="UNKNOWN"
+        )
+        return
+
+    try:
+        target_id = UUID(raw_target)
+    except ValueError:
+        await _send_error(client.websocket, "target_id is invalid.", code="UNKNOWN")
+        return
+
+    retract = bool(message.payload.get("retract"))
+    room_code = client.room_code
+
+    def _run():
+        db = SessionLocal()
+        try:
+            return cast_vote_kick(
+                db,
+                room_code,
+                client.user_id,
+                target_id,
+                retract=retract,
+            )
+        finally:
+            db.close()
+
+    try:
+        result = await game_runtime.run_serialized(room_code, _run)
+    except HTTPException as exc:
+        detail = exc.detail if isinstance(exc.detail, str) else "Vote-kick failed."
+        code = "FORBIDDEN" if exc.status_code == 403 else "UNKNOWN"
+        if exc.status_code == 409:
+            code = "CONFLICT"
+        elif exc.status_code == 410:
+            code = "ROOM_FINISHED"
+        await _send_error(client.websocket, detail, code=code)
+        return
+    except Exception:
+        logger.exception(
+            "vote-kick failed user=%s room=%s", client.user_id, room_code
+        )
+        await _send_error(client.websocket, "Internal server error.", code="UNKNOWN")
+        return
+
+    tally = result.tally
+    notify_vote_kick_update(
+        room_code,
+        target_id=tally.target_id,
+        votes=tally.votes,
+        required=tally.required,
+        player_count=tally.player_count,
+        voter_ids=[str(v) for v in tally.voter_ids],
+        kicked=result.kicked,
+        retracted=result.retracted,
+    )
+
+    if not result.kicked or result.membership_change is None:
+        return
+
+    change = result.membership_change
+    target_name = result.target_name or "Unknown"
+    apply_mutation_side_effects(change.game_mutation)
+
+    if change.room is not None:
+        notify_player_kicked(change.room, target_id, target_name)
+        notify_game_mutation(change.game_mutation, change.room)
+        if change.host_changed and change.previous_host_id is not None:
+            notify_host_changed(change.room, change.previous_host_id)
+    else:
+        # Room deleted (shouldn't happen on vote-kick while others remain).
+        from app.websocket.notify import notify_player_left
+
+        notify_player_left(room_code, target_id, target_name, room=None)
+
+
 async def _broadcast_canvas(result: CanvasBroadcast) -> None:
     event_type = EventType(result.event)
     if result.exclude_user_id is not None:
@@ -447,6 +546,7 @@ _HANDLERS: dict[EventType, object] = {
     EventType.START_GAME: _handle_start_game,
     EventType.SELECT_WORD: _handle_select_word,
     EventType.CHAT_MESSAGE: _handle_chat_message,
+    EventType.VOTE_KICK: _handle_vote_kick,
     EventType.SHAPE_CREATED: _handle_shape_created,
     EventType.SHAPE_UPDATED: _handle_shape_updated,
     EventType.SHAPE_DELETED: _handle_shape_deleted,

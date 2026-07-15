@@ -58,4 +58,18 @@ describe("HistoryStack", () => {
     const undone = h.undo([a]);
     expect(undone?.shapes.map((s) => s.id)).toEqual(["a", "b"]);
   });
+
+  it("undoes shape update", () => {
+    const h = new HistoryStack();
+    const before = shape("a");
+    const after = {
+      ...before,
+      geometry: { kind: "rectangle" as const, x: 5, y: 5, width: 20, height: 20 },
+    };
+    h.push({ type: "update", before, after });
+    const undone = h.undo([after]);
+    expect(undone?.shapes[0].geometry).toEqual(before.geometry);
+    const redone = h.redo(undone!.shapes);
+    expect(redone?.shapes[0].geometry).toEqual(after.geometry);
+  });
 });

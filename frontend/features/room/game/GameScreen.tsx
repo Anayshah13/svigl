@@ -6,6 +6,7 @@ import { useGameChat } from "@/hooks/useGameChat";
 import { cn } from "@/lib/cn";
 import { formatDisplayName } from "@/lib/names";
 import type { Room, RoomPlayer } from "@/types/room";
+import type { VoteKickTally } from "@/services/app-websocket";
 import { ChatPanel } from "./ChatPanel";
 import { GameFinishedPanel } from "./GameFinishedPanel";
 import { GameWhiteboard } from "./GameWhiteboard";
@@ -17,11 +18,13 @@ import { WordSelectPanel } from "./WordSelectPanel";
 function GameTopBar({
   room,
   isDrawer,
+  hasGuessed,
   remaining,
   drawerName,
 }: {
   room: Room;
   isDrawer: boolean;
+  hasGuessed: boolean;
   remaining: number | null;
   drawerName: string;
 }) {
@@ -33,19 +36,19 @@ function GameTopBar({
       Boolean(game.wordHint || game.wordLength));
 
   return (
-    <div className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl border border-plum/15 bg-white/95 px-3 py-2.5 shadow-sm sm:px-4">
+    <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1.5 rounded-2xl border border-plum/15 bg-white/95 px-2.5 py-2 shadow-sm sm:gap-x-4 sm:px-4 sm:py-2.5">
       <p
-        className="font-mono text-3xl font-bold tabular-nums text-green sm:text-4xl"
+        className="font-mono text-2xl font-bold tabular-nums text-green sm:text-4xl"
         aria-live="polite"
       >
         {remaining ?? "—"}
       </p>
 
       <div className="min-w-0">
-        <p className="text-[11px] font-bold uppercase tracking-wider text-ink-muted">
+        <p className="text-[10px] font-bold uppercase tracking-wider text-ink-muted sm:text-[11px]">
           Round {Math.max(1, game.roundNumber)} of {game.totalRounds}
         </p>
-        <p className="truncate text-sm font-semibold text-ink">
+        <p className="truncate text-xs font-semibold text-ink sm:text-sm">
           {game.phase === "WORD_SELECTION"
             ? isDrawer
               ? "Choose a word"
@@ -63,6 +66,7 @@ function GameTopBar({
           <WordDisplay
             game={game}
             isDrawer={isDrawer}
+            hasGuessed={hasGuessed}
             roundDurationSeconds={room.settings.roundDurationSeconds}
             className="justify-center sm:justify-end"
           />
@@ -109,12 +113,16 @@ export function GameScreen({
   isWaiting,
   onSelectWord,
   onSendChat,
+  voteTallies,
+  onVoteKick,
 }: {
   room: Room;
   currentPlayer: RoomPlayer | null;
   isWaiting: boolean;
   onSelectWord: (word: string) => void;
   onSendChat: (text: string) => void;
+  voteTallies?: Record<string, VoteKickTally>;
+  onVoteKick?: (targetId: string) => void;
 }) {
   const { game } = room;
   const selfId = currentPlayer?.id;
@@ -129,12 +137,12 @@ export function GameScreen({
     game.remainingSeconds,
   );
 
-  const canGuess =
+  // Correct guessers may keep chatting (private channel enforced by server).
+  const canChat =
     game.phase === "ROUND_ACTIVE" &&
     Boolean(selfId) &&
     !isDrawer &&
-    !isWaiting &&
-    !hasGuessed;
+    !isWaiting;
 
   let chatDisabledReason: string | undefined;
   if (game.phase !== "ROUND_ACTIVE") {
@@ -152,8 +160,6 @@ export function GameScreen({
     chatDisabledReason = "Waiting players can watch but not guess.";
   } else if (isDrawer) {
     chatDisabledReason = "You're drawing — chat is disabled.";
-  } else if (hasGuessed) {
-    chatDisabledReason = "You already guessed correctly.";
   }
 
   const drawerName = game.drawer
@@ -177,24 +183,20 @@ export function GameScreen({
   return (
     <div
       className={cn(
-        "grid min-h-0 w-full flex-1 gap-3",
-        // Skribbl: scores | canvas | chat — fills viewport under room header
-        "grid-cols-1",
+        "grid min-h-0 w-full flex-1 gap-2 overflow-hidden sm:gap-3",
+        // Mobile: canvas on top (1fr), scores|chat strip below (fixed)
+        "grid-rows-[minmax(0,1fr)_11.5rem]",
+        // Desktop Skribbl: scores | canvas | chat — single viewport, no page scroll
+        "lg:grid-rows-1",
         "lg:grid-cols-[13.5rem_minmax(0,1fr)_17.5rem]",
         "xl:grid-cols-[14.5rem_minmax(0,1fr)_19rem]",
-        "lg:h-[calc(100dvh-11.5rem)] lg:min-h-[28rem]",
       )}
     >
-      <Scoreboard
-        room={room}
-        currentPlayerId={selfId}
-        className="order-2 max-h-64 lg:order-1 lg:max-h-none"
-      />
-
-      <section className="order-1 flex min-h-[22rem] min-w-0 flex-col gap-2.5 lg:order-2 lg:min-h-0">
+      <section className="order-1 flex min-h-0 min-w-0 flex-col gap-2 lg:order-2">
         <GameTopBar
           room={room}
           isDrawer={isDrawer}
+          hasGuessed={hasGuessed}
           remaining={remaining}
           drawerName={drawerName}
         />
@@ -219,17 +221,20 @@ export function GameScreen({
             <OverlayScrim>
               <div className="rounded-3xl border border-plum/15 bg-white px-8 py-10 text-center shadow-lg">
                 <p className="text-xs font-bold uppercase tracking-[0.2em] text-plum">
-                  Get ready
+                  {remaining === 0 ? "Starting" : "Get ready"}
                 </p>
                 <p
                   className="mt-3 text-7xl font-bold tabular-nums text-ink"
                   aria-live="polite"
                 >
-                  {remaining ?? "—"}
+                  {remaining === 0 ? "…" : (remaining ?? "—")}
                 </p>
                 <p className="mt-3 text-sm text-ink-muted">
-                  Round {Math.max(1, game.roundNumber)} starts soon
-                  {game.drawer ? ` · ${drawerName} draws first` : ""}
+                  {remaining === 0
+                    ? `${drawerName} is about to pick a word`
+                    : `Round ${Math.max(1, game.roundNumber)} starts soon${
+                        game.drawer ? ` · ${drawerName} draws first` : ""
+                      }`}
                 </p>
               </div>
             </OverlayScrim>
@@ -262,14 +267,28 @@ export function GameScreen({
         </div>
       </section>
 
-      <ChatPanel
-        messages={messages}
-        canGuess={canGuess}
-        disabledReason={chatDisabledReason}
-        onSend={onSendChat}
-        className="order-3 min-h-[14rem] lg:min-h-0"
-        placeholder="Type your guess here..."
-      />
+      {/* Mobile: scores | chat side-by-side fixed strip; lg:contents promotes children into parent grid */}
+      <div className="order-2 grid min-h-0 grid-cols-[minmax(0,7.25rem)_minmax(0,1fr)] gap-2 overflow-hidden pb-[max(0.35rem,env(safe-area-inset-bottom,0px))] sm:grid-cols-[minmax(0,9rem)_minmax(0,1fr)] lg:contents lg:pb-0">
+        <Scoreboard
+          room={room}
+          currentPlayerId={selfId}
+          className="min-h-0 lg:order-1"
+          voteTallies={voteTallies}
+          onVoteKick={onVoteKick}
+        />
+        <ChatPanel
+          messages={messages}
+          canGuess={canChat}
+          disabledReason={chatDisabledReason}
+          onSend={onSendChat}
+          className="min-h-0 lg:order-3"
+          placeholder={
+            hasGuessed
+              ? "Chat with other guessers…"
+              : "Type your guess here..."
+          }
+        />
+      </div>
     </div>
   );
 }

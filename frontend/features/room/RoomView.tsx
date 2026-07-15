@@ -3,16 +3,19 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import * as React from "react";
+import { LobbyBackgroundDoodles } from "@/components/room/LobbyBackgroundDoodles";
 import { InviteFriendsPill, RoomCodeCopyButton } from "@/components/room/RoomInviteActions";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { UserAvatar } from "@/components/ui/UserAvatar";
 import { useRoom } from "@/hooks/useRoom";
 import { colors } from "@/lib/colors";
+import { cn } from "@/lib/cn";
 import { formatDisplayName } from "@/lib/names";
 import { getHostName } from "@/services/room";
 import { ROOM_STATUS_LABELS, type Room } from "@/types/room";
 import { GameScreen } from "./game";
+import { useVoteKick } from "@/hooks/useVoteKick";
 
 function StatusBadge({ status }: { status: string }) {
   const tone =
@@ -195,7 +198,7 @@ function PlayerList({
         return (
           <li
             key={player.id}
-            className="flex items-center justify-between rounded-2xl border border-plum/10 bg-white/80 px-3 py-2.5 sm:px-4 sm:py-3"
+            className="flex items-center justify-between gap-2 rounded-2xl border border-plum/10 bg-white/75 px-3 py-2.5 backdrop-blur-sm sm:px-4 sm:py-3"
           >
             <div className="flex min-w-0 items-center gap-3">
               <UserAvatar
@@ -220,12 +223,14 @@ function PlayerList({
             </div>
 
             {canManage ? (
-              <PlayerActions
-                playerId={player.id}
-                playerName={player.name}
-                onKick={onKick}
-                onMakeHost={onMakeHost}
-              />
+              <div className="flex shrink-0 items-center gap-1.5">
+                <PlayerActions
+                  playerId={player.id}
+                  playerName={player.name}
+                  onKick={onKick}
+                  onMakeHost={onMakeHost}
+                />
+              </div>
             ) : null}
           </li>
         );
@@ -322,6 +327,20 @@ export function RoomView() {
     attemptJoin,
   } = useRoom(code, { autoJoin: true });
 
+  const { tallies, toggleVoteKick } = useVoteKick(
+    room?.code,
+    room?.players.length ?? 0,
+    room?.players.map((p) => p.id) ?? [],
+    room?.game.phase,
+  );
+
+  const handleVoteKick = React.useCallback(
+    (targetId: string) => {
+      toggleVoteKick(targetId, currentPlayer?.id);
+    },
+    [toggleVoteKick, currentPlayer?.id],
+  );
+
   if (loading) {
     return (
       <div className="flex flex-1 items-center justify-center px-6 py-24">
@@ -396,27 +415,38 @@ export function RoomView() {
   const inGame = room.game.phase !== "LOBBY";
 
   return (
-    <div
-      className={
-        inGame
-          ? "page-shell page-shell-game gap-3 sm:gap-4"
-          : "page-shell page-shell-tight gap-5 sm:gap-6"
-      }
-    >
+    <>
+      {!inGame ? <LobbyBackgroundDoodles /> : null}
       <div
         className={
           inGame
-            ? "flex shrink-0 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between"
+            ? "page-shell page-shell-game relative z-10 gap-2 overflow-hidden sm:gap-3"
+            : "page-shell page-shell-tight relative z-10 gap-5 sm:gap-6"
+        }
+      >
+      <div
+        className={
+          inGame
+            ? "flex shrink-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between"
             : "flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between"
         }
       >
         <div className="min-w-0">
-          <p className="text-xs font-bold uppercase tracking-wider text-ink-muted">Room</p>
-          <div className="relative mt-1 inline-block pr-8">
+          {!inGame ? (
+            <p className="text-xs font-bold uppercase tracking-wider text-ink-muted">
+              Room
+            </p>
+          ) : null}
+          <div
+            className={cn(
+              "relative inline-block pr-8",
+              inGame ? "mt-0" : "mt-1",
+            )}
+          >
             <h1
               className={
                 inGame
-                  ? "break-all font-mono text-2xl font-bold tracking-[0.12em] text-ink sm:text-3xl sm:tracking-[0.16em]"
+                  ? "break-all font-mono text-xl font-bold tracking-[0.1em] text-ink sm:text-2xl sm:tracking-[0.14em]"
                   : "break-all font-mono text-[clamp(1.75rem,8vw,2.25rem)] font-bold tracking-[0.12em] text-ink sm:tracking-[0.2em]"
               }
             >
@@ -429,20 +459,26 @@ export function RoomView() {
               <StatusBadge status={room.status} />
             </div>
           ) : (
-            <div className="mt-1.5">
+            <div className="mt-1">
               <StatusBadge status={room.status} />
             </div>
           )}
         </div>
 
-        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+        <div
+          className={
+            inGame
+              ? "flex w-full flex-wrap items-center gap-1.5 sm:w-auto sm:gap-2"
+              : "flex w-full flex-wrap items-center gap-2 sm:w-auto"
+          }
+        >
           <InviteFriendsPill code={room.code} className="flex-1 sm:flex-none" />
           <Button
             type="button"
             variant="outline"
             disabled={leaving}
             onClick={() => void leaveRoom()}
-            className="flex-1 sm:w-auto"
+            className={inGame ? "flex-1 touch-manipulation sm:w-auto" : "flex-1 sm:w-auto"}
           >
             {leaving ? "Leaving…" : "Leave room"}
           </Button>
@@ -457,7 +493,7 @@ export function RoomView() {
 
       {room.game.phase === "LOBBY" ? (
         <>
-          <Card className="rounded-3xl p-4 sm:p-6">
+          <Card className="glass-panel rounded-3xl border-white/70 bg-white/78 p-4 shadow-[0_20px_50px_-24px_rgba(112,63,147,0.28)] backdrop-blur-xl sm:p-6">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <h2 className="text-lg font-bold text-ink">Ready for a game?</h2>
@@ -503,9 +539,9 @@ export function RoomView() {
           </Card>
 
           <Card
-            className="rounded-3xl p-4 sm:p-6"
+            className="glass-panel rounded-3xl border-white/70 bg-white/78 p-4 backdrop-blur-xl sm:p-6"
             style={{
-              boxShadow: `0 24px 48px -16px ${colors.plum}18, 0 0 0 1px rgba(255,255,255,0.85)`,
+              boxShadow: `0 24px 48px -16px ${colors.plum}22, 0 0 0 1px rgba(255,255,255,0.75)`,
             }}
           >
             <dl className="grid gap-4 sm:grid-cols-2">
@@ -549,7 +585,7 @@ export function RoomView() {
             </dl>
           </Card>
 
-          <Card className="rounded-3xl p-4 sm:p-6">
+          <Card className="glass-panel rounded-3xl border-white/70 bg-white/78 p-4 shadow-[0_20px_50px_-24px_rgba(112,63,147,0.22)] backdrop-blur-xl sm:p-6">
             <h2 className="text-sm font-bold uppercase tracking-wider text-ink-muted">
               Active players
             </h2>
@@ -591,8 +627,11 @@ export function RoomView() {
           isWaiting={isWaiting}
           onSelectWord={selectWord}
           onSendChat={sendChat}
+          voteTallies={tallies}
+          onVoteKick={handleVoteKick}
         />
       )}
-    </div>
+      </div>
+    </>
   );
 }

@@ -12,12 +12,20 @@ class UserResponse(BaseModel):
     email: EmailStr | None
     name: str
     avatar_url: str | None
+    drawings_done: int = 0
+    likes_received: int = 0
     created_at: datetime
     updated_at: datetime
 
 
 class GuestAuthRequest(BaseModel):
     guest_device_id: UUID = Field(description="Stable device identifier stored in localStorage")
+
+
+class GuestAuthResponse(UserResponse):
+    """Guest login includes access_token for browsers that block cross-site cookies."""
+
+    access_token: str
 
 
 class UpdateProfileRequest(BaseModel):
