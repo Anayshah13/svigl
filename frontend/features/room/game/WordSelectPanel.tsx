@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/Button";
+import { DotPulseGrid } from "@/features/loaders";
 import { usePhaseCountdown } from "@/hooks/usePhaseCountdown";
 import { formatDisplayName } from "@/lib/names";
 import type { RoomGameState } from "@/types/room";
@@ -30,7 +31,10 @@ export function WordSelectPanel({
         <p className="text-xs font-bold uppercase tracking-[0.2em] text-plum">
           Word selection
         </p>
-        <h2 className="mt-3 text-2xl font-bold text-ink">
+        <div className="mt-5 flex justify-center">
+          <DotPulseGrid size="md" />
+        </div>
+        <h2 className="mt-5 text-2xl font-bold text-ink">
           Drawer is picking a word…
         </h2>
         <p className="mt-2 text-sm font-medium text-ink-muted">
@@ -78,9 +82,12 @@ export function WordSelectPanel({
             </Button>
           ))
         ) : (
-          <p className="text-sm font-medium text-ink-muted">
-            Waiting for word choices from the server…
-          </p>
+          <div className="flex flex-col items-center gap-3">
+            <DotPulseGrid size="sm" />
+            <p className="text-sm font-medium text-ink-muted">
+              Waiting for word choices from the server…
+            </p>
+          </div>
         )}
       </div>
     </div>

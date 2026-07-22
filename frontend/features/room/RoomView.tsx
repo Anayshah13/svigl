@@ -14,6 +14,7 @@ import { cn } from "@/lib/cn";
 import { formatDisplayName } from "@/lib/names";
 import { getHostName } from "@/services/room";
 import { ROOM_STATUS_LABELS, type Room } from "@/types/room";
+import { LetterBounce, LoaderScreen } from "@/features/loaders";
 import { GameScreen } from "./game";
 import { useVoteKick } from "@/hooks/useVoteKick";
 
@@ -342,11 +343,7 @@ export function RoomView() {
   );
 
   if (loading) {
-    return (
-      <div className="flex flex-1 items-center justify-center px-6 py-24">
-        <p className="text-sm font-medium text-ink-muted">Loading room…</p>
-      </div>
-    );
+    return <LoaderScreen kind="dots" label="Loading room…" />;
   }
 
   if (tabBlocked) {
@@ -379,11 +376,7 @@ export function RoomView() {
   }
 
   if (joining || (notMember && !isMember && !error)) {
-    return (
-      <div className="flex flex-1 items-center justify-center px-6 py-24">
-        <p className="text-sm font-medium text-ink-muted">Joining room…</p>
-      </div>
-    );
+    return <LoaderScreen kind="dots" label="Joining room…" />;
   }
 
   if (notMember && !isMember) {
@@ -523,11 +516,18 @@ export function RoomView() {
               </div>
             </div>
 
-            <p id="start-game-requirements" className="mt-3 text-xs text-ink-muted">
-              {room.canStart
-                ? "Everyone is ready. The host can start."
-                : "At least two players must join and every active player must be ready."}
-            </p>
+            {!room.canStart ? (
+              <div className="mt-4 flex flex-col items-center gap-2 rounded-2xl bg-plum-light/40 px-4 py-4">
+                <LetterBounce size="sm" />
+                <p id="start-game-requirements" className="text-center text-xs text-ink-muted">
+                  At least two players must join and every active player must be ready.
+                </p>
+              </div>
+            ) : (
+              <p id="start-game-requirements" className="mt-3 text-xs text-ink-muted">
+                Everyone is ready. The host can start.
+              </p>
+            )}
 
             {isHost ? (
               <HostSettings

@@ -2,8 +2,13 @@
 
 import * as React from "react";
 import { cn } from "@/lib/cn";
+import { ActionBar } from "./ActionBar";
+import { DrawerOnboarding, useDrawerOnboarding } from "./DrawerOnboarding";
+import { PropertiesPanel } from "./PropertiesPanel";
+import { StyleDock } from "./StyleDock";
+import { ToolDock } from "./ToolDock";
+import { SquareBoard } from "./SquareBoard";
 import { WhiteboardCanvas } from "./WhiteboardCanvas";
-import { WhiteboardToolbar } from "./WhiteboardToolbar";
 import {
   useWhiteboard,
   type UseWhiteboardOptions,
@@ -12,15 +17,32 @@ import {
 
 export interface WhiteboardProps extends UseWhiteboardOptions {
   className?: string;
-  /** Hide toolbar (e.g. spectator layout controlled elsewhere). */
+  /**
+   * When false, omit all drawer chrome (tools/docks/properties).
+   * Guessers should never see disabled drawing controls.
+   */
   showToolbar?: boolean;
   /**
-   * Grow to fill a flex parent: canvas takes remaining height, toolbar stays
-   * below (Skribbl-style). When false, canvas uses a 4:3 aspect box.
+   * Grow to fill a flex parent: canvas takes remaining height.
    */
   fill?: boolean;
-  /** Access the controller for sync / round resets (Agent F wiring). */
+  /** Access the controller for sync / round resets. */
   controllerRef?: React.MutableRefObject<WhiteboardController | null>;
+  /**
+   * Optional game chrome (round / timer / word) rendered in the drawer top bar
+   * beside undo/copy actions.
+   */
+  headerInfo?: React.ReactNode;
+  /**
+   * Optional right-column content under Properties (typically Chat).
+   * Desktop drawer only.
+   */
+  aside?: React.ReactNode;
+  /**
+   * When true, Whiteboard owns the full drawer desktop/mobile chrome.
+   * When false (legacy), canvas (+ optional thin toolbar) only.
+   */
+  immersive?: boolean;
 }
 
 /**
@@ -30,58 +52,207 @@ export interface WhiteboardProps extends UseWhiteboardOptions {
  * - onShapeCreated / onShapeUpdated / onShapeDeleted
  * - onClear / onUndo / onRedo
  * - onShapesChange (throttled ~30fps snapshot)
- *
- * Imperative API via `controllerRef`:
- * - loadShapes / importDocument / exportDocument
- * - applyRemoteShape / applyRemoteDelete / applyRemoteClear
  */
 export function Whiteboard({
   className,
   showToolbar = true,
   fill = false,
   controllerRef,
+  headerInfo,
+  aside,
+  immersive = true,
   ...options
 }: WhiteboardProps) {
   const controller = useWhiteboard(options);
+  const [propsOpen, setPropsOpen] = React.useState(false);
+  const [chatOpen, setChatOpen] = React.useState(true);
+  const isDrawer = Boolean(options.isDrawer ?? true) && showToolbar;
+  const onboarding = useDrawerOnboarding(isDrawer && immersive);
 
   if (controllerRef) {
     controllerRef.current = controller;
   }
 
-  return (
-    <div
-      className={cn(
-        "flex w-full flex-col gap-2",
-        fill ? "h-full min-h-0" : null,
-        className,
-      )}
-    >
-      <WhiteboardCanvas
-        controller={controller}
-        className={
-          fill
-            ? "min-h-0 w-full flex-1"
-            : "aspect-[4/3] w-full"
-        }
-      />
-      {showToolbar ? (
-        <WhiteboardToolbar
+  // Spectator / guesser: canvas only — no disabled chrome
+  if (!isDrawer) {
+    return (
+      <div
+        className={cn(
+          "flex w-full flex-col",
+          fill ? "h-full min-h-0" : null,
+          className,
+        )}
+      >
+        <SquareBoard>
+          <WhiteboardCanvas controller={controller} className="h-full w-full" />
+        </SquareBoard>
+      </div>
+    );
+  }
+
+  if (!immersive) {
+    return (
+      <div
+        className={cn(
+          "flex w-full flex-col gap-2",
+          fill ? "h-full min-h-0" : null,
+          className,
+        )}
+      >
+        <SquareBoard>
+          <WhiteboardCanvas
+            controller={controller}
+            className="h-full w-full"
+            onRequestProperties={() => setPropsOpen(true)}
+          />
+        </SquareBoard>
+        <StyleDock
           tool={controller.tool}
-          onToolChange={controller.setTool}
           color={controller.color}
           onColorChange={controller.setColor}
           strokeWidth={controller.strokeWidth}
           onStrokeWidthChange={controller.setStrokeWidth}
           fillTolerance={controller.fillTolerance}
           onFillToleranceChange={controller.setFillTolerance}
-          canUndo={controller.canUndo}
-          canRedo={controller.canRedo}
-          onUndo={controller.undo}
-          onRedo={controller.redo}
-          onClear={controller.clear}
-          disabled={!controller.isDrawer}
           className="shrink-0"
         />
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={cn(
+        "relative flex w-full flex-col gap-2",
+        fill ? "h-full min-h-0" : null,
+        className,
+      )}
+    >
+      {/* Top bar: game info + actions */}
+      <div className="flex shrink-0 flex-wrap items-center gap-2 rounded-2xl border border-plum/15 bg-white/95 px-2 py-1.5 shadow-sm sm:px-3">
+        {headerInfo ? (
+          <div className="min-w-0 flex-1">{headerInfo}</div>
+        ) : null}
+        <ActionBar controller={controller} className="ml-auto" />
+      </div>
+
+      {/* Desktop drawer workspace */}
+      <div className="hidden min-h-0 flex-1 gap-2 lg:flex">
+        <ToolDock
+          tool={controller.tool}
+          onToolChange={controller.setTool}
+          orientation="vertical"
+          className="shrink-0 self-start"
+        />
+
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2">
+          <SquareBoard>
+            <WhiteboardCanvas
+              controller={controller}
+              className="h-full w-full"
+              onRequestProperties={() => setPropsOpen(true)}
+            />
+          </SquareBoard>
+          <StyleDock
+            tool={controller.tool}
+            color={controller.color}
+            onColorChange={controller.setColor}
+            strokeWidth={controller.strokeWidth}
+            onStrokeWidthChange={controller.setStrokeWidth}
+            fillTolerance={controller.fillTolerance}
+            onFillToleranceChange={controller.setFillTolerance}
+            className="shrink-0 justify-center"
+          />
+        </div>
+
+        <div className="flex w-[17rem] shrink-0 flex-col gap-2 xl:w-[19rem]">
+          <PropertiesPanel
+            controller={controller}
+            variant="dock"
+            className="max-h-[45%] overflow-y-auto"
+          />
+          {aside ? (
+            <div className="flex min-h-0 flex-1 flex-col">
+              <button
+                type="button"
+                onClick={() => setChatOpen((v) => !v)}
+                className="mb-1 flex min-h-11 items-center justify-between rounded-xl px-2 text-left text-xs font-bold uppercase tracking-wider text-ink-muted hover:bg-plum-light/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-plum/40"
+                aria-expanded={chatOpen}
+              >
+                Chat
+                <span aria-hidden>{chatOpen ? "−" : "+"}</span>
+              </button>
+              {chatOpen ? (
+                <div className="min-h-0 flex-1 overflow-hidden">{aside}</div>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      </div>
+
+      {/* Mobile drawer workspace */}
+      <div className="relative flex min-h-0 flex-1 flex-col gap-1.5 lg:hidden">
+        <SquareBoard className="min-h-0 flex-1">
+          <WhiteboardCanvas
+            controller={controller}
+            className="h-full w-full"
+            onRequestProperties={() => setPropsOpen(true)}
+          />
+        </SquareBoard>
+
+        {/* Floating color palette — sits above the tool strip */}
+        <div className="pointer-events-none absolute bottom-[5.75rem] left-2 right-2 z-10 flex justify-center sm:bottom-[6.25rem]">
+          <div className="pointer-events-auto max-w-full overflow-x-auto">
+            <StyleDock
+              tool={controller.tool}
+              color={controller.color}
+              onColorChange={controller.setColor}
+              strokeWidth={controller.strokeWidth}
+              onStrokeWidthChange={controller.setStrokeWidth}
+              fillTolerance={controller.fillTolerance}
+              onFillToleranceChange={controller.setFillTolerance}
+              floating
+            />
+          </div>
+        </div>
+
+        {/* Swipeable tool strip */}
+        <ToolDock
+          tool={controller.tool}
+          onToolChange={controller.setTool}
+          orientation="horizontal"
+          className="shrink-0 pb-[max(0.25rem,env(safe-area-inset-bottom,0px))]"
+        />
+
+        {/* Properties bottom sheet */}
+        {propsOpen ? (
+          <div className="absolute inset-x-0 bottom-0 z-30">
+            <button
+              type="button"
+              aria-label="Dismiss properties"
+              className="absolute inset-x-0 bottom-full h-screen bg-ink/25"
+              onClick={() => setPropsOpen(false)}
+            />
+            <PropertiesPanel
+              controller={controller}
+              variant="sheet"
+              onClose={() => setPropsOpen(false)}
+              className="relative shadow-lg"
+            />
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setPropsOpen(true)}
+            className="absolute right-2 top-2 z-10 min-h-11 rounded-full border border-plum/20 bg-white/95 px-3 text-xs font-semibold text-plum shadow-sm backdrop-blur-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-plum/40"
+          >
+            Props
+          </button>
+        )}
+      </div>
+
+      {onboarding.visible ? (
+        <DrawerOnboarding onDismiss={onboarding.dismiss} />
       ) : null}
     </div>
   );

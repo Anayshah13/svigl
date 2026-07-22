@@ -72,4 +72,15 @@ describe("HistoryStack", () => {
     const redone = h.redo(undone!.shapes);
     expect(redone?.shapes[0].geometry).toEqual(after.geometry);
   });
+
+  it("undoes replace (z-order reorder)", () => {
+    const h = new HistoryStack();
+    const before = [shape("a"), shape("b")];
+    const after = [shape("b"), shape("a")];
+    h.push({ type: "replace", before, after });
+    const undone = h.undo(after);
+    expect(undone?.shapes.map((s) => s.id)).toEqual(["a", "b"]);
+    const redone = h.redo(undone!.shapes);
+    expect(redone?.shapes.map((s) => s.id)).toEqual(["b", "a"]);
+  });
 });

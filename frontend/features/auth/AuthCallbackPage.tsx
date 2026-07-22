@@ -2,6 +2,7 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef } from "react";
+import { LoaderScreen } from "@/features/loaders";
 import { consumeAccessTokenFromUrl } from "@/lib/access-token";
 import { fetchAuthSession } from "@/services/auth";
 import { useSessionStore } from "@/stores/session";
@@ -54,9 +55,5 @@ export function AuthCallbackPage() {
       });
   }, [router, searchParams]);
 
-  return (
-    <div className="flex flex-1 items-center justify-center px-6 py-24">
-      <p className="text-sm font-medium text-ink-muted">Signing you in…</p>
-    </div>
-  );
+  return <LoaderScreen kind="bars" label="Signing you in…" />;
 }

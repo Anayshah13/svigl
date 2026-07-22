@@ -1,23 +1,28 @@
 "use client";
 
 import * as React from "react";
+import { flushSync } from "react-dom";
 import { cn } from "@/lib/cn";
 import {
   arrowHeadPoints,
+  arrowHeadSize,
   arrowShaftEnd,
   createId,
   defaultBezierHandles,
   dist,
-  ellipseHandles,
   hitCorner,
   hitTestShapes,
   normalizeRect,
   parseRotate,
-  rectCorners,
   rectToEllipse,
-  resizeEllipseFromCorner,
-  resizeRectFromCorner,
   rotateTransform,
+  scaleShapeToBox,
+  selectionCorners,
+  selectionRotateHandle,
+  setShapeRotation,
+  shapeBoxFromSelectionCorner,
+  shapeBounds,
+  selectionBounds,
   skewTransform,
   translateShape,
   unrotatePoint,
@@ -29,12 +34,19 @@ import {
   SelectionOverlay,
   ShapeList,
 } from "./ShapeRenderer";
+import { ContextMenu, type ContextMenuState } from "./ContextMenu";
 import type { WhiteboardController } from "./useWhiteboard";
 import {
   WHITEBOARD_VIEWBOX,
   type Point,
   type WhiteboardShape,
 } from "./types";
+
+const LONG_PRESS_MS = 480;
+const LONG_PRESS_MOVE_TOL = 10;
+const DOUBLE_TAP_MS = 320;
+/** Ignore click-sized strokes so double-click can select instead of placing dots. */
+const MIN_SHAPE_PX = 4;
 
 function clientToSvgPoint(
   svg: SVGSVGElement,
@@ -44,7 +56,6 @@ function clientToSvgPoint(
   const ctm = svg.getScreenCTM();
   if (!ctm) return { x: 0, y: 0 };
   const inverse = ctm.inverse();
-  // DOMPoint is more reliable than createSVGPoint under iOS Safari zoom.
   if (typeof DOMPoint !== "undefined") {
     const local = new DOMPoint(clientX, clientY).matrixTransform(inverse);
     return { x: local.x, y: local.y };
@@ -80,9 +91,10 @@ function shapesToSvgMarkup(shapes: WhiteboardShape[]): string {
         }
         case "arrow": {
           const g = s.geometry;
-          const shaft = arrowShaftEnd(g.start, g.end, Math.max(10, s.strokeWidth * 2.5));
-          const head = arrowHeadPoints(g.start, g.end, Math.max(10, s.strokeWidth * 2.5));
-          return `<g${t}><line x1="${g.start.x}" y1="${g.start.y}" x2="${shaft.x}" y2="${shaft.y}" stroke="${s.stroke}" stroke-width="${s.strokeWidth}" stroke-linecap="round"/><polygon points="${head}" fill="${s.stroke}"/></g>`;
+          const headSize = arrowHeadSize(s.strokeWidth);
+          const shaft = arrowShaftEnd(g.start, g.end, headSize);
+          const head = arrowHeadPoints(g.start, g.end, headSize);
+          return `<g${t}><line x1="${g.start.x}" y1="${g.start.y}" x2="${shaft.x}" y2="${shaft.y}" stroke="${s.stroke}" stroke-width="${s.strokeWidth}" stroke-linecap="round"/><polyline points="${head}" fill="none" stroke="${s.stroke}" stroke-width="${s.strokeWidth}" stroke-linecap="round" stroke-linejoin="round"/></g>`;
         }
         case "fill":
           return `<path d="${s.geometry.d}" fill="${s.fill === "none" ? s.stroke : s.fill}" stroke="none"${t}/>`;
@@ -95,19 +107,52 @@ function shapesToSvgMarkup(shapes: WhiteboardShape[]): string {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><rect width="100%" height="100%" fill="#ffffff"/>${body}</svg>`;
 }
 
+function cursorForTool(
+  tool: WhiteboardController["tool"],
+  interactive: boolean,
+  editing: boolean,
+): string {
+  if (!interactive) return "cursor-default";
+  if (editing) return "cursor-grabbing";
+  switch (tool) {
+    case "select":
+      return "cursor-default";
+    case "fill":
+      return "cursor-cell";
+    case "bezier":
+    case "rectangle":
+    case "ellipse":
+    case "arrow":
+      return "cursor-crosshair";
+    default:
+      return "cursor-crosshair";
+  }
+}
+
 type EditMode =
   | { kind: "move"; last: Point }
   | { kind: "bezier"; handle: "start" | "end" | "cp1" | "cp2" }
   | { kind: "arrow"; handle: "start" | "end" }
-  | { kind: "rect-resize"; corner: RectCorner }
-  | { kind: "ellipse-resize"; corner: RectCorner };
+  | {
+      kind: "bbox-resize";
+      corner: RectCorner;
+      origShapeBox: { x: number; y: number; width: number; height: number };
+      origSelBox: { x: number; y: number; width: number; height: number };
+    }
+  | { kind: "rotate"; center: Point; startAngle: number; origDeg: number };
 
 export interface WhiteboardCanvasProps {
   controller: WhiteboardController;
   className?: string;
+  /** Open properties sheet (mobile). */
+  onRequestProperties?: () => void;
 }
 
-export function WhiteboardCanvas({ controller, className }: WhiteboardCanvasProps) {
+export function WhiteboardCanvas({
+  controller,
+  className,
+  onRequestProperties,
+}: WhiteboardCanvasProps) {
   const {
     shapes,
     tool,
@@ -129,6 +174,8 @@ export function WhiteboardCanvas({ controller, className }: WhiteboardCanvasProp
     commitBezierDraft,
     setIsFilling,
     playerId,
+    setTool,
+    statusMessage,
   } = controller;
 
   const svgRef = React.useRef<SVGSVGElement>(null);
@@ -138,18 +185,33 @@ export function WhiteboardCanvas({ controller, className }: WhiteboardCanvasProp
   const windowListenersRef = React.useRef(false);
   const draftRef = React.useRef(draft);
   draftRef.current = draft;
-
-  const capturePointer = (svg: SVGSVGElement, pointerId: number) => {
-    pointerIdRef.current = pointerId;
-    try {
-      svg.setPointerCapture(pointerId);
-    } catch {
-      // iOS Safari can fail setPointerCapture on SVG — window listeners cover it.
-    }
-  };
   const editModeRef = React.useRef<EditMode | null>(null);
   const shapesRef = React.useRef(shapes);
   shapesRef.current = shapes;
+
+  const longPressTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressOriginRef = React.useRef<{ clientX: number; clientY: number; point: Point } | null>(null);
+  const longPressFiredRef = React.useRef(false);
+  const lastTapRef = React.useRef<{ t: number; x: number; y: number } | null>(null);
+  const [contextMenu, setContextMenu] = React.useState<ContextMenuState | null>(null);
+  const [isCoarsePointer, setIsCoarsePointer] = React.useState(false);
+
+  React.useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const mq = window.matchMedia("(pointer: coarse)");
+    const update = () => setIsCoarsePointer(mq.matches);
+    update();
+    mq.addEventListener?.("change", update);
+    return () => mq.removeEventListener?.("change", update);
+  }, []);
+
+  const clearLongPress = () => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+    longPressOriginRef.current = null;
+  };
 
   const { width, height } = WHITEBOARD_VIEWBOX;
 
@@ -162,7 +224,7 @@ export function WhiteboardCanvas({ controller, className }: WhiteboardCanvasProp
     if (!d) return;
 
     if (d.tool === "rectangle" && d.width != null && d.height != null && d.x != null && d.y != null) {
-      if (d.width < 1 && d.height < 1) {
+      if (d.width < MIN_SHAPE_PX || d.height < MIN_SHAPE_PX) {
         setDraft(null);
         return;
       }
@@ -177,8 +239,8 @@ export function WhiteboardCanvas({ controller, className }: WhiteboardCanvasProp
           kind: "rectangle",
           x: d.x,
           y: d.y,
-          width: Math.max(d.width, 1),
-          height: Math.max(d.height, 1),
+          width: d.width,
+          height: d.height,
         },
         createdBy: playerId,
         createdAt: Date.now(),
@@ -189,7 +251,7 @@ export function WhiteboardCanvas({ controller, className }: WhiteboardCanvasProp
     }
 
     if (d.tool === "ellipse" && d.rx != null && d.ry != null && d.cx != null && d.cy != null) {
-      if (d.rx < 0.5 && d.ry < 0.5) {
+      if (d.rx < MIN_SHAPE_PX / 2 || d.ry < MIN_SHAPE_PX / 2) {
         setDraft(null);
         return;
       }
@@ -204,8 +266,8 @@ export function WhiteboardCanvas({ controller, className }: WhiteboardCanvasProp
           kind: "ellipse",
           cx: d.cx,
           cy: d.cy,
-          rx: Math.max(d.rx, 0.5),
-          ry: Math.max(d.ry, 0.5),
+          rx: d.rx,
+          ry: d.ry,
         },
         createdBy: playerId,
         createdAt: Date.now(),
@@ -216,7 +278,7 @@ export function WhiteboardCanvas({ controller, className }: WhiteboardCanvasProp
     }
 
     if (d.tool === "arrow" && d.start && d.end) {
-      if (dist(d.start, d.end) < 4) {
+      if (dist(d.start, d.end) < MIN_SHAPE_PX) {
         setDraft(null);
         return;
       }
@@ -289,118 +351,65 @@ export function WhiteboardCanvas({ controller, className }: WhiteboardCanvasProp
     const rot = parseRotate(shape.transform);
     const local = rot ? unrotatePoint(p, rot.cx, rot.cy, rot.deg) : p;
 
+    if (hitHandle(local, selectionRotateHandle(shape), 14)) {
+      const sb = shapeBounds(shape);
+      const center = { x: sb.x + sb.width / 2, y: sb.y + sb.height / 2 };
+      editModeRef.current = {
+        kind: "rotate",
+        center,
+        startAngle: Math.atan2(local.y - center.y, local.x - center.x),
+        origDeg: rot?.deg ?? 0,
+      };
+      return true;
+    }
+
+    const corner = hitCorner(local, selectionCorners(shape), 14);
+    if (corner) {
+      editModeRef.current = {
+        kind: "bbox-resize",
+        corner,
+        origShapeBox: shapeBounds(shape),
+        origSelBox: selectionBounds(shape),
+      };
+      return true;
+    }
+
     if (g.kind === "bezier") {
-      if (hitHandle(p, g.cp1)) {
+      if (hitHandle(local, g.cp1)) {
         editModeRef.current = { kind: "bezier", handle: "cp1" };
         return true;
       }
-      if (hitHandle(p, g.cp2)) {
+      if (hitHandle(local, g.cp2)) {
         editModeRef.current = { kind: "bezier", handle: "cp2" };
         return true;
       }
-      if (hitHandle(p, g.start)) {
+      if (hitHandle(local, g.start)) {
         editModeRef.current = { kind: "bezier", handle: "start" };
         return true;
       }
-      if (hitHandle(p, g.end)) {
+      if (hitHandle(local, g.end)) {
         editModeRef.current = { kind: "bezier", handle: "end" };
         return true;
       }
-      editModeRef.current = { kind: "move", last: p };
-      return true;
     }
 
     if (g.kind === "arrow") {
-      if (hitHandle(p, g.start)) {
+      if (hitHandle(local, g.start)) {
         editModeRef.current = { kind: "arrow", handle: "start" };
         return true;
       }
-      if (hitHandle(p, g.end)) {
+      if (hitHandle(local, g.end)) {
         editModeRef.current = { kind: "arrow", handle: "end" };
         return true;
       }
-      editModeRef.current = { kind: "move", last: p };
-      return true;
     }
 
-    if (g.kind === "rectangle") {
-      const corner = hitCorner(local, rectCorners(g), 14);
-      if (corner) {
-        editModeRef.current = { kind: "rect-resize", corner };
-        return true;
-      }
-      editModeRef.current = { kind: "move", last: p };
-      return true;
-    }
-
-    if (g.kind === "ellipse") {
-      const corner = hitCorner(local, ellipseHandles(g), 14);
-      if (corner) {
-        editModeRef.current = { kind: "ellipse-resize", corner };
-        return true;
-      }
-      editModeRef.current = { kind: "move", last: p };
-      return true;
-    }
-
-    if (g.kind === "fill") {
-      editModeRef.current = { kind: "move", last: p };
-      return true;
-    }
-
-    return false;
+    if (!hitTestShapes([shape], p, 14)) return false;
+    editModeRef.current = { kind: "move", last: p };
+    return true;
   };
 
-  const onPointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
-    if (!isDrawer || isFilling) return;
-    const svg = svgRef.current;
-    if (!svg) return;
-
-    // Prevent iOS Safari from scrolling/zooming while drawing.
-    e.preventDefault();
-
-    // Commit pending bezier if clicking empty space (not on handles)
-    if (bezierDraft?.editing) {
-      const p = clientToSvgPoint(svg, e.clientX, e.clientY);
-      if (hitHandle(p, bezierDraft.cp1)) {
-        capturePointer(svg, e.pointerId);
-        setBezierDraft({ ...bezierDraft, activeHandle: "cp1" });
-        return;
-      }
-      if (hitHandle(p, bezierDraft.cp2)) {
-        capturePointer(svg, e.pointerId);
-        setBezierDraft({ ...bezierDraft, activeHandle: "cp2" });
-        return;
-      }
-      commitBezierDraft();
-      return;
-    }
-
-    const p = clientToSvgPoint(svg, e.clientX, e.clientY);
-    capturePointer(svg, e.pointerId);
-
-    // Editing an already-selected shape takes priority
-    if (selectedShape && selectedShape.id === selectedId) {
-      if (tryBeginEdit(p, selectedShape)) {
-        beginShapeUpdate(selectedShape);
-        drawingRef.current = false;
-        return;
-      }
-    }
-
-    // Hit-test existing shapes (select instead of drawing) — skip for fill tool
-    if (tool !== "fill") {
-      const hit = hitTestShapes(shapesRef.current, p, 12);
-      if (hit) {
-        selectShape(hit.id);
-        beginShapeUpdate(hit);
-        tryBeginEdit(p, hit);
-        drawingRef.current = false;
-        return;
-      }
-    }
-
-    // Empty canvas: deselect and start a new stroke
+  const beginDrawAt = (p: Point) => {
     selectShape(null);
     drawingRef.current = true;
     originRef.current = p;
@@ -457,15 +466,156 @@ export function WhiteboardCanvas({ controller, className }: WhiteboardCanvasProp
     }
   };
 
+  const selectAndDrag = (shape: WhiteboardShape, p: Point) => {
+    setTool("select");
+    selectShape(shape.id);
+    beginShapeUpdate(shape);
+    tryBeginEdit(p, shape);
+    drawingRef.current = false;
+  };
+
+  const onPointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
+    if (!isDrawer || isFilling) return;
+    const svg = svgRef.current;
+    if (!svg) return;
+
+    e.preventDefault();
+    setContextMenu(null);
+
+    const p = clientToSvgPoint(svg, e.clientX, e.clientY);
+    const now = Date.now();
+    const prev = lastTapRef.current;
+    const isDoubleTap =
+      Boolean(prev) &&
+      now - prev!.t < DOUBLE_TAP_MS &&
+      Math.hypot(e.clientX - prev!.x, e.clientY - prev!.y) < 28;
+    const isDoubleClick = e.detail === 2;
+    const isDoubleActivate = isDoubleTap || isDoubleClick;
+
+    if (isDoubleActivate) {
+      lastTapRef.current = null;
+      setDraft(null);
+      drawingRef.current = false;
+      if (bezierDraft) {
+        setBezierDraft(null);
+        return;
+      }
+      const hit = hitTestShapes(shapesRef.current, p, 14);
+      if (hit) {
+        capturePointer(svg, e.pointerId);
+        selectAndDrag(hit, p);
+        return;
+      }
+      // Double-activate on empty canvas deselects
+      if (selectedId) {
+        selectShape(null);
+        return;
+      }
+    } else {
+      lastTapRef.current = { t: now, x: e.clientX, y: e.clientY };
+    }
+
+    if (bezierDraft?.editing) {
+      if (hitHandle(p, bezierDraft.cp1)) {
+        capturePointer(svg, e.pointerId);
+        setBezierDraft({ ...bezierDraft, activeHandle: "cp1" });
+        return;
+      }
+      if (hitHandle(p, bezierDraft.cp2)) {
+        capturePointer(svg, e.pointerId);
+        setBezierDraft({ ...bezierDraft, activeHandle: "cp2" });
+        return;
+      }
+      commitBezierDraft();
+      return;
+    }
+
+    capturePointer(svg, e.pointerId);
+
+    // Any tool: interact with the current selection (handles / body drag)
+    if (selectedShape && tryBeginEdit(p, selectedShape)) {
+      setTool("select");
+      beginShapeUpdate(selectedShape);
+      drawingRef.current = false;
+      return;
+    }
+
+    // Selection tool: hit-test to select + drag
+    if (tool === "select") {
+      const hit = hitTestShapes(shapesRef.current, p, 12);
+      if (hit) {
+        selectAndDrag(hit, p);
+        return;
+      }
+      selectShape(null);
+      drawingRef.current = false;
+      return;
+    }
+
+    // Mobile: delay stroke so a still long-press can select / open menu
+    if (isCoarsePointer && tool !== "fill") {
+      longPressFiredRef.current = false;
+      longPressOriginRef.current = { clientX: e.clientX, clientY: e.clientY, point: p };
+      longPressTimerRef.current = setTimeout(() => {
+        const origin = longPressOriginRef.current;
+        if (!origin) return;
+        const hit = hitTestShapes(shapesRef.current, origin.point, 14);
+        if (hit) {
+          longPressFiredRef.current = true;
+          drawingRef.current = false;
+          setTool("select");
+          selectShape(hit.id);
+          setContextMenu({
+            x: origin.clientX,
+            y: origin.clientY,
+            hasSelection: true,
+          });
+        }
+      }, LONG_PRESS_MS);
+      drawingRef.current = false;
+      originRef.current = p;
+      return;
+    }
+
+    // Drawing tools: start a new stroke (deselect first)
+    if (selectedId) selectShape(null);
+    beginDrawAt(p);
+  };
+
+  const capturePointer = (svg: SVGSVGElement, pointerId: number) => {
+    pointerIdRef.current = pointerId;
+    try {
+      svg.setPointerCapture(pointerId);
+    } catch {
+      /* iOS Safari fallback via window listeners */
+    }
+  };
+
   const onPointerMove = (e: React.PointerEvent<SVGSVGElement>) => {
     if (!isDrawer) return;
     const svg = svgRef.current;
     if (!svg) return;
     if (pointerIdRef.current !== null && e.pointerId !== pointerIdRef.current) return;
 
+    // Cancel long-press if finger moved — and start the deferred stroke
+    if (longPressOriginRef.current && !longPressFiredRef.current) {
+      const o = longPressOriginRef.current;
+      if (Math.hypot(e.clientX - o.clientX, e.clientY - o.clientY) > LONG_PRESS_MOVE_TOL) {
+        const start = o.point;
+        clearLongPress();
+        if (!draft && !bezierDraft && tool !== "select") {
+          // Ensure draft state is committed before this move updates geometry.
+          flushSync(() => {
+            beginDrawAt(start);
+          });
+        }
+      }
+    }
+
+    if (longPressFiredRef.current) return;
+
     const p = clientToSvgPoint(svg, e.clientX, e.clientY);
 
-    // Live edit of selected shape
     const edit = editModeRef.current;
     if (edit && selectedId) {
       const current = shapesRef.current.find((s) => s.id === selectedId);
@@ -493,46 +643,35 @@ export function WhiteboardCanvas({ controller, className }: WhiteboardCanvasProp
         return;
       }
 
-      if (edit.kind === "rect-resize" && current.geometry.kind === "rectangle") {
+      if (edit.kind === "bbox-resize") {
         const rot = parseRotate(current.transform);
         const local = rot ? unrotatePoint(p, rot.cx, rot.cy, rot.deg) : p;
-        const box = resizeRectFromCorner(current.geometry, edit.corner, local, e.shiftKey);
-        let transform = current.transform;
-        if (e.altKey) {
-          const skewDeg = Math.max(-45, Math.min(45, (local.x - current.geometry.x) * 0.15));
-          transform = skewTransform(skewDeg, box.x, box.y + box.height / 2);
-        } else if (rot) {
-          transform = rotateTransform(
-            box.x + box.width / 2,
-            box.y + box.height / 2,
-            rot.deg,
-          );
+        const newShapeBox = shapeBoxFromSelectionCorner(
+          edit.origShapeBox,
+          edit.origSelBox,
+          edit.corner,
+          local,
+          e.shiftKey,
+        );
+        let next = scaleShapeToBox(current, edit.origShapeBox, newShapeBox);
+        const nextRot = parseRotate(current.transform);
+        if (nextRot) {
+          const nb = shapeBounds(next);
+          next = setShapeRotation(next, {
+            x: nb.x + nb.width / 2,
+            y: nb.y + nb.height / 2,
+          }, nextRot.deg);
         }
-        previewShapeUpdate({
-          ...current,
-          transform,
-          geometry: { kind: "rectangle", ...box },
-        });
+        previewShapeUpdate(next);
         return;
       }
 
-      if (edit.kind === "ellipse-resize" && current.geometry.kind === "ellipse") {
-        const rot = parseRotate(current.transform);
-        const local = rot ? unrotatePoint(p, rot.cx, rot.cy, rot.deg) : p;
-        const ell = resizeEllipseFromCorner(current.geometry, edit.corner, local, e.shiftKey);
-        let transform = current.transform;
-        if (e.altKey) {
-          const rotateDeg =
-            Math.atan2(local.y - ell.cy, local.x - ell.cx) * (180 / Math.PI);
-          transform = rotateTransform(ell.cx, ell.cy, rotateDeg);
-        } else if (rot) {
-          transform = rotateTransform(ell.cx, ell.cy, rot.deg);
-        }
-        previewShapeUpdate({
-          ...current,
-          transform,
-          geometry: { kind: "ellipse", ...ell },
-        });
+      if (edit.kind === "rotate") {
+        const angle = Math.atan2(p.y - edit.center.y, p.x - edit.center.x);
+        const deltaDeg = ((angle - edit.startAngle) * 180) / Math.PI;
+        previewShapeUpdate(
+          setShapeRotation(current, edit.center, edit.origDeg + deltaDeg),
+        );
         return;
       }
 
@@ -601,9 +740,10 @@ export function WhiteboardCanvas({ controller, className }: WhiteboardCanvasProp
   };
 
   const onPointerUp = (e: React.PointerEvent<SVGSVGElement> | PointerEvent) => {
-    // Already finished (SVG + window listeners can both fire).
     if (pointerIdRef.current === null) return;
     if ("pointerId" in e && e.pointerId !== pointerIdRef.current) return;
+
+    clearLongPress();
 
     const svg = svgRef.current;
     if (svg && pointerIdRef.current !== null) {
@@ -615,6 +755,14 @@ export function WhiteboardCanvas({ controller, className }: WhiteboardCanvasProp
     }
     pointerIdRef.current = null;
 
+    if (longPressFiredRef.current) {
+      longPressFiredRef.current = false;
+      setDraft(null);
+      setBezierDraft(null);
+      drawingRef.current = false;
+      return;
+    }
+
     if (editModeRef.current) {
       editModeRef.current = null;
       commitShapeUpdate();
@@ -622,7 +770,7 @@ export function WhiteboardCanvas({ controller, className }: WhiteboardCanvasProp
     }
 
     if (bezierDraft && !bezierDraft.editing) {
-      if (dist(bezierDraft.start, bezierDraft.end) < 4) {
+      if (dist(bezierDraft.start, bezierDraft.end) < MIN_SHAPE_PX) {
         setBezierDraft(null);
       } else {
         setBezierDraft({ ...bezierDraft, activeHandle: null, editing: true });
@@ -642,12 +790,31 @@ export function WhiteboardCanvas({ controller, className }: WhiteboardCanvasProp
     finishShapeDrag();
   };
 
+  const onContextMenu = (e: React.MouseEvent<SVGSVGElement>) => {
+    if (!isDrawer) return;
+    e.preventDefault();
+    const svg = svgRef.current;
+    if (!svg) return;
+    const p = clientToSvgPoint(svg, e.clientX, e.clientY);
+    const hit = hitTestShapes(shapesRef.current, p, 12);
+    if (hit) {
+      setTool("select");
+      selectShape(hit.id);
+      setContextMenu({ x: e.clientX, y: e.clientY, hasSelection: true });
+    } else {
+      setContextMenu({
+        x: e.clientX,
+        y: e.clientY,
+        hasSelection: selectedId != null,
+      });
+    }
+  };
+
   const onPointerMoveRef = React.useRef(onPointerMove);
   const onPointerUpRef = React.useRef(onPointerUp);
   onPointerMoveRef.current = onPointerMove;
   onPointerUpRef.current = onPointerUp;
 
-  // Window-level pointer fallback when SVG setPointerCapture fails (common on iPad).
   React.useEffect(() => {
     if (windowListenersRef.current) return;
 
@@ -656,7 +823,6 @@ export function WhiteboardCanvas({ controller, className }: WhiteboardCanvasProp
       if (event.pointerId !== pointerIdRef.current) return;
       const svg = svgRef.current;
       if (!svg) return;
-      // Avoid double-handling when SVG capture is working.
       if (typeof svg.hasPointerCapture === "function" && svg.hasPointerCapture(event.pointerId)) {
         return;
       }
@@ -691,6 +857,7 @@ export function WhiteboardCanvas({ controller, className }: WhiteboardCanvasProp
   }, []);
 
   const interactive = isDrawer && !isFilling;
+  const editing = Boolean(editModeRef.current || (bezierDraft && !bezierDraft.editing));
 
   return (
     <div
@@ -704,9 +871,7 @@ export function WhiteboardCanvas({ controller, className }: WhiteboardCanvasProp
         viewBox={`0 0 ${width} ${height}`}
         className={cn(
           "block h-full w-full touch-none select-none",
-          interactive ? "cursor-crosshair" : "cursor-default",
-          tool === "fill" && interactive ? "cursor-cell" : null,
-          selectedId && interactive ? "cursor-default" : null,
+          cursorForTool(tool, interactive, editing),
         )}
         role="img"
         aria-label={isDrawer ? "Drawing whiteboard" : "Whiteboard (view only)"}
@@ -714,13 +879,13 @@ export function WhiteboardCanvas({ controller, className }: WhiteboardCanvasProp
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
+        onContextMenu={onContextMenu}
       >
         <rect x={0} y={0} width={width} height={height} fill="#ffffff" />
         <ShapeList shapes={shapes} selectedId={selectedId} />
 
         {selectedShape ? <SelectionOverlay shape={selectedShape} /> : null}
 
-        {/* Live drafts */}
         {draft?.tool === "rectangle" &&
         draft.x != null &&
         draft.y != null &&
@@ -762,19 +927,23 @@ export function WhiteboardCanvas({ controller, className }: WhiteboardCanvasProp
             <line
               x1={draft.start.x}
               y1={draft.start.y}
-              x2={arrowShaftEnd(draft.start, draft.end, Math.max(10, strokeWidth * 2.5)).x}
-              y2={arrowShaftEnd(draft.start, draft.end, Math.max(10, strokeWidth * 2.5)).y}
+              x2={arrowShaftEnd(draft.start, draft.end, arrowHeadSize(strokeWidth)).x}
+              y2={arrowShaftEnd(draft.start, draft.end, arrowHeadSize(strokeWidth)).y}
               stroke={color}
               strokeWidth={strokeWidth}
               strokeLinecap="round"
             />
-            <polygon
+            <polyline
               points={arrowHeadPoints(
                 draft.start,
                 draft.end,
-                Math.max(10, strokeWidth * 2.5),
+                arrowHeadSize(strokeWidth),
               )}
-              fill={color}
+              fill="none"
+              stroke={color}
+              strokeWidth={strokeWidth}
+              strokeLinecap="round"
+              strokeLinejoin="round"
             />
           </g>
         ) : null}
@@ -791,15 +960,19 @@ export function WhiteboardCanvas({ controller, className }: WhiteboardCanvasProp
         ) : null}
       </svg>
 
-      {bezierDraft?.editing ? (
-        <div className="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-ink/80 px-3 py-1 text-xs font-medium text-white">
-          Drag handles · Enter to commit · Esc to cancel
+      {statusMessage ? (
+        <div
+          role="status"
+          aria-live="polite"
+          className="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-ink/85 px-3 py-1.5 text-xs font-medium text-white shadow-sm"
+        >
+          {statusMessage}
         </div>
       ) : null}
 
-      {selectedShape && !bezierDraft ? (
+      {bezierDraft?.editing && !statusMessage ? (
         <div className="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-ink/80 px-3 py-1 text-xs font-medium text-white">
-          Drag to move · handles to edit · Esc to deselect
+          Drag handles · Enter to commit · Esc to cancel
         </div>
       ) : null}
 
@@ -813,9 +986,16 @@ export function WhiteboardCanvas({ controller, className }: WhiteboardCanvasProp
 
       {!isDrawer ? (
         <div className="pointer-events-none absolute right-3 top-3 rounded-full bg-ink/70 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-white">
-          View only
+          Watching
         </div>
       ) : null}
+
+      <ContextMenu
+        state={contextMenu}
+        controller={controller}
+        onClose={() => setContextMenu(null)}
+        onOpenProperties={onRequestProperties}
+      />
     </div>
   );
 }

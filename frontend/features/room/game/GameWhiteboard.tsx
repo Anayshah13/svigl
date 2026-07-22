@@ -24,17 +24,25 @@ export function GameWhiteboard({
   roundNumber,
   className,
   fill = false,
+  headerInfo,
+  aside,
 }: {
   playerId: string;
   isDrawer: boolean;
   sessionId: string | null;
   roundNumber: number;
   className?: string;
-  /** Fill parent height; toolbar sits below the canvas. */
+  /** Fill parent height; drawer chrome wraps the canvas. */
   fill?: boolean;
+  /** Round / timer / word for drawer top bar. */
+  headerInfo?: React.ReactNode;
+  /** Chat (and similar) for drawer right column. */
+  aside?: React.ReactNode;
 }) {
   const controllerRef = React.useRef<WhiteboardController | null>(null);
   const syncRef = React.useRef<CanvasSyncClient | null>(null);
+  const isDrawerRef = React.useRef(isDrawer);
+  isDrawerRef.current = isDrawer;
 
   React.useEffect(() => {
     const sync = createCanvasSyncClient();
@@ -85,7 +93,9 @@ export function GameWhiteboard({
         return;
       }
 
+      // Drawer already applied undo/redo locally; loadShapes would wipe HistoryStack.
       if ((type === "UNDO" || type === "REDO") && Array.isArray(payload.shapes)) {
+        if (isDrawerRef.current) return;
         try {
           ctrl.loadShapes(importShapes(payload.shapes));
         } catch {
@@ -114,6 +124,9 @@ export function GameWhiteboard({
       isDrawer={isDrawer}
       showToolbar={isDrawer}
       fill={fill}
+      immersive
+      headerInfo={headerInfo}
+      aside={aside}
       controllerRef={controllerRef}
       onShapeCreated={(shape) => syncRef.current?.publishShapeCreated(shape)}
       onShapeUpdated={(shape) => syncRef.current?.publishShapeUpdated(shape)}

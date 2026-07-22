@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { SviglLogo } from "@/components/layout/SviglLogo";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { LoaderScreen } from "@/features/loaders";
 import { startGoogleSignIn, startGuestSignIn } from "@/services/auth";
 import { useSessionStore } from "@/stores/session";
 import { colors } from "@/lib/colors";
@@ -84,11 +85,7 @@ export function SignInPage() {
   };
 
   if (!authReady || authUser) {
-    return (
-      <div className="flex flex-1 items-center justify-center px-6 py-24">
-        <p className="text-sm font-medium text-ink-muted">Loading…</p>
-      </div>
-    );
+    return <LoaderScreen kind="bars" label="Loading…" />;
   }
 
   return (

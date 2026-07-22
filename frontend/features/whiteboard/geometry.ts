@@ -453,29 +453,232 @@ export function resizeEllipseFromCorner(
   };
 }
 
-/** Arrowhead triangle at `end`, pointing along start→end. */
+/** Padding around the shape AABB for selection chrome. */
+export const SELECTION_PAD = 6;
+
+/** Distance from the selection box top edge to the rotate handle center. */
+export const ROTATE_HANDLE_OFFSET = 22;
+
+/** Arrowhead size from stroke width — larger open chevron. */
+export function arrowHeadSize(strokeWidth: number): number {
+  return Math.max(20, strokeWidth * 4);
+}
+
+/** Arrowhead open chevron points at `end`, pointing along start→end. */
 export function arrowHeadPoints(
   start: Point,
   end: Point,
-  size = 12,
+  size = 20,
 ): string {
   const angle = Math.atan2(end.y - start.y, end.x - start.x);
-  const a1 = angle + Math.PI - Math.PI / 7;
-  const a2 = angle + Math.PI + Math.PI / 7;
+  const spread = Math.PI / 5;
+  const a1 = angle + Math.PI - spread;
+  const a2 = angle + Math.PI + spread;
   const p1 = { x: end.x + Math.cos(a1) * size, y: end.y + Math.sin(a1) * size };
   const p2 = { x: end.x + Math.cos(a2) * size, y: end.y + Math.sin(a2) * size };
-  return `${end.x},${end.y} ${p1.x},${p1.y} ${p2.x},${p2.y}`;
+  return `${p1.x},${p1.y} ${end.x},${end.y} ${p2.x},${p2.y}`;
 }
 
 /** Shorten line so the shaft doesn't cover the arrowhead tip. */
 export function arrowShaftEnd(start: Point, end: Point, headSize = 12): Point {
   const len = dist(start, end);
   if (len < 1) return end;
-  const t = Math.max(0, (len - headSize * 0.65) / len);
+  const t = Math.max(0, (len - headSize * 0.55) / len);
   return {
     x: start.x + (end.x - start.x) * t,
     y: start.y + (end.y - start.y) * t,
   };
+}
+
+export type Bounds = { x: number; y: number; width: number; height: number };
+
+/** Compute the axis-aligned bounding box of any shape (ignores transform rotation). */
+export function shapeBounds(shape: WhiteboardShape): Bounds {
+  const g = shape.geometry;
+  switch (g.kind) {
+    case "rectangle":
+      return { x: g.x, y: g.y, width: g.width, height: g.height };
+    case "ellipse":
+      return {
+        x: g.cx - g.rx,
+        y: g.cy - g.ry,
+        width: g.rx * 2,
+        height: g.ry * 2,
+      };
+    case "bezier": {
+      const xs = [g.start.x, g.cp1.x, g.cp2.x, g.end.x];
+      const ys = [g.start.y, g.cp1.y, g.cp2.y, g.end.y];
+      const minX = Math.min(...xs);
+      const minY = Math.min(...ys);
+      return {
+        x: minX,
+        y: minY,
+        width: Math.max(...xs) - minX,
+        height: Math.max(...ys) - minY,
+      };
+    }
+    case "arrow": {
+      const minX = Math.min(g.start.x, g.end.x);
+      const minY = Math.min(g.start.y, g.end.y);
+      return {
+        x: minX,
+        y: minY,
+        width: Math.max(g.start.x, g.end.x) - minX,
+        height: Math.max(g.start.y, g.end.y) - minY,
+      };
+    }
+    case "fill": {
+      const b = fillPathBounds(g.d);
+      return b ?? { x: 0, y: 0, width: 0, height: 0 };
+    }
+    default:
+      return { x: 0, y: 0, width: 0, height: 0 };
+  }
+}
+
+/** Padded AABB used for selection overlay and handle hit-testing. */
+export function selectionBounds(shape: WhiteboardShape, pad = SELECTION_PAD): Bounds {
+  const b = shapeBounds(shape);
+  return {
+    x: b.x - pad,
+    y: b.y - pad,
+    width: b.width + pad * 2,
+    height: b.height + pad * 2,
+  };
+}
+
+/** Corner handles on the padded selection box. */
+export function selectionCorners(shape: WhiteboardShape): Record<RectCorner, Point> {
+  return rectCorners(selectionBounds(shape));
+}
+
+/** Rotate handle position (local coords, above selection box). */
+export function selectionRotateHandle(shape: WhiteboardShape): Point {
+  const b = selectionBounds(shape);
+  return { x: b.x + b.width / 2, y: b.y - ROTATE_HANDLE_OFFSET };
+}
+
+/** Map a dragged selection-box corner to the corresponding shape AABB. */
+export function shapeBoxFromSelectionCorner(
+  origShapeBox: Bounds,
+  origSelBox: Bounds,
+  corner: RectCorner,
+  point: Point,
+  keepAspect: boolean,
+): Bounds {
+  const newSel = resizeRectFromCorner(origSelBox, corner, point, keepAspect);
+  const pad = SELECTION_PAD;
+  return {
+    x: newSel.x + pad,
+    y: newSel.y + pad,
+    width: Math.max(1, newSel.width - pad * 2),
+    height: Math.max(1, newSel.height - pad * 2),
+  };
+}
+
+/** Apply rotation around a center, preserving leading translate on fill shapes. */
+export function setShapeRotation(
+  shape: WhiteboardShape,
+  center: Point,
+  degrees: number,
+): WhiteboardShape {
+  const rot = rotateTransform(center.x, center.y, degrees);
+  if (shape.geometry.kind === "fill") {
+    const tm = /^translate\(([-\d.]+)[,\s]+([-\d.]+)\)\s*(.*)$/.exec(
+      (shape.transform || "").trim(),
+    );
+    if (tm) {
+      const rest = tm[3]?.trim() ?? "";
+      return {
+        ...shape,
+        transform: composeTransforms(`translate(${tm[1]} ${tm[2]})`, rot, rest),
+      };
+    }
+  }
+  return { ...shape, transform: rot };
+}
+
+/** Scale a shape's geometry to fit a new bounding box (used for bbox-corner resize on bezier/arrow/fill). */
+export function scaleShapeToBox(
+  shape: WhiteboardShape,
+  oldBox: Bounds,
+  newBox: Bounds,
+): WhiteboardShape {
+  const ow = oldBox.width || 1;
+  const oh = oldBox.height || 1;
+  const sx = newBox.width / ow;
+  const sy = newBox.height / oh;
+
+  function mapPt(p: Point): Point {
+    return {
+      x: newBox.x + (p.x - oldBox.x) * sx,
+      y: newBox.y + (p.y - oldBox.y) * sy,
+    };
+  }
+
+  const g = shape.geometry;
+  switch (g.kind) {
+    case "bezier":
+      return {
+        ...shape,
+        geometry: {
+          ...g,
+          start: mapPt(g.start),
+          end: mapPt(g.end),
+          cp1: mapPt(g.cp1),
+          cp2: mapPt(g.cp2),
+        },
+      };
+    case "arrow":
+      return {
+        ...shape,
+        geometry: { ...g, start: mapPt(g.start), end: mapPt(g.end) },
+      };
+    case "rectangle":
+      return {
+        ...shape,
+        geometry: {
+          kind: "rectangle",
+          x: newBox.x,
+          y: newBox.y,
+          width: newBox.width,
+          height: newBox.height,
+        },
+      };
+    case "ellipse":
+      return {
+        ...shape,
+        geometry: {
+          kind: "ellipse",
+          cx: newBox.x + newBox.width / 2,
+          cy: newBox.y + newBox.height / 2,
+          rx: Math.max(0.5, newBox.width / 2),
+          ry: Math.max(0.5, newBox.height / 2),
+        },
+      };
+    case "fill": {
+      const sx = newBox.width / ow;
+      const sy = newBox.height / oh;
+      const scalePart = composeTransforms(
+        `translate(${newBox.x} ${newBox.y})`,
+        `scale(${sx} ${sy})`,
+        `translate(${-oldBox.x} ${-oldBox.y})`,
+      );
+      const tm = /^translate\(([-\d.]+)[,\s]+([-\d.]+)\)\s*(.*)$/.exec(
+        (shape.transform || "").trim(),
+      );
+      if (tm) {
+        const rest = tm[3]?.trim() ?? "";
+        return {
+          ...shape,
+          transform: composeTransforms(`translate(${tm[1]} ${tm[2]})`, scalePart, rest),
+        };
+      }
+      return { ...shape, transform: scalePart };
+    }
+    default:
+      return shape;
+  }
 }
 
 export function cloneShape(shape: WhiteboardShape): WhiteboardShape {

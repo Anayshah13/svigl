@@ -1,0 +1,492 @@
+/* Svigl loaders — paused by default; play on card hover / focus-within */
+
+.loader-anim {
+  animation-play-state: paused !important;
+}
+
+.group:hover .loader-anim,
+.group:focus-within .loader-anim {
+  animation-play-state: running !important;
+}
+
+/* ── Ink Orbit ── */
+@keyframes ink-orbit-spin {
+  to {
+    stroke-dashoffset: -100;
+  }
+}
+
+@keyframes ink-orbit-spin-rev {
+  to {
+    stroke-dashoffset: 80;
+  }
+}
+
+@keyframes ink-orbit-glow {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.anim-ink-outer {
+  animation: ink-orbit-spin 1.4s linear infinite;
+}
+
+.anim-ink-inner {
+  animation: ink-orbit-spin-rev 1.1s linear infinite;
+}
+
+.anim-ink-core {
+  animation: ink-orbit-glow 1.6s ease-in-out infinite;
+}
+
+/* ── Brush Stroke — rest frame is fully drawn ── */
+@keyframes brush-draw {
+  0%,
+  12% {
+    stroke-dashoffset: 0;
+  }
+  55% {
+    stroke-dashoffset: 280;
+  }
+  56% {
+    stroke-dashoffset: -280;
+  }
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes brush-fade {
+  0%,
+  40% {
+    opacity: 1;
+  }
+  55%,
+  70% {
+    opacity: 0.35;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+.anim-brush {
+  stroke-dasharray: 280;
+  stroke-dashoffset: 0;
+  animation: brush-draw 2.4s ease-in-out infinite;
+}
+
+.anim-brush-soft {
+  stroke-dasharray: 220;
+  stroke-dashoffset: 0;
+  animation: brush-draw 2.4s ease-in-out 0.15s infinite,
+    brush-fade 2.4s ease-in-out infinite;
+}
+
+/* ── Dot Pulse Grid ── */
+@keyframes dot-bounce {
+  0%,
+  60%,
+  100% {
+    transform: translateY(0) scale(1);
+    opacity: 0.55;
+  }
+  30% {
+    transform: translateY(-10px) scale(1.15);
+    opacity: 1;
+  }
+}
+
+.anim-dot {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: dot-bounce 1.05s ease-in-out infinite;
+}
+
+.anim-dot-d0 {
+  animation-delay: 0ms;
+}
+.anim-dot-d1 {
+  animation-delay: 80ms;
+}
+.anim-dot-d2 {
+  animation-delay: 160ms;
+}
+.anim-dot-d3 {
+  animation-delay: 80ms;
+}
+.anim-dot-d4 {
+  animation-delay: 160ms;
+}
+.anim-dot-d5 {
+  animation-delay: 240ms;
+}
+.anim-dot-d6 {
+  animation-delay: 160ms;
+}
+.anim-dot-d7 {
+  animation-delay: 240ms;
+}
+.anim-dot-d8 {
+  animation-delay: 320ms;
+}
+
+/* ── Spray Bloom ── */
+@keyframes spray-bloom {
+  0% {
+    transform: scale(0.55);
+    opacity: 0.85;
+  }
+  70% {
+    opacity: 0.35;
+  }
+  100% {
+    transform: scale(1.35);
+    opacity: 0;
+  }
+}
+
+.anim-spray {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: spray-bloom 2s ease-out infinite;
+}
+
+.anim-spray-d0 {
+  animation-delay: 0ms;
+}
+.anim-spray-d1 {
+  animation-delay: 200ms;
+}
+.anim-spray-d2 {
+  animation-delay: 400ms;
+}
+.anim-spray-d3 {
+  animation-delay: 600ms;
+}
+.anim-spray-d4 {
+  animation-delay: 800ms;
+}
+.anim-spray-d5 {
+  animation-delay: 1000ms;
+}
+.anim-spray-d6 {
+  animation-delay: 300ms;
+}
+.anim-spray-d7 {
+  animation-delay: 700ms;
+}
+
+/* ── Bezier Draw — rest frame fully drawn ── */
+@keyframes bezier-draw {
+  0%,
+  15% {
+    stroke-dashoffset: 0;
+  }
+  55% {
+    stroke-dashoffset: 320;
+  }
+  56% {
+    stroke-dashoffset: -320;
+  }
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes bezier-pen {
+  0% {
+    offset-distance: 0%;
+    opacity: 0.85;
+  }
+  100% {
+    offset-distance: 100%;
+    opacity: 0.85;
+  }
+}
+
+.anim-bezier-path {
+  stroke-dasharray: 320;
+  stroke-dashoffset: 0;
+  animation: bezier-draw 2.6s ease-in-out infinite;
+}
+
+.anim-bezier-pen {
+  offset-path: path("M 28 148 C 48 40, 92 40, 100 100 S 152 160, 172 52");
+  offset-rotate: 0deg;
+  animation: bezier-pen 2.6s ease-in-out infinite;
+}
+
+/* ── Arc Sweep ── */
+@keyframes arc-sweep {
+  to {
+    stroke-dashoffset: -250;
+  }
+}
+
+.anim-arc-sweep {
+  animation: arc-sweep 1.35s linear infinite;
+}
+
+/* ── Morph Square ── */
+@keyframes morph-square {
+  0%,
+  100% {
+    border-radius: 10px;
+    transform: rotate(0deg) scale(1);
+  }
+  50% {
+    border-radius: 28px;
+    transform: rotate(45deg) scale(0.92);
+  }
+}
+
+@keyframes morph-orbit {
+  0%,
+  100% {
+    transform: rotate(0deg) scale(1);
+    opacity: 0.45;
+  }
+  50% {
+    transform: rotate(-20deg) scale(1.08);
+    opacity: 0.8;
+  }
+}
+
+.anim-morph-square {
+  animation: morph-square 2s ease-in-out infinite;
+}
+
+.anim-morph-orbit {
+  animation: morph-orbit 2.4s ease-in-out infinite;
+}
+
+/* ── Orbit Dots ── */
+@keyframes orbit-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.anim-orbit-a {
+  animation: orbit-spin 2.4s linear infinite;
+}
+
+.anim-orbit-b {
+  animation: orbit-spin 1.8s linear infinite reverse;
+}
+
+.anim-orbit-c {
+  animation: orbit-spin 1.2s linear infinite;
+}
+
+/* ── Segment Ring ── */
+@keyframes segment-chase {
+  to {
+    stroke-dashoffset: -238;
+  }
+}
+
+.anim-segment-pink {
+  animation: segment-chase 1.6s linear infinite;
+}
+
+.anim-segment-lime {
+  animation: segment-chase 1.6s linear infinite reverse;
+}
+
+/* ── Bar Cascade ── */
+@keyframes bar-cascade {
+  0%,
+  100% {
+    transform: scaleY(0.45);
+    opacity: 0.55;
+  }
+  50% {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+}
+
+.anim-bar {
+  animation: bar-cascade 0.9s ease-in-out infinite;
+}
+
+.anim-bar-d0 {
+  animation-delay: 0ms;
+}
+.anim-bar-d1 {
+  animation-delay: 90ms;
+}
+.anim-bar-d2 {
+  animation-delay: 180ms;
+}
+.anim-bar-d3 {
+  animation-delay: 270ms;
+}
+.anim-bar-d4 {
+  animation-delay: 360ms;
+}
+
+/* ── Cube Flip ── */
+@keyframes cube-flip {
+  0%,
+  100% {
+    transform: rotate(0deg) scale(1);
+  }
+  25% {
+    transform: rotate(6deg) scale(1.04);
+  }
+  50% {
+    transform: rotate(0deg) scale(0.96);
+  }
+  75% {
+    transform: rotate(-6deg) scale(1.04);
+  }
+}
+
+.anim-cube {
+  animation: cube-flip 2.2s ease-in-out infinite;
+}
+
+/* ── Timer Tick ── */
+@keyframes timer-ring {
+  0% {
+    stroke-dashoffset: 0;
+  }
+  100% {
+    stroke-dashoffset: 251;
+  }
+}
+
+@keyframes timer-pulse {
+  0%,
+  100% {
+    opacity: 0.75;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.anim-timer-ring {
+  stroke-dashoffset: 60;
+  animation: timer-ring 3s linear infinite;
+}
+
+.anim-timer-pulse {
+  animation: timer-pulse 1.2s ease-in-out infinite;
+}
+
+/* ── Letter Bounce ── */
+@keyframes letter-bounce {
+  0%,
+  60%,
+  100% {
+    transform: translateY(0);
+  }
+  30% {
+    transform: translateY(-12px);
+  }
+}
+
+.anim-letter {
+  display: inline-block;
+  animation: letter-bounce 0.95s ease-in-out infinite;
+}
+
+.anim-letter-d0 {
+  animation-delay: 0ms;
+}
+.anim-letter-d1 {
+  animation-delay: 80ms;
+}
+.anim-letter-d2 {
+  animation-delay: 160ms;
+}
+.anim-letter-d3 {
+  animation-delay: 240ms;
+}
+.anim-letter-d4 {
+  animation-delay: 320ms;
+}
+
+/* ── Concentric Spin ── */
+@keyframes conc-cw {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes conc-ccw {
+  to {
+    transform: rotate(-360deg);
+  }
+}
+
+.anim-conc-cw {
+  animation: conc-cw 8s linear infinite;
+}
+
+.anim-conc-ccw {
+  animation: conc-ccw 6s linear infinite;
+}
+
+.anim-conc-cw-fast {
+  animation: conc-cw 4.5s linear infinite;
+}
+
+.anim-conc-ccw-fast {
+  animation: conc-ccw 3.2s linear infinite;
+}
+
+/* ── Pulse Core ── */
+@keyframes pulse-ring {
+  0% {
+    transform: scale(0.55);
+    opacity: 0.75;
+  }
+  100% {
+    transform: scale(1.85);
+    opacity: 0;
+  }
+}
+
+@keyframes pulse-core {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.85;
+  }
+  50% {
+    transform: scale(1.12);
+    opacity: 1;
+  }
+}
+
+.anim-pulse-ring {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: pulse-ring 2.2s ease-out infinite;
+}
+
+.anim-pulse-d0 {
+  animation-delay: 0ms;
+}
+.anim-pulse-d1 {
+  animation-delay: 700ms;
+}
+.anim-pulse-d2 {
+  animation-delay: 1400ms;
+}
+
+.anim-pulse-core {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: pulse-core 1.6s ease-in-out infinite;
+}

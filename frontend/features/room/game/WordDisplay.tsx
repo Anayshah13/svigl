@@ -1,5 +1,6 @@
 "use client";
 
+import { DotPulseGrid } from "@/features/loaders";
 import { cn } from "@/lib/cn";
 import { parseHintSlots } from "@/lib/word-display";
 import type { RoomGameState } from "@/types/room";
@@ -36,9 +37,10 @@ export function WordDisplay({
   // Drawer never falls back to dashed word_hint — that leaks "guesser" UI.
   if (isDrawer) {
     return (
-      <p className={cn("text-sm font-medium text-ink-muted", className)}>
-        Waiting for your word…
-      </p>
+      <div className={cn("flex items-center gap-2", className)}>
+        <DotPulseGrid size="sm" />
+        <p className="text-sm font-medium text-ink-muted">Waiting for your word…</p>
+      </div>
     );
   }
 
@@ -74,9 +76,10 @@ export function WordDisplay({
 
   if (slots.length === 0) {
     return (
-      <p className={cn("text-sm font-medium text-ink-muted", className)}>
-        Waiting for the word…
-      </p>
+      <div className={cn("flex items-center justify-center gap-2", className)}>
+        <DotPulseGrid size="sm" />
+        <p className="text-sm font-medium text-ink-muted">Waiting for the word…</p>
+      </div>
     );
   }
 

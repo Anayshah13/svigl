@@ -1,11 +1,20 @@
 "use client";
 
 import * as React from "react";
+import {
+  bringShapeForward,
+  canBringForward,
+  canSendBackward,
+  pasteShapeFromClipboard,
+  sendShapeBackward,
+} from "./clipboard";
 import { HistoryStack } from "./history";
 import { throttle } from "./throttle";
-import { cloneShape, cloneShapes, createId } from "./geometry";
+import { cloneShape, cloneShapes, createId, translateShape } from "./geometry";
 import { exportShapes, importShapes } from "./serialize";
+import { isEditableTarget, TOOL_SHORTCUT_MAP } from "./toolMeta";
 import type {
+  DrawingTool,
   HistoryOp,
   Point,
   StrokeWidth,
@@ -13,7 +22,7 @@ import type {
   WhiteboardSyncCallbacks,
   WhiteboardTool,
 } from "./types";
-import { PRESET_COLORS, STROKE_WIDTHS } from "./types";
+import { NUDGE_LARGE, NUDGE_SMALL, PRESET_COLORS, STROKE_WIDTHS } from "./types";
 
 const SYNC_INTERVAL_MS = 33; // ~30fps
 
@@ -36,7 +45,7 @@ export interface DraftBezier {
 }
 
 export interface DraftStroke {
-  tool: WhiteboardTool;
+  tool: DrawingTool;
   points?: Point[];
   start?: Point;
   end?: Point;
@@ -71,11 +80,24 @@ export interface WhiteboardController {
   selectShape: (id: string | null) => void;
   canUndo: boolean;
   canRedo: boolean;
+  canPaste: boolean;
+  canCopy: boolean;
+  canDelete: boolean;
+  canDuplicate: boolean;
+  canBringForward: boolean;
+  canSendBackward: boolean;
   isDrawer: boolean;
   isFilling: boolean;
   undo: () => void;
   redo: () => void;
   clear: () => void;
+  deleteSelected: () => void;
+  copySelected: () => void;
+  pasteClipboard: () => void;
+  duplicateSelected: () => void;
+  bringForward: () => void;
+  sendBackward: () => void;
+  nudgeSelected: (dx: number, dy: number) => void;
   /** Replace local document (remote sync / round reset). Clears history. */
   loadShapes: (shapes: WhiteboardShape[]) => void;
   /** Apply a remote-created shape without pushing history. */
@@ -104,6 +126,9 @@ export interface WhiteboardController {
   cancelBezierDraft: () => void;
   setIsFilling: (v: boolean) => void;
   playerId: string;
+  /** Announce ephemeral status for screen readers / toast strip. */
+  statusMessage: string | null;
+  clearStatus: () => void;
 }
 
 export function useWhiteboard(options: UseWhiteboardOptions = {}): WhiteboardController {
@@ -134,11 +159,23 @@ export function useWhiteboard(options: UseWhiteboardOptions = {}): WhiteboardCon
   const [canUndo, setCanUndo] = React.useState(false);
   const [canRedo, setCanRedo] = React.useState(false);
   const [isFilling, setIsFilling] = React.useState(false);
+  const [clipboardVersion, setClipboardVersion] = React.useState(0);
+  const [statusMessage, setStatusMessage] = React.useState<string | null>(null);
 
   const historyRef = React.useRef(new HistoryStack());
   const shapesRef = React.useRef(shapes);
   shapesRef.current = shapes;
   const editBeforeRef = React.useRef<WhiteboardShape | null>(null);
+  const clipboardRef = React.useRef<WhiteboardShape | null>(null);
+  const statusTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const announce = React.useCallback((msg: string) => {
+    setStatusMessage(msg);
+    if (statusTimerRef.current) clearTimeout(statusTimerRef.current);
+    statusTimerRef.current = setTimeout(() => setStatusMessage(null), 2200);
+  }, []);
+
+  const clearStatus = React.useCallback(() => setStatusMessage(null), []);
 
   const callbacksRef = React.useRef({
     onShapeCreated,
@@ -179,6 +216,7 @@ export function useWhiteboard(options: UseWhiteboardOptions = {}): WhiteboardCon
     () => () => {
       emitShapesChange.cancel();
       emitShapeUpdated.cancel();
+      if (statusTimerRef.current) clearTimeout(statusTimerRef.current);
     },
     [emitShapesChange, emitShapeUpdated],
   );
@@ -216,7 +254,6 @@ export function useWhiteboard(options: UseWhiteboardOptions = {}): WhiteboardCon
       const after: WhiteboardShape = {
         ...before,
         ...patch,
-        // Flood fills use fill color as the paint
         ...(before.geometry.kind === "fill" && patch.stroke
           ? { fill: patch.stroke, stroke: patch.stroke }
           : {}),
@@ -256,8 +293,12 @@ export function useWhiteboard(options: UseWhiteboardOptions = {}): WhiteboardCon
 
   const setTool = React.useCallback((t: WhiteboardTool) => {
     setToolState(t);
-    // Starting a new tool mode clears an active bezier draft but keeps selection
-    // so users can still restyle. Fill tool can paint over selection.
+    setBezierDraft(null);
+    setDraft(null);
+    // Drawing tools clear selection so the next pointer starts a stroke.
+    if (t !== "select") {
+      setSelectedId(null);
+    }
   }, []);
 
   const commitShape = React.useCallback(
@@ -301,7 +342,6 @@ export function useWhiteboard(options: UseWhiteboardOptions = {}): WhiteboardCon
       emitShapesChange.flush();
       return;
     }
-    // No-op edit
     if (JSON.stringify(before) === JSON.stringify(after)) {
       emitShapeUpdated.cancel();
       return;
@@ -327,6 +367,107 @@ export function useWhiteboard(options: UseWhiteboardOptions = {}): WhiteboardCon
     emitShapesChange.flush();
   }, [replaceShapes, emitShapeUpdated, emitShapesChange]);
 
+  const deleteSelected = React.useCallback(() => {
+    if (!isDrawer || !selectedId) return;
+    const index = shapesRef.current.findIndex((s) => s.id === selectedId);
+    if (index < 0) return;
+    const shape = shapesRef.current[index]!;
+    historyRef.current.push({
+      type: "remove",
+      shape: cloneShape(shape),
+      index,
+    });
+    syncHistoryFlags();
+    const next = shapesRef.current.filter((s) => s.id !== selectedId);
+    replaceShapes(next);
+    setSelectedId(null);
+    callbacksRef.current.onShapeDeleted?.(shape.id);
+    emitShapesChange.flush();
+    announce("Shape deleted");
+  }, [isDrawer, selectedId, replaceShapes, syncHistoryFlags, emitShapesChange, announce]);
+
+  const copySelected = React.useCallback(() => {
+    if (!isDrawer || !selectedId) return;
+    const shape = shapesRef.current.find((s) => s.id === selectedId);
+    if (!shape) return;
+    clipboardRef.current = cloneShape(shape);
+    setClipboardVersion((v) => v + 1);
+    announce("Copied");
+  }, [isDrawer, selectedId, announce]);
+
+  const pasteClipboard = React.useCallback(() => {
+    if (!isDrawer || !clipboardRef.current) return;
+    const pasted = pasteShapeFromClipboard(clipboardRef.current, playerId);
+    // Keep clipboard as the pre-offset original so repeated paste stacks offsets
+    // from the original; re-copy the pasted result for natural multi-paste cascade.
+    clipboardRef.current = cloneShape(pasted);
+    setClipboardVersion((v) => v + 1);
+    commitShape(pasted);
+    setSelectedId(pasted.id);
+    setToolState("select");
+    announce("Pasted");
+  }, [isDrawer, playerId, commitShape, announce]);
+
+  const duplicateSelected = React.useCallback(() => {
+    if (!isDrawer || !selectedId) return;
+    const shape = shapesRef.current.find((s) => s.id === selectedId);
+    if (!shape) return;
+    clipboardRef.current = cloneShape(shape);
+    setClipboardVersion((v) => v + 1);
+    const dup = pasteShapeFromClipboard(shape, playerId);
+    commitShape(dup);
+    setSelectedId(dup.id);
+    setToolState("select");
+    announce("Duplicated");
+  }, [isDrawer, selectedId, playerId, commitShape, announce]);
+
+  const applyReorder = React.useCallback(
+    (next: WhiteboardShape[] | null, label: string) => {
+      if (!next) return;
+      const before = cloneShapes(shapesRef.current);
+      historyRef.current.push({ type: "replace", before, after: cloneShapes(next) });
+      syncHistoryFlags();
+      replaceShapes(next);
+      // Sync each reordered shape so remotes see z-order via snapshot-ish updates.
+      for (const s of next) {
+        callbacksRef.current.onShapeUpdated?.(s);
+      }
+      emitShapesChange.flush();
+      announce(label);
+    },
+    [replaceShapes, syncHistoryFlags, emitShapesChange, announce],
+  );
+
+  const bringForward = React.useCallback(() => {
+    if (!isDrawer || !selectedId) return;
+    applyReorder(bringShapeForward(shapesRef.current, selectedId), "Brought forward");
+  }, [isDrawer, selectedId, applyReorder]);
+
+  const sendBackward = React.useCallback(() => {
+    if (!isDrawer || !selectedId) return;
+    applyReorder(sendShapeBackward(shapesRef.current, selectedId), "Sent backward");
+  }, [isDrawer, selectedId, applyReorder]);
+
+  const nudgeSelected = React.useCallback(
+    (dx: number, dy: number) => {
+      if (!isDrawer || !selectedId || (!dx && !dy)) return;
+      const before = shapesRef.current.find((s) => s.id === selectedId);
+      if (!before) return;
+      const after = translateShape(before, dx, dy);
+      historyRef.current.push({
+        type: "update",
+        before: cloneShape(before),
+        after: cloneShape(after),
+      });
+      syncHistoryFlags();
+      const next = shapesRef.current.map((s) => (s.id === after.id ? after : s));
+      replaceShapes(next);
+      callbacksRef.current.onShapeUpdated?.(after);
+      emitShapesChange.flush();
+    },
+    [isDrawer, selectedId, replaceShapes, syncHistoryFlags, emitShapesChange],
+  );
+
   const undo = React.useCallback(() => {
     if (!isDrawer) return;
     const result = historyRef.current.undo(shapesRef.current);
@@ -334,24 +475,12 @@ export function useWhiteboard(options: UseWhiteboardOptions = {}): WhiteboardCon
     syncHistoryFlags();
     replaceShapes(result.shapes);
     setSelectedId(null);
+    // Server owns the undo stack — do NOT also emit SHAPE_DELETED/CREATED
+    // (that double-applied ops and corrupted remote history).
     callbacksRef.current.onUndo?.(result.op);
-    switch (result.op.type) {
-      case "add":
-        callbacksRef.current.onShapeDeleted?.(result.op.shape.id);
-        break;
-      case "remove":
-        callbacksRef.current.onShapeCreated?.(result.op.shape);
-        break;
-      case "update":
-        callbacksRef.current.onShapeUpdated?.(result.op.before);
-        break;
-      case "clear":
-        break;
-      case "replace":
-        break;
-    }
     emitShapesChange.flush();
-  }, [isDrawer, replaceShapes, syncHistoryFlags, emitShapesChange]);
+    announce("Undone");
+  }, [isDrawer, replaceShapes, syncHistoryFlags, emitShapesChange, announce]);
 
   const redo = React.useCallback(() => {
     if (!isDrawer) return;
@@ -361,24 +490,9 @@ export function useWhiteboard(options: UseWhiteboardOptions = {}): WhiteboardCon
     replaceShapes(result.shapes);
     setSelectedId(null);
     callbacksRef.current.onRedo?.(result.op);
-    switch (result.op.type) {
-      case "add":
-        callbacksRef.current.onShapeCreated?.(result.op.shape);
-        break;
-      case "remove":
-        callbacksRef.current.onShapeDeleted?.(result.op.shape.id);
-        break;
-      case "update":
-        callbacksRef.current.onShapeUpdated?.(result.op.after);
-        break;
-      case "clear":
-        callbacksRef.current.onClear?.();
-        break;
-      case "replace":
-        break;
-    }
     emitShapesChange.flush();
-  }, [isDrawer, replaceShapes, syncHistoryFlags, emitShapesChange]);
+    announce("Redone");
+  }, [isDrawer, replaceShapes, syncHistoryFlags, emitShapesChange, announce]);
 
   const clear = React.useCallback(() => {
     if (!isDrawer) return;
@@ -390,7 +504,8 @@ export function useWhiteboard(options: UseWhiteboardOptions = {}): WhiteboardCon
     replaceShapes([]);
     callbacksRef.current.onClear?.();
     emitShapesChange.flush();
-  }, [isDrawer, replaceShapes, syncHistoryFlags, emitShapesChange]);
+    announce("Board cleared");
+  }, [isDrawer, replaceShapes, syncHistoryFlags, emitShapesChange, announce]);
 
   const loadShapes = React.useCallback(
     (next: WhiteboardShape[]) => {
@@ -463,36 +578,96 @@ export function useWhiteboard(options: UseWhiteboardOptions = {}): WhiteboardCon
     };
     setBezierDraft(null);
     commitShape(shape);
-  }, [bezierDraft, color, strokeWidth, playerId, commitShape]);
+    announce("Curve committed");
+  }, [bezierDraft, color, strokeWidth, playerId, commitShape, announce]);
 
   const cancelBezierDraft = React.useCallback(() => {
     setBezierDraft(null);
-  }, []);
+    announce("Curve cancelled");
+  }, [announce]);
 
   // Keyboard shortcuts for drawer
   React.useEffect(() => {
     if (!isDrawer) return;
     const onKey = (e: KeyboardEvent) => {
+      if (isEditableTarget(e.target)) return;
+
       const mod = e.metaKey || e.ctrlKey;
-      if (mod && e.key.toLowerCase() === "z" && !e.shiftKey) {
+      const key = e.key.toLowerCase();
+
+      if (mod && key === "z" && !e.shiftKey) {
         e.preventDefault();
         undo();
-      } else if (
-        mod &&
-        (e.key.toLowerCase() === "y" || (e.key.toLowerCase() === "z" && e.shiftKey))
-      ) {
+        return;
+      }
+      if (mod && (key === "y" || (key === "z" && e.shiftKey))) {
         e.preventDefault();
         redo();
-      } else if (e.key === "Enter" && bezierDraft) {
+        return;
+      }
+      if (mod && key === "c") {
+        e.preventDefault();
+        copySelected();
+        return;
+      }
+      if (mod && key === "v") {
+        e.preventDefault();
+        pasteClipboard();
+        return;
+      }
+      if (mod && key === "d") {
+        e.preventDefault();
+        duplicateSelected();
+        return;
+      }
+      if (e.key === "Delete" || e.key === "Backspace") {
+        if (selectedId) {
+          e.preventDefault();
+          deleteSelected();
+        }
+        return;
+      }
+      if (e.key === "Enter" && bezierDraft) {
         e.preventDefault();
         commitBezierDraft();
-      } else if (e.key === "Escape") {
+        return;
+      }
+      if (e.key === "Escape") {
         if (bezierDraft) {
           e.preventDefault();
           cancelBezierDraft();
         } else if (selectedId) {
           e.preventDefault();
           setSelectedId(null);
+          announce("Deselected");
+        }
+        return;
+      }
+
+      // Arrow-key nudge
+      if (
+        selectedId &&
+        (e.key === "ArrowUp" ||
+          e.key === "ArrowDown" ||
+          e.key === "ArrowLeft" ||
+          e.key === "ArrowRight")
+      ) {
+        e.preventDefault();
+        const step = e.shiftKey ? NUDGE_LARGE : NUDGE_SMALL;
+        const dx =
+          e.key === "ArrowLeft" ? -step : e.key === "ArrowRight" ? step : 0;
+        const dy =
+          e.key === "ArrowUp" ? -step : e.key === "ArrowDown" ? step : 0;
+        nudgeSelected(dx, dy);
+        return;
+      }
+
+      // Tool shortcuts (no modifiers)
+      if (!mod && !e.altKey && key.length === 1) {
+        const nextTool = TOOL_SHORTCUT_MAP[key];
+        if (nextTool) {
+          e.preventDefault();
+          setTool(nextTool);
         }
       }
     };
@@ -506,12 +681,31 @@ export function useWhiteboard(options: UseWhiteboardOptions = {}): WhiteboardCon
     commitBezierDraft,
     cancelBezierDraft,
     selectedId,
+    copySelected,
+    pasteClipboard,
+    duplicateSelected,
+    deleteSelected,
+    nudgeSelected,
+    setTool,
+    announce,
   ]);
 
   // Clear selection when drawer privilege is revoked
   React.useEffect(() => {
     if (!isDrawer) setSelectedId(null);
   }, [isDrawer]);
+
+  // clipboardVersion forces canPaste recompute when clipboard changes
+  void clipboardVersion;
+
+  const canPaste = isDrawer && clipboardRef.current != null;
+  const canCopy = isDrawer && selectedId != null;
+  const canDelete = canCopy;
+  const canDuplicate = canCopy;
+  const canBringFwd =
+    isDrawer && selectedId != null && canBringForward(shapes, selectedId);
+  const canSendBack =
+    isDrawer && selectedId != null && canSendBackward(shapes, selectedId);
 
   return {
     shapes,
@@ -529,11 +723,24 @@ export function useWhiteboard(options: UseWhiteboardOptions = {}): WhiteboardCon
     selectShape,
     canUndo,
     canRedo,
+    canPaste,
+    canCopy,
+    canDelete,
+    canDuplicate,
+    canBringForward: canBringFwd,
+    canSendBackward: canSendBack,
     isDrawer,
     isFilling,
     undo,
     redo,
     clear,
+    deleteSelected,
+    copySelected,
+    pasteClipboard,
+    duplicateSelected,
+    bringForward,
+    sendBackward,
+    nudgeSelected,
     loadShapes,
     applyRemoteShape,
     applyRemoteDelete,
@@ -551,5 +758,7 @@ export function useWhiteboard(options: UseWhiteboardOptions = {}): WhiteboardCon
     cancelBezierDraft,
     setIsFilling,
     playerId,
+    statusMessage,
+    clearStatus,
   };
 }

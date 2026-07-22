@@ -1,0 +1,101 @@
+"use client";
+
+import * as React from "react";
+import { cn } from "@/lib/cn";
+
+const STORAGE_KEY = "svigl.whiteboard.onboarding.dismissed";
+
+export function useDrawerOnboarding(enabled: boolean) {
+  const [visible, setVisible] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!enabled) {
+      setVisible(false);
+      return;
+    }
+    try {
+      if (localStorage.getItem(STORAGE_KEY) === "1") {
+        setVisible(false);
+        return;
+      }
+    } catch {
+      /* private mode */
+    }
+    setVisible(true);
+  }, [enabled]);
+
+  const dismiss = React.useCallback((neverAgain: boolean) => {
+    setVisible(false);
+    if (neverAgain) {
+      try {
+        localStorage.setItem(STORAGE_KEY, "1");
+      } catch {
+        /* ignore */
+      }
+    }
+  }, []);
+
+  return { visible, dismiss };
+}
+
+export function DrawerOnboarding({
+  onDismiss,
+  className,
+}: {
+  onDismiss: (neverAgain: boolean) => void;
+  className?: string;
+}) {
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="wb-onboarding-title"
+      className={cn(
+        "absolute inset-0 z-40 flex items-end justify-center bg-ink/40 p-4 backdrop-blur-[2px] sm:items-center",
+        className,
+      )}
+    >
+      <div className="w-full max-w-md rounded-3xl border border-plum/20 bg-white p-5 shadow-lg sm:p-6">
+        <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-plum">
+          You&apos;re the drawer
+        </p>
+        <h2
+          id="wb-onboarding-title"
+          className="mt-1 font-script text-3xl text-plum sm:text-4xl"
+        >
+          You are drawing.
+        </h2>
+        <ol className="mt-4 space-y-2 text-sm leading-relaxed text-ink">
+          <li>
+            <span className="font-semibold">1.</span> Pick a tool, then drag to
+            draw. On phone, swipe the bottom toolbar.
+          </li>
+          <li>
+            <span className="font-semibold">2.</span> Double-tap a shape to select
+            and drag it. Long-press for copy / delete.
+          </li>
+          <li>
+            <span className="font-semibold">3.</span> Undo with Ctrl+Z (or the
+            undo button). Delete / Backspace removes the selection.
+          </li>
+        </ol>
+        <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:justify-end">
+          <button
+            type="button"
+            onClick={() => onDismiss(true)}
+            className="min-h-11 rounded-xl px-4 text-sm font-semibold text-ink-muted hover:bg-plum-light/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-plum/40"
+          >
+            Don&apos;t show again
+          </button>
+          <button
+            type="button"
+            onClick={() => onDismiss(false)}
+            className="min-h-11 rounded-xl bg-plum px-5 text-sm font-semibold text-white shadow-sm hover:bg-plum/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-plum/40"
+          >
+            Got it — let&apos;s draw
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

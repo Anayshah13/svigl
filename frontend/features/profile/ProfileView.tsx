@@ -6,6 +6,7 @@ import { motion } from "framer-motion";
 import { FadeIn, FadeInItem, FadeInStagger } from "@/components/motion/FadeIn";
 import { Card } from "@/components/ui/Card";
 import { UserAvatar } from "@/components/ui/UserAvatar";
+import { LoaderScreen } from "@/features/loaders";
 import { ProfileEditor } from "@/features/profile/ProfileEditor";
 import { formatDisplayName, profileHandle } from "@/lib/names";
 import { fetchAuthSession } from "@/services/auth";
@@ -72,11 +73,7 @@ export function ProfileView() {
   }, [profileVersion, setAuth]);
 
   if (!authReady) {
-    return (
-      <div className="flex flex-1 items-center justify-center p-6">
-        <p className="text-gray-400">Loading profile…</p>
-      </div>
-    );
+    return <LoaderScreen kind="dots" label="Loading profile…" />;
   }
 
   if (!authUser && !displayName.trim()) {

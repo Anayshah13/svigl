@@ -18,7 +18,15 @@ export default function WhiteboardDemoPage() {
             Arrow · Fill. Drawer-only interaction demo.
           </p>
         </header>
-        <Whiteboard isDrawer playerId="demo" className="rounded-3xl" />
+        <Whiteboard
+          isDrawer
+          playerId="demo"
+          fill
+          className="h-[min(72vh,720px)] rounded-3xl"
+          headerInfo={
+            <p className="text-sm font-semibold text-ink">Demo canvas</p>
+          }
+        />
       </div>
     </main>
   );

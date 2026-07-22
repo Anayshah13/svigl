@@ -87,12 +87,13 @@ describe("geometry", () => {
     expect(skewTransform(20, 10, 50)).toContain("skewX(20)");
   });
 
-  it("produces arrowhead triangle points", () => {
+  it("produces open chevron arrowhead points", () => {
     const pts = arrowHeadPoints({ x: 0, y: 0 }, { x: 100, y: 0 }, 10);
     const nums = pts.split(/[\s,]+/).map(Number);
     expect(nums).toHaveLength(6);
-    expect(nums[0]).toBe(100);
-    expect(nums[1]).toBe(0);
+    // Tip of the chevron is the middle point (at the arrow end).
+    expect(nums[2]).toBe(100);
+    expect(nums[3]).toBe(0);
   });
 
   it("measures distance to segment", () => {

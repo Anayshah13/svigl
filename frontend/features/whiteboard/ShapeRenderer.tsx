@@ -4,8 +4,11 @@ import * as React from "react";
 import type { WhiteboardShape } from "./types";
 import {
   arrowHeadPoints,
+  arrowHeadSize,
   arrowShaftEnd,
   bezierPathD,
+  ROTATE_HANDLE_OFFSET,
+  selectionBounds,
 } from "./geometry";
 
 function ShapeNode({ shape }: { shape: WhiteboardShape }) {
@@ -49,12 +52,9 @@ function ShapeNode({ shape }: { shape: WhiteboardShape }) {
     }
     case "arrow": {
       const g = shape.geometry;
-      const shaft = arrowShaftEnd(g.start, g.end, Math.max(10, shape.strokeWidth * 2.5));
-      const head = arrowHeadPoints(
-        g.start,
-        g.end,
-        Math.max(10, shape.strokeWidth * 2.5),
-      );
+      const headSize = arrowHeadSize(shape.strokeWidth);
+      const shaft = arrowShaftEnd(g.start, g.end, headSize);
+      const head = arrowHeadPoints(g.start, g.end, headSize);
       return (
         <g transform={shape.transform || undefined}>
           <line
@@ -66,7 +66,14 @@ function ShapeNode({ shape }: { shape: WhiteboardShape }) {
             strokeWidth={shape.strokeWidth}
             strokeLinecap="round"
           />
-          <polygon points={head} fill={shape.stroke} stroke="none" />
+          <polyline
+            points={head}
+            fill="none"
+            stroke={shape.stroke}
+            strokeWidth={shape.strokeWidth}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
         </g>
       );
     }
@@ -149,35 +156,93 @@ export function BezierDraftOverlay({
         strokeDasharray="4 3"
         opacity={0.7}
       />
-      <circle cx={start.x} cy={start.y} r={4} fill="#FAFAF8" stroke="#703F93" strokeWidth={1.5} />
-      <circle cx={end.x} cy={end.y} r={4} fill="#FAFAF8" stroke="#703F93" strokeWidth={1.5} />
-      <circle cx={cp1.x} cy={cp1.y} r={5} fill="#BBE331" stroke="#2C2C2C" strokeWidth={1} />
-      <circle cx={cp2.x} cy={cp2.y} r={5} fill="#BBE331" stroke="#2C2C2C" strokeWidth={1} />
+      <EndpointHandle x={start.x} y={start.y} />
+      <EndpointHandle x={end.x} y={end.y} />
+      <BezierHandle x={cp1.x} y={cp1.y} />
+      <BezierHandle x={cp2.x} y={cp2.y} />
     </g>
   );
 }
 
-function Handle({
-  x,
-  y,
-  r = 6,
-  fill = "#BBE331",
-}: {
-  x: number;
-  y: number;
-  r?: number;
-  fill?: string;
-}) {
+/** Square resize handles — distinct from bezier control diamonds. */
+function ResizeHandle({ x, y }: { x: number; y: number }) {
+  const s = 9;
+  return (
+    <rect
+      x={x - s / 2}
+      y={y - s / 2}
+      width={s}
+      height={s}
+      rx={1.5}
+      fill="#FAFAF8"
+      stroke="#703F93"
+      strokeWidth={1.5}
+      style={{ pointerEvents: "none" }}
+      className="wb-handle-pop"
+    />
+  );
+}
+
+/** Circular endpoint handles. */
+function EndpointHandle({ x, y }: { x: number; y: number }) {
   return (
     <circle
       cx={x}
       cy={y}
-      r={r}
-      fill={fill}
+      r={5}
+      fill="#FAFAF8"
+      stroke="#703F93"
+      strokeWidth={1.5}
+      style={{ pointerEvents: "none" }}
+      className="wb-handle-pop"
+    />
+  );
+}
+
+/** Diamond bezier control handles — lime, distinct from resize squares. */
+function BezierHandle({ x, y }: { x: number; y: number }) {
+  return (
+    <rect
+      x={x - 5}
+      y={y - 5}
+      width={10}
+      height={10}
+      rx={1}
+      fill="#BBE331"
       stroke="#2C2C2C"
       strokeWidth={1.25}
+      transform={`rotate(45 ${x} ${y})`}
       style={{ pointerEvents: "none" }}
+      className="wb-handle-pop"
     />
+  );
+}
+
+/** Rotate handle — circle above the bounding box. */
+function RotateHandle({ x, y }: { x: number; y: number }) {
+  return (
+    <>
+      <line
+        x1={x}
+        y1={y + 10}
+        x2={x}
+        y2={y + 0}
+        stroke="#703F93"
+        strokeWidth={1.2}
+        opacity={0.6}
+        style={{ pointerEvents: "none" }}
+      />
+      <circle
+        cx={x}
+        cy={y}
+        r={6}
+        fill="#FAFAF8"
+        stroke="#703F93"
+        strokeWidth={1.5}
+        style={{ pointerEvents: "none" }}
+        className="wb-handle-pop"
+      />
+    </>
   );
 }
 
@@ -185,120 +250,72 @@ function Handle({
 export function SelectionOverlay({ shape }: { shape: WhiteboardShape }) {
   const g = shape.geometry;
   const transform = shape.transform || undefined;
+  const sel = selectionBounds(shape);
+  const bx = sel.x;
+  const by = sel.y;
+  const bw = sel.width;
+  const bh = sel.height;
 
-  if (g.kind === "bezier") {
-    return (
-      <g>
-        <path
-          d={bezierPathD(g.start, g.cp1, g.cp2, g.end)}
-          stroke="#703F93"
-          strokeWidth={shape.strokeWidth + 4}
-          fill="none"
-          opacity={0.25}
-          strokeLinecap="round"
-        />
-        <line
-          x1={g.start.x}
-          y1={g.start.y}
-          x2={g.cp1.x}
-          y2={g.cp1.y}
-          stroke="#703F93"
-          strokeWidth={1}
-          strokeDasharray="4 3"
-          opacity={0.7}
-        />
-        <line
-          x1={g.end.x}
-          y1={g.end.y}
-          x2={g.cp2.x}
-          y2={g.cp2.y}
-          stroke="#703F93"
-          strokeWidth={1}
-          strokeDasharray="4 3"
-          opacity={0.7}
-        />
-        <Handle x={g.start.x} y={g.start.y} r={5} fill="#FAFAF8" />
-        <Handle x={g.end.x} y={g.end.y} r={5} fill="#FAFAF8" />
-        <Handle x={g.cp1.x} y={g.cp1.y} />
-        <Handle x={g.cp2.x} y={g.cp2.y} />
-      </g>
-    );
-  }
+  const rotateHandleY = by - ROTATE_HANDLE_OFFSET;
+  const midX = bx + bw / 2;
 
-  if (g.kind === "rectangle") {
-    return (
-      <g transform={transform}>
-        <rect
-          x={g.x - 3}
-          y={g.y - 3}
-          width={g.width + 6}
-          height={g.height + 6}
-          fill="none"
-          stroke="#703F93"
-          strokeWidth={1.5}
-          strokeDasharray="5 4"
-          opacity={0.85}
-        />
-        <Handle x={g.x} y={g.y} />
-        <Handle x={g.x + g.width} y={g.y} />
-        <Handle x={g.x} y={g.y + g.height} />
-        <Handle x={g.x + g.width} y={g.y + g.height} />
-      </g>
-    );
-  }
-
-  if (g.kind === "ellipse") {
-    return (
-      <g transform={transform}>
-        <ellipse
-          cx={g.cx}
-          cy={g.cy}
-          rx={g.rx + 3}
-          ry={g.ry + 3}
-          fill="none"
-          stroke="#703F93"
-          strokeWidth={1.5}
-          strokeDasharray="5 4"
-          opacity={0.85}
-        />
-        <Handle x={g.cx - g.rx} y={g.cy - g.ry} />
-        <Handle x={g.cx + g.rx} y={g.cy - g.ry} />
-        <Handle x={g.cx - g.rx} y={g.cy + g.ry} />
-        <Handle x={g.cx + g.rx} y={g.cy + g.ry} />
-      </g>
-    );
-  }
-
-  if (g.kind === "arrow") {
-    return (
-      <g transform={transform}>
-        <line
-          x1={g.start.x}
-          y1={g.start.y}
-          x2={g.end.x}
-          y2={g.end.y}
-          stroke="#703F93"
-          strokeWidth={shape.strokeWidth + 4}
-          opacity={0.25}
-          strokeLinecap="round"
-        />
-        <Handle x={g.start.x} y={g.start.y} r={5} fill="#FAFAF8" />
-        <Handle x={g.end.x} y={g.end.y} r={5} fill="#FAFAF8" />
-      </g>
-    );
-  }
-
-  // fill — outline approx bounding box from path is expensive; show a subtle highlight ring via filter-like stroke
   return (
-    <g transform={transform}>
-      <path
-        d={g.d}
+    <g transform={transform} className="wb-select-in">
+      {/* Dashed bounding box */}
+      <rect
+        x={bx}
+        y={by}
+        width={bw}
+        height={bh}
         fill="none"
         stroke="#703F93"
-        strokeWidth={3}
-        opacity={0.45}
-        strokeDasharray="6 4"
+        strokeWidth={1.5}
+        strokeDasharray="5 4"
+        opacity={0.75}
       />
+      {/* Rotate handle */}
+      <RotateHandle x={midX} y={rotateHandleY} />
+      {/* Corner resize handles */}
+      <ResizeHandle x={bx} y={by} />
+      <ResizeHandle x={bx + bw} y={by} />
+      <ResizeHandle x={bx} y={by + bh} />
+      <ResizeHandle x={bx + bw} y={by + bh} />
+
+      {/* Shape-specific inner guides */}
+      {g.kind === "bezier" && (
+        <>
+          <line
+            x1={g.start.x}
+            y1={g.start.y}
+            x2={g.cp1.x}
+            y2={g.cp1.y}
+            stroke="#703F93"
+            strokeWidth={1}
+            strokeDasharray="4 3"
+            opacity={0.5}
+          />
+          <line
+            x1={g.end.x}
+            y1={g.end.y}
+            x2={g.cp2.x}
+            y2={g.cp2.y}
+            stroke="#703F93"
+            strokeWidth={1}
+            strokeDasharray="4 3"
+            opacity={0.5}
+          />
+          <BezierHandle x={g.cp1.x} y={g.cp1.y} />
+          <BezierHandle x={g.cp2.x} y={g.cp2.y} />
+          <EndpointHandle x={g.start.x} y={g.start.y} />
+          <EndpointHandle x={g.end.x} y={g.end.y} />
+        </>
+      )}
+      {g.kind === "arrow" && (
+        <>
+          <EndpointHandle x={g.start.x} y={g.start.y} />
+          <EndpointHandle x={g.end.x} y={g.end.y} />
+        </>
+      )}
     </g>
   );
 }

@@ -10,7 +10,15 @@ export { Whiteboard } from "./Whiteboard";
 export type { WhiteboardProps } from "./Whiteboard";
 
 export { WhiteboardCanvas } from "./WhiteboardCanvas";
+export { SquareBoard } from "./SquareBoard";
 export { WhiteboardToolbar } from "./WhiteboardToolbar";
+export { ToolDock } from "./ToolDock";
+export { StyleDock } from "./StyleDock";
+export { ActionBar } from "./ActionBar";
+export { PropertiesPanel } from "./PropertiesPanel";
+export { ContextMenu } from "./ContextMenu";
+export { DrawerOnboarding, useDrawerOnboarding } from "./DrawerOnboarding";
+export { CurveIcon, ToolIcon } from "./icons";
 export { ShapeList, ShapeNode, BezierDraftOverlay, SelectionOverlay } from "./ShapeRenderer";
 
 export { useWhiteboard } from "./useWhiteboard";
@@ -62,9 +70,21 @@ export {
   offsetTransform,
 } from "./geometry";
 
+export {
+  cloneShapeForClipboard,
+  pasteShapeFromClipboard,
+  bringShapeForward,
+  sendShapeBackward,
+  canBringForward,
+  canSendBackward,
+} from "./clipboard";
+
+export { TOOL_META, TOOL_BY_ID, TOOL_SHORTCUT_MAP } from "./toolMeta";
+
 export type {
   WhiteboardShape,
   WhiteboardTool,
+  DrawingTool,
   WhiteboardSyncCallbacks,
   WhiteboardExport,
   ShapeGeometry,
@@ -82,4 +102,7 @@ export {
   WHITEBOARD_VIEWBOX,
   PRESET_COLORS,
   STROKE_WIDTHS,
+  PASTE_OFFSET,
+  NUDGE_SMALL,
+  NUDGE_LARGE,
 } from "./types";

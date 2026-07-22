@@ -6,6 +6,7 @@ import { FadeIn, FadeInItem, FadeInStagger } from "@/components/motion/FadeIn";
 import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { SvgRenderer } from "@/features/drawing/SvgRenderer";
+import { DotPulseGrid } from "@/features/loaders";
 import { fetchGalleryEntries } from "@/services/gallery";
 import { colors } from "@/lib/colors";
 import { useSessionStore } from "@/stores/session";
@@ -189,10 +190,13 @@ export function GalleryView() {
       </FadeIn>
 
       {loading && (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {Array.from({ length: 8 }, (_, i) => (
-            <GallerySkeletonCard key={i} />
-          ))}
+        <div className="flex flex-col items-center gap-6">
+          <DotPulseGrid size="sm" />
+          <div className="grid w-full grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {Array.from({ length: 8 }, (_, i) => (
+              <GallerySkeletonCard key={i} />
+            ))}
+          </div>
         </div>
       )}
 

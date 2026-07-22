@@ -1,6 +1,8 @@
 "use client";
 
+import * as React from "react";
 import type { ReactNode } from "react";
+import { DotPulseGrid } from "@/features/loaders";
 import { usePhaseCountdown } from "@/hooks/usePhaseCountdown";
 import { useGameChat } from "@/hooks/useGameChat";
 import { cn } from "@/lib/cn";
@@ -21,12 +23,15 @@ function GameTopBar({
   hasGuessed,
   remaining,
   drawerName,
+  compact = false,
 }: {
   room: Room;
   isDrawer: boolean;
   hasGuessed: boolean;
   remaining: number | null;
   drawerName: string;
+  /** Slimmer row when embedded in whiteboard action bar. */
+  compact?: boolean;
 }) {
   const { game } = room;
   const showWord =
@@ -36,9 +41,18 @@ function GameTopBar({
       Boolean(game.wordHint || game.wordLength));
 
   return (
-    <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1.5 rounded-2xl border border-plum/15 bg-white/95 px-2.5 py-2 shadow-sm sm:gap-x-4 sm:px-4 sm:py-2.5">
+    <div
+      className={cn(
+        "flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1",
+        !compact &&
+          "rounded-2xl border border-plum/15 bg-white/95 px-2.5 py-2 shadow-sm sm:gap-x-4 sm:px-4 sm:py-2.5",
+      )}
+    >
       <p
-        className="font-mono text-2xl font-bold tabular-nums text-green sm:text-4xl"
+        className={cn(
+          "font-mono font-bold tabular-nums text-green",
+          compact ? "text-2xl sm:text-3xl" : "text-2xl sm:text-4xl",
+        )}
         aria-live="polite"
       >
         {remaining ?? "—"}
@@ -61,7 +75,7 @@ function GameTopBar({
         </p>
       </div>
 
-      <div className="ml-auto min-w-0 flex-1 basis-full sm:basis-auto">
+      <div className="min-w-0 flex-1 basis-full sm:basis-auto sm:ml-auto">
         {showWord ? (
           <WordDisplay
             game={game}
@@ -107,6 +121,31 @@ function OverlayScrim({ children }: { children: ReactNode }) {
   );
 }
 
+function MobileChatSheet({
+  open,
+  onClose,
+  children,
+}: {
+  open: boolean;
+  onClose: () => void;
+  children: ReactNode;
+}) {
+  if (!open) return null;
+  return (
+    <div className="absolute inset-0 z-40 flex flex-col justify-end lg:hidden">
+      <button
+        type="button"
+        aria-label="Close chat"
+        className="absolute inset-0 bg-ink/35"
+        onClick={onClose}
+      />
+      <div className="relative z-10 max-h-[55%] min-h-[14rem] overflow-hidden rounded-t-3xl border border-plum/15 bg-white shadow-lg">
+        {children}
+      </div>
+    </div>
+  );
+}
+
 export function GameScreen({
   room,
   currentPlayer,
@@ -136,8 +175,8 @@ export function GameScreen({
     game.serverTime,
     game.remainingSeconds,
   );
+  const [mobileChatOpen, setMobileChatOpen] = React.useState(false);
 
-  // Correct guessers may keep chatting (private channel enforced by server).
   const canChat =
     game.phase === "ROUND_ACTIVE" &&
     Boolean(selfId) &&
@@ -180,13 +219,160 @@ export function GameScreen({
     return null;
   }
 
+  const chatPanel = (
+    <ChatPanel
+      messages={messages}
+      canGuess={canChat}
+      disabledReason={chatDisabledReason}
+      onSend={onSendChat}
+      className="h-full min-h-0"
+      placeholder={
+        hasGuessed
+          ? "Chat with other guessers…"
+          : "Type your guess here..."
+      }
+    />
+  );
+
+  const overlays = (
+    <>
+      {game.phase === "COUNTDOWN" ? (
+        <OverlayScrim>
+          <div className="rounded-3xl border border-plum/15 bg-white px-8 py-10 text-center shadow-lg">
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-plum">
+              {remaining === 0 ? "Starting" : "Get ready"}
+            </p>
+            {remaining === 0 ? (
+              <div className="mt-5 flex justify-center">
+                <DotPulseGrid size="md" />
+              </div>
+            ) : (
+              <p
+                className="mt-3 text-7xl font-bold tabular-nums text-ink"
+                aria-live="polite"
+              >
+                {remaining ?? "—"}
+              </p>
+            )}
+            <p className="mt-3 text-sm text-ink-muted">
+              {remaining === 0
+                ? `${drawerName} is about to pick a word`
+                : `Round ${Math.max(1, game.roundNumber)} starts soon${
+                    game.drawer ? ` · ${drawerName} draws first` : ""
+                  }`}
+            </p>
+          </div>
+        </OverlayScrim>
+      ) : null}
+
+      {game.phase === "WORD_SELECTION" ? (
+        <OverlayScrim>
+          <WordSelectPanel
+            game={game}
+            isDrawer={isDrawer}
+            onSelect={onSelectWord}
+          />
+        </OverlayScrim>
+      ) : null}
+
+      {game.phase === "ROUND_END" ? (
+        <OverlayScrim>
+          <RoundEndPanel room={room} />
+        </OverlayScrim>
+      ) : null}
+
+      {isWaiting ? (
+        <p
+          role="status"
+          className="absolute bottom-3 left-1/2 z-30 max-w-sm -translate-x-1/2 rounded-2xl bg-pink-light px-4 py-2.5 text-center text-sm font-semibold text-plum shadow-sm"
+        >
+          Watching this game — you&apos;ll join the next one.
+        </p>
+      ) : null}
+    </>
+  );
+
+  // ── Drawer shell: canvas hero + tool docks; no disabled-control guesser UI ──
+  if (canDraw) {
+    return (
+      <div
+        className={cn(
+          "grid min-h-0 w-full flex-1 gap-2 overflow-hidden sm:gap-3",
+          "grid-rows-1",
+          "lg:grid-cols-[12.5rem_minmax(0,1fr)]",
+          "xl:grid-cols-[13.5rem_minmax(0,1fr)]",
+        )}
+      >
+        <Scoreboard
+          room={room}
+          currentPlayerId={selfId}
+          className="hidden min-h-0 lg:flex lg:order-1"
+          voteTallies={voteTallies}
+          onVoteKick={onVoteKick}
+        />
+
+        <section className="relative order-1 flex min-h-0 min-w-0 flex-col lg:order-2">
+          {game.phase === "GAME_FINISHED" ? (
+            <CanvasStage className="flex items-center justify-center bg-white/95 p-4">
+              <GameFinishedPanel room={room} />
+            </CanvasStage>
+          ) : (
+            <GameWhiteboard
+              playerId={selfId ?? "spectator"}
+              isDrawer
+              sessionId={game.sessionId}
+              roundNumber={game.roundNumber}
+              className="min-h-0 flex-1"
+              fill
+              headerInfo={
+                <div className="flex min-w-0 flex-wrap items-center gap-2">
+                  <GameTopBar
+                    room={room}
+                    isDrawer
+                    hasGuessed={hasGuessed}
+                    remaining={remaining}
+                    drawerName={drawerName}
+                    compact
+                  />
+                  <button
+                    type="button"
+                    className="min-h-11 rounded-xl border border-plum/15 bg-white px-3 text-xs font-semibold text-plum lg:hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-plum/40"
+                    onClick={() => setMobileChatOpen(true)}
+                  >
+                    Activity
+                  </button>
+                </div>
+              }
+              aside={chatPanel}
+            />
+          )}
+          {overlays}
+          <MobileChatSheet
+            open={mobileChatOpen}
+            onClose={() => setMobileChatOpen(false)}
+          >
+            <div className="flex h-full min-h-[14rem] flex-col gap-2 p-2">
+              <Scoreboard
+                room={room}
+                currentPlayerId={selfId}
+                className="max-h-28 shrink-0"
+                voteTallies={voteTallies}
+                onVoteKick={onVoteKick}
+              />
+              <div className="min-h-0 flex-1">{chatPanel}</div>
+            </div>
+          </MobileChatSheet>
+        </section>
+      </div>
+    );
+  }
+
+  // ── Guesser / spectator shell: clean board, no drawing chrome ──
   return (
     <div
       className={cn(
         "grid min-h-0 w-full flex-1 gap-2 overflow-hidden sm:gap-3",
-        // Mobile: canvas on top (1fr), scores|chat strip below (fixed)
         "grid-rows-[minmax(0,1fr)_11.5rem]",
-        // Desktop Skribbl: scores | canvas | chat — single viewport, no page scroll
         "lg:grid-rows-1",
         "lg:grid-cols-[13.5rem_minmax(0,1fr)_17.5rem]",
         "xl:grid-cols-[14.5rem_minmax(0,1fr)_19rem]",
@@ -209,65 +395,17 @@ export function GameScreen({
           ) : (
             <GameWhiteboard
               playerId={selfId ?? "spectator"}
-              isDrawer={canDraw}
+              isDrawer={false}
               sessionId={game.sessionId}
               roundNumber={game.roundNumber}
               className="min-h-0 flex-1"
               fill
             />
           )}
-
-          {game.phase === "COUNTDOWN" ? (
-            <OverlayScrim>
-              <div className="rounded-3xl border border-plum/15 bg-white px-8 py-10 text-center shadow-lg">
-                <p className="text-xs font-bold uppercase tracking-[0.2em] text-plum">
-                  {remaining === 0 ? "Starting" : "Get ready"}
-                </p>
-                <p
-                  className="mt-3 text-7xl font-bold tabular-nums text-ink"
-                  aria-live="polite"
-                >
-                  {remaining === 0 ? "…" : (remaining ?? "—")}
-                </p>
-                <p className="mt-3 text-sm text-ink-muted">
-                  {remaining === 0
-                    ? `${drawerName} is about to pick a word`
-                    : `Round ${Math.max(1, game.roundNumber)} starts soon${
-                        game.drawer ? ` · ${drawerName} draws first` : ""
-                      }`}
-                </p>
-              </div>
-            </OverlayScrim>
-          ) : null}
-
-          {game.phase === "WORD_SELECTION" ? (
-            <OverlayScrim>
-              <WordSelectPanel
-                game={game}
-                isDrawer={isDrawer}
-                onSelect={onSelectWord}
-              />
-            </OverlayScrim>
-          ) : null}
-
-          {game.phase === "ROUND_END" ? (
-            <OverlayScrim>
-              <RoundEndPanel room={room} />
-            </OverlayScrim>
-          ) : null}
-
-          {isWaiting ? (
-            <p
-              role="status"
-              className="absolute bottom-3 left-1/2 z-30 max-w-sm -translate-x-1/2 rounded-2xl bg-pink-light px-4 py-2.5 text-center text-sm font-semibold text-plum shadow-sm"
-            >
-              Watching this game — you&apos;ll join the next one.
-            </p>
-          ) : null}
+          {overlays}
         </div>
       </section>
 
-      {/* Mobile: scores | chat side-by-side fixed strip; lg:contents promotes children into parent grid */}
       <div className="order-2 grid min-h-0 grid-cols-[minmax(0,7.25rem)_minmax(0,1fr)] gap-2 overflow-hidden pb-[max(0.35rem,env(safe-area-inset-bottom,0px))] sm:grid-cols-[minmax(0,9rem)_minmax(0,1fr)] lg:contents lg:pb-0">
         <Scoreboard
           room={room}
@@ -276,18 +414,7 @@ export function GameScreen({
           voteTallies={voteTallies}
           onVoteKick={onVoteKick}
         />
-        <ChatPanel
-          messages={messages}
-          canGuess={canChat}
-          disabledReason={chatDisabledReason}
-          onSend={onSendChat}
-          className="min-h-0 lg:order-3"
-          placeholder={
-            hasGuessed
-              ? "Chat with other guessers…"
-              : "Type your guess here..."
-          }
-        />
+        <div className="min-h-0 lg:order-3">{chatPanel}</div>
       </div>
     </div>
   );

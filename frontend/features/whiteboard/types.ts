@@ -1,6 +1,7 @@
 /** Structured SVG whiteboard model for Skribbl-style multiplayer. */
 
-export const WHITEBOARD_VIEWBOX = { width: 800, height: 600 } as const;
+/** Square logical board — same aspect on phone, tablet, and laptop. */
+export const WHITEBOARD_VIEWBOX = { width: 800, height: 800 } as const;
 
 export const PRESET_COLORS = [
   "#2C2C2C",
@@ -16,12 +17,16 @@ export const PRESET_COLORS = [
 export const STROKE_WIDTHS = [2, 5, 10] as const;
 export type StrokeWidth = (typeof STROKE_WIDTHS)[number];
 
+/** Drawing / editing tools. `"select"` is interaction-only (never stored on shapes). */
 export type WhiteboardTool =
+  | "select"
   | "bezier"
   | "rectangle"
   | "ellipse"
   | "arrow"
   | "fill";
+
+export type DrawingTool = Exclude<WhiteboardTool, "select">;
 
 export interface Point {
   x: number;
@@ -73,7 +78,7 @@ export type ShapeGeometry =
 
 export interface WhiteboardShape {
   id: string;
-  tool: Exclude<WhiteboardTool, "fill"> | "fill";
+  tool: DrawingTool;
   stroke: string;
   fill: string | "none";
   strokeWidth: number;
@@ -83,6 +88,10 @@ export interface WhiteboardShape {
   createdBy: string;
   createdAt: number;
 }
+
+export const PASTE_OFFSET = { x: 16, y: 16 } as const;
+export const NUDGE_SMALL = 1;
+export const NUDGE_LARGE = 10;
 
 export type HistoryOp =
   | { type: "add"; shape: WhiteboardShape }

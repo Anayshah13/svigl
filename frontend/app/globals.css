@@ -181,3 +181,37 @@ html.has-active-room-bar main {
     width: 100%;
   }
 }
+
+/* Whiteboard selection / handle feedback */
+@keyframes wb-handle-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes wb-select-pulse {
+  from {
+    opacity: 0.4;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.wb-handle-pop {
+  animation: wb-handle-in 160ms ease-out;
+}
+
+.wb-select-in {
+  animation: wb-select-pulse 220ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wb-handle-pop,
+  .wb-select-in {
+    animation: none !important;
+  }
+}

@@ -1,0 +1,116 @@
+/* Production loaders — always animate (unlike /loaders hover gallery) */
+
+/* ── Bar Cascade ── */
+@keyframes svigl-bar-cascade {
+  0%,
+  100% {
+    transform: scaleY(0.45);
+    opacity: 0.55;
+  }
+  50% {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+}
+
+.svigl-anim-bar {
+  transform-origin: center bottom;
+  animation: svigl-bar-cascade 0.9s ease-in-out infinite;
+}
+
+.svigl-anim-bar-d0 {
+  animation-delay: 0ms;
+}
+.svigl-anim-bar-d1 {
+  animation-delay: 90ms;
+}
+.svigl-anim-bar-d2 {
+  animation-delay: 180ms;
+}
+.svigl-anim-bar-d3 {
+  animation-delay: 270ms;
+}
+.svigl-anim-bar-d4 {
+  animation-delay: 360ms;
+}
+
+/* ── Dot Pulse Grid ── */
+@keyframes svigl-dot-bounce {
+  0%,
+  60%,
+  100% {
+    transform: translateY(0) scale(1);
+    opacity: 0.55;
+  }
+  30% {
+    transform: translateY(-10px) scale(1.15);
+    opacity: 1;
+  }
+}
+
+.svigl-anim-dot {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: svigl-dot-bounce 1.05s ease-in-out infinite;
+}
+
+.svigl-anim-dot-d0 {
+  animation-delay: 0ms;
+}
+.svigl-anim-dot-d1 {
+  animation-delay: 80ms;
+}
+.svigl-anim-dot-d2 {
+  animation-delay: 160ms;
+}
+.svigl-anim-dot-d3 {
+  animation-delay: 80ms;
+}
+.svigl-anim-dot-d4 {
+  animation-delay: 160ms;
+}
+.svigl-anim-dot-d5 {
+  animation-delay: 240ms;
+}
+.svigl-anim-dot-d6 {
+  animation-delay: 160ms;
+}
+.svigl-anim-dot-d7 {
+  animation-delay: 240ms;
+}
+.svigl-anim-dot-d8 {
+  animation-delay: 320ms;
+}
+
+/* ── Letter Bounce ── */
+@keyframes svigl-letter-bounce {
+  0%,
+  60%,
+  100% {
+    transform: translateY(0);
+  }
+  30% {
+    transform: translateY(-12px);
+  }
+}
+
+.svigl-anim-letter {
+  display: inline-block;
+  animation: svigl-letter-bounce 0.95s ease-in-out infinite;
+}
+
+.svigl-anim-letter-d0 {
+  animation-delay: 0ms;
+}
+.svigl-anim-letter-d1 {
+  animation-delay: 80ms;
+}
+.svigl-anim-letter-d2 {
+  animation-delay: 160ms;
+}
+.svigl-anim-letter-d3 {
+  animation-delay: 240ms;
+}
+.svigl-anim-letter-d4 {
+  animation-delay: 320ms;
+}
