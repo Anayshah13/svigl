@@ -10,89 +10,18 @@ import { formatDisplayName } from "@/lib/names";
 import type { Room, RoomPlayer } from "@/types/room";
 import type { VoteKickTally } from "@/services/app-websocket";
 import { ChatPanel } from "./ChatPanel";
+import { getChatInputPolicy } from "./chatInputPolicy";
 import { GameFinishedPanel } from "./GameFinishedPanel";
+import { GameTopBar } from "./GameTopBar";
 import { GameWhiteboard } from "./GameWhiteboard";
+import {
+  GuesserOnboarding,
+  useGuesserOnboarding,
+} from "./GuesserOnboarding";
+import { MobileChatSheet } from "./MobileChatSheet";
 import { RoundEndPanel } from "./RoundEndPanel";
 import { Scoreboard } from "./Scoreboard";
-import { WordDisplay } from "./WordDisplay";
 import { WordSelectPanel } from "./WordSelectPanel";
-
-function GameTopBar({
-  room,
-  isDrawer,
-  hasGuessed,
-  remaining,
-  drawerName,
-  compact = false,
-}: {
-  room: Room;
-  isDrawer: boolean;
-  hasGuessed: boolean;
-  remaining: number | null;
-  drawerName: string;
-  /** Slimmer row when embedded in whiteboard action bar. */
-  compact?: boolean;
-}) {
-  const { game } = room;
-  const showWord =
-    game.phase === "ROUND_ACTIVE" ||
-    (game.phase === "WORD_SELECTION" &&
-      !isDrawer &&
-      Boolean(game.wordHint || game.wordLength));
-
-  return (
-    <div
-      className={cn(
-        "flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1",
-        !compact &&
-          "rounded-2xl border border-plum/15 bg-white/95 px-2.5 py-2 shadow-sm sm:gap-x-4 sm:px-4 sm:py-2.5",
-      )}
-    >
-      <p
-        className={cn(
-          "font-mono font-bold tabular-nums text-green",
-          compact ? "text-2xl sm:text-3xl" : "text-2xl sm:text-4xl",
-        )}
-        aria-live="polite"
-      >
-        {remaining ?? "—"}
-      </p>
-
-      <div className="min-w-0">
-        <p className="text-[10px] font-bold uppercase tracking-wider text-ink-muted sm:text-[11px]">
-          Round {Math.max(1, game.roundNumber)} of {game.totalRounds}
-        </p>
-        <p className="truncate text-xs font-semibold text-ink sm:text-sm">
-          {game.phase === "WORD_SELECTION"
-            ? isDrawer
-              ? "Choose a word"
-              : `${drawerName} is choosing`
-            : game.phase === "COUNTDOWN"
-              ? "Get ready"
-              : isDrawer
-                ? "You're drawing"
-                : `${drawerName} is drawing`}
-        </p>
-      </div>
-
-      <div className="min-w-0 flex-1 basis-full sm:basis-auto sm:ml-auto">
-        {showWord ? (
-          <WordDisplay
-            game={game}
-            isDrawer={isDrawer}
-            hasGuessed={hasGuessed}
-            roundDurationSeconds={room.settings.roundDurationSeconds}
-            className="justify-center sm:justify-end"
-          />
-        ) : game.phase === "WORD_SELECTION" && isDrawer ? (
-          <p className="text-center text-sm font-medium text-ink-muted sm:text-right">
-            Pick a word to draw
-          </p>
-        ) : null}
-      </div>
-    </div>
-  );
-}
 
 function CanvasStage({
   children,
@@ -117,31 +46,6 @@ function OverlayScrim({ children }: { children: ReactNode }) {
   return (
     <div className="absolute inset-0 z-20 flex items-center justify-center bg-ink/35 p-4 backdrop-blur-[2px]">
       <div className="max-h-full w-full max-w-lg overflow-y-auto">{children}</div>
-    </div>
-  );
-}
-
-function MobileChatSheet({
-  open,
-  onClose,
-  children,
-}: {
-  open: boolean;
-  onClose: () => void;
-  children: ReactNode;
-}) {
-  if (!open) return null;
-  return (
-    <div className="absolute inset-0 z-40 flex flex-col justify-end lg:hidden">
-      <button
-        type="button"
-        aria-label="Close chat"
-        className="absolute inset-0 bg-ink/35"
-        onClick={onClose}
-      />
-      <div className="relative z-10 max-h-[55%] min-h-[14rem] overflow-hidden rounded-t-3xl border border-plum/15 bg-white shadow-lg">
-        {children}
-      </div>
     </div>
   );
 }
@@ -176,30 +80,17 @@ export function GameScreen({
     game.remainingSeconds,
   );
   const [mobileChatOpen, setMobileChatOpen] = React.useState(false);
+  const guesserOnboarding = useGuesserOnboarding(
+    game.phase === "ROUND_ACTIVE" && !isDrawer && !isWaiting,
+  );
 
-  const canChat =
-    game.phase === "ROUND_ACTIVE" &&
-    Boolean(selfId) &&
-    !isDrawer &&
-    !isWaiting;
-
-  let chatDisabledReason: string | undefined;
-  if (game.phase !== "ROUND_ACTIVE") {
-    chatDisabledReason =
-      game.phase === "WORD_SELECTION"
-        ? "Waiting for the drawer to pick a word…"
-        : game.phase === "COUNTDOWN"
-          ? "Round starting soon…"
-          : game.phase === "ROUND_END"
-            ? "Round over — next turn soon."
-            : game.phase === "GAME_FINISHED"
-              ? "Game over."
-              : "Guessing is only open during the round.";
-  } else if (isWaiting) {
-    chatDisabledReason = "Waiting players can watch but not guess.";
-  } else if (isDrawer) {
-    chatDisabledReason = "You're drawing — chat is disabled.";
-  }
+  const chatPolicy = getChatInputPolicy({
+    phase: game.phase,
+    hasSelf: Boolean(selfId),
+    isDrawer,
+    isWaiting,
+    hasGuessed,
+  });
 
   const drawerName = game.drawer
     ? formatDisplayName(game.drawer.name)
@@ -222,15 +113,12 @@ export function GameScreen({
   const chatPanel = (
     <ChatPanel
       messages={messages}
-      canGuess={canChat}
-      disabledReason={chatDisabledReason}
+      canSendChat={chatPolicy.canSendChat}
+      disabledReason={chatPolicy.disabledReason}
+      inputHint={chatPolicy.inputHint}
       onSend={onSendChat}
       className="h-full min-h-0"
-      placeholder={
-        hasGuessed
-          ? "Chat with other guessers…"
-          : "Type your guess here..."
-      }
+      placeholder={chatPolicy.placeholder}
     />
   );
 
@@ -281,12 +169,12 @@ export function GameScreen({
         </OverlayScrim>
       ) : null}
 
-      {isWaiting ? (
+      {isWaiting && chatPolicy.waitingBanner ? (
         <p
           role="status"
-          className="absolute bottom-3 left-1/2 z-30 max-w-sm -translate-x-1/2 rounded-2xl bg-pink-light px-4 py-2.5 text-center text-sm font-semibold text-plum shadow-sm"
+          className="absolute bottom-3 left-1/2 z-30 max-w-md -translate-x-1/2 rounded-2xl bg-pink-light px-4 py-2.5 text-center text-sm font-semibold text-plum shadow-sm"
         >
-          Watching this game — you&apos;ll join the next one.
+          {chatPolicy.waitingBanner}
         </p>
       ) : null}
     </>
@@ -321,7 +209,7 @@ export function GameScreen({
               playerId={selfId ?? "spectator"}
               isDrawer
               sessionId={game.sessionId}
-              roundNumber={game.roundNumber}
+              currentTurn={game.currentTurn}
               className="min-h-0 flex-1"
               fill
               headerInfo={
@@ -397,12 +285,15 @@ export function GameScreen({
               playerId={selfId ?? "spectator"}
               isDrawer={false}
               sessionId={game.sessionId}
-              roundNumber={game.roundNumber}
+              currentTurn={game.currentTurn}
               className="min-h-0 flex-1"
               fill
             />
           )}
           {overlays}
+          {guesserOnboarding.visible ? (
+            <GuesserOnboarding onDismiss={guesserOnboarding.dismiss} />
+          ) : null}
         </div>
       </section>
 

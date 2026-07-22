@@ -24,6 +24,8 @@ from app.services.canvas import (
     apply_redo,
     apply_shape_created,
     apply_shape_deleted,
+    apply_shape_preview,
+    apply_shape_preview_deleted,
     apply_shape_updated,
     apply_undo,
     get_canvas_snapshot,
@@ -477,9 +479,13 @@ async def _handle_shape_updated(client: ConnectedClient, message: WSMessage) -> 
     if shape is None:
         await _send_error(client.websocket, "shape is required", code="UNKNOWN")
         return
+    mutate = (
+        apply_shape_preview
+        if message.payload.get("ephemeral") is True
+        else apply_shape_updated
+    )
     await _mutate_canvas(
-        client,
-        lambda db, code, user_id: apply_shape_updated(db, code, user_id, shape),
+        client, lambda db, code, user_id: mutate(db, code, user_id, shape)
     )
 
 
@@ -488,9 +494,13 @@ async def _handle_shape_deleted(client: ConnectedClient, message: WSMessage) -> 
     if not shape_id or not isinstance(shape_id, str):
         await _send_error(client.websocket, "shape_id is required", code="UNKNOWN")
         return
+    mutate = (
+        apply_shape_preview_deleted
+        if message.payload.get("ephemeral") is True
+        else apply_shape_deleted
+    )
     await _mutate_canvas(
-        client,
-        lambda db, code, user_id: apply_shape_deleted(db, code, user_id, shape_id),
+        client, lambda db, code, user_id: mutate(db, code, user_id, shape_id)
     )
 
 

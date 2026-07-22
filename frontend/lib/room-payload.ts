@@ -347,6 +347,17 @@ export function mapRoomPayload(value: unknown, previous?: Room | null): Room | n
       ) ??
       previous?.game.roundNumber ??
       0,
+    currentTurn:
+      numberValue(
+        gameSource.current_turn,
+        gameSource.currentTurn,
+        source.current_turn,
+        source.currentTurn,
+        envelope.current_turn,
+        envelope.currentTurn,
+      ) ??
+      previous?.game.currentTurn ??
+      0,
     totalRounds:
       numberValue(
         gameSource.totalRounds,

@@ -75,7 +75,7 @@ class WhiteboardShape(BaseModel):
     tool: WhiteboardTool
     stroke: str = Field(min_length=1, max_length=64)
     fill: str = Field(min_length=1, max_length=64)
-    strokeWidth: float = Field(gt=0, le=64)
+    strokeWidth: float = Field(ge=0, le=64)
     transform: str = Field(max_length=256)
     geometry: ShapeGeometry
     createdBy: str = Field(min_length=1, max_length=64)
@@ -87,6 +87,12 @@ class WhiteboardShape(BaseModel):
         if value != "none" and not value.startswith("#") and len(value) > 64:
             raise ValueError("Invalid fill")
         return value
+
+    @model_validator(mode="after")
+    def stroke_width_ok(self) -> WhiteboardShape:
+        if self.tool != "fill" and self.strokeWidth <= 0:
+            raise ValueError("strokeWidth must be positive for stroked shapes")
+        return self
 
 
 class HistoryAddOp(BaseModel):

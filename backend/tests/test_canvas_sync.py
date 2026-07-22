@@ -26,12 +26,14 @@ from app.db.database import Base
 from app.models.canvas import CanvasState  # noqa: F401 — register metadata
 from app.models.room import GAME_PHASE_ROUND_ACTIVE, GAME_PHASE_WORD_SELECTION
 from app.models.user import User
+from app.schemas.canvas import parse_shape
 from app.services.canvas import (
     CanvasError,
     apply_canvas_cleared,
     apply_redo,
     apply_shape_created,
     apply_shape_deleted,
+    apply_shape_preview,
     apply_shape_updated,
     apply_undo,
     clear_canvas_for_room_code,
@@ -196,6 +198,56 @@ def test_drawer_ops_and_snapshot_for_joiner(db: Session) -> None:
 
     drawer_snap = get_canvas_snapshot(db, room.code, user_id=drawer_id)
     assert drawer_snap["can_draw"] is True
+
+
+def test_preview_broadcast_does_not_persist(db: Session) -> None:
+    host = _user(db, "Host")
+    guest = _user(db, "Guest")
+    room = create_room(db, host_id=host.id, max_players=8)
+    join_room(db, code=room.code, user_id=guest.id)
+    _ready_and_start(db, room.code, host.id, [host, guest])
+    db.refresh(room)
+
+    _, drawer_id = _enter_round_active(db, room)
+    shape = _rect_shape(shape_id="draft-1", created_by=str(drawer_id))
+    preview = apply_shape_preview(db, room.code, drawer_id, shape)
+
+    assert preview.event == "SHAPE_UPDATED"
+    assert preview.payload["ephemeral"] is True
+    assert "op_seq" not in preview.payload
+    assert get_canvas_snapshot(db, room.code)["shapes"] == []
+
+
+def test_committed_edit_is_undoable(db: Session) -> None:
+    host = _user(db, "Host")
+    guest = _user(db, "Guest")
+    room = create_room(db, host_id=host.id, max_players=8)
+    join_room(db, code=room.code, user_id=guest.id)
+    _ready_and_start(db, room.code, host.id, [host, guest])
+    db.refresh(room)
+
+    _, drawer_id = _enter_round_active(db, room)
+    original = _rect_shape(shape_id="edit-1", created_by=str(drawer_id))
+    apply_shape_created(db, room.code, drawer_id, original)
+    edited = dict(original)
+    edited["geometry"] = {**original["geometry"], "width": 80}
+    apply_shape_updated(db, room.code, drawer_id, edited)
+
+    undone = apply_undo(db, room.code, drawer_id)
+    assert undone.payload["shapes"][0]["geometry"]["width"] == 40
+
+
+def test_fill_shape_accepts_zero_stroke_width() -> None:
+    shape = _rect_shape(shape_id="fill-1", created_by=str(uuid.uuid4()))
+    shape.update(
+        {
+            "tool": "fill",
+            "fill": "#ffffff",
+            "strokeWidth": 0,
+            "geometry": {"kind": "fill", "d": "M0 0H10V10Z"},
+        }
+    )
+    assert parse_shape(shape).strokeWidth == 0
 
 
 def test_clear_on_round_start_wipes_shapes(db: Session) -> None:

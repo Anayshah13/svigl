@@ -224,6 +224,25 @@ def test_midgame_join_receives_canvas_and_waits(db: Session) -> None:
     assert len(canvas["shapes"]) == 1
     assert canvas["can_draw"] is False
 
+    # Waiting players can chat immediately; exact secret is privately acknowledged.
+    chat = submit_chat(db, room.code, late.id, text="looking good")
+    assert chat.chat_events[0].kind == "chat"
+    private = submit_chat(db, room.code, late.id, text=word)
+    assert private.chat_events[0].kind == "system"
+    assert private.chat_events[0].recipient_ids == (late.id,)
+    assert word not in private.chat_events[0].message
+
+    # Active on the next drawing boundary.
+    session_id = _force_deadline(db, room)
+    assert advance_due_session(db, session_id).phase == GAME_PHASE_ROUND_END
+    session_id = _force_deadline(db, room)
+    mutation = advance_due_session(db, session_id)
+    assert mutation is not None
+    assert mutation.phase == GAME_PHASE_WORD_SELECTION
+    db.refresh(room)
+    assert late.id not in RoomResponse.from_room(room).waiting_player_ids
+    assert late.id in {p.user_id for p in room.game_session.players if p.is_active}
+
 
 def test_host_migration_preserves_active_round(db: Session) -> None:
     host = _user(db, "Host")

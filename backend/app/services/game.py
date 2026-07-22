@@ -356,6 +356,7 @@ def start_game(db: Session, room_code: str, user_id: UUID) -> GameMutation:
     ordered_ids = [player.user_id for player in room.players]
     offset = secrets.randbelow(len(ordered_ids))
     rotated_ids = ordered_ids[offset:] + ordered_ids[:offset]
+    draw_target = settings.total_rounds
     for index, player_id in enumerate(rotated_ids):
         db.add(
             GameSessionPlayer(
@@ -366,6 +367,8 @@ def start_game(db: Session, room_code: str, user_id: UUID) -> GameMutation:
                 score=0,
                 has_guessed_correctly=False,
                 round_points=0,
+                draws_done=0,
+                draw_target=draw_target,
             )
         )
 
@@ -373,6 +376,7 @@ def start_game(db: Session, room_code: str, user_id: UUID) -> GameMutation:
     session.deadline_at = utcnow() + timedelta(seconds=COUNTDOWN_SECONDS)
     session.revision += 1
     session.current_turn = 0
+    session.current_round = 1
     session.rotation_start_offset = offset
     session.total_rounds = settings.total_rounds
     session.round_duration_seconds = settings.round_duration_seconds
@@ -397,53 +401,84 @@ def _active_players(session: GameSession) -> list[GameSessionPlayer]:
     )
 
 
-def _roster_size(session: GameSession) -> int:
-    return len(session.players)
-
-
-def planned_turns(session: GameSession) -> int:
-    """Scribble.io: each full round gives every roster player one draw turn."""
-    size = _roster_size(session)
-    if size == 0:
-        return 0
-    return session.total_rounds * size
+def _late_join_draw_target(session: GameSession) -> int:
+    """Fixed at admit: remaining displayed rounds, at least one drawing seat."""
+    return max(1, session.total_rounds - session.current_round + 1)
 
 
 def display_round_number(session: GameSession) -> int:
-    """1-indexed full-round number shown in the UI."""
-    size = _roster_size(session)
-    if size == 0 or session.phase == GAME_PHASE_LOBBY:
+    """1-indexed round number for UI; clamped so overtime late draws stay at max."""
+    if session.phase == GAME_PHASE_LOBBY:
         return 0
     if session.phase == GAME_PHASE_GAME_FINISHED:
         return session.total_rounds
-    return min(session.total_rounds, (session.current_turn // size) + 1)
+    return min(session.current_round, session.total_rounds)
 
 
-def _player_for_turn(
-    session: GameSession, turn: int
-) -> tuple[int, GameSessionPlayer] | None:
-    frozen = sorted(session.players, key=lambda item: item.rotation_index)
-    if not frozen:
+def _player_needs_draw(player: GameSessionPlayer) -> bool:
+    return player.is_active and player.draws_done < player.draw_target
+
+
+def _any_active_needs_draw(session: GameSession) -> bool:
+    return any(_player_needs_draw(player) for player in session.players)
+
+
+def _drawer_player(session: GameSession) -> GameSessionPlayer | None:
+    if session.drawer_user_id is None:
         return None
-    # Scribble.io: total_rounds = full rotations; each player draws once per round.
-    limit = planned_turns(session)
-    while turn < limit:
-        candidate = frozen[turn % len(frozen)]
-        if candidate.is_active:
-            return turn, candidate
-        turn += 1
-    return None
+    return next(
+        (
+            player
+            for player in session.players
+            if player.user_id == session.drawer_user_id
+        ),
+        None,
+    )
+
+
+def _next_drawer(session: GameSession) -> GameSessionPlayer | None:
+    """
+    Stable cursor succession: walk rotation_index after the current drawer,
+    skipping inactive or quota-complete seats. Wraps to the lowest needy index.
+    """
+    needy = [
+        player
+        for player in sorted(session.players, key=lambda item: item.rotation_index)
+        if _player_needs_draw(player)
+    ]
+    if not needy:
+        return None
+
+    previous = _drawer_player(session)
+    if previous is None:
+        return needy[0]
+
+    after = [
+        player for player in needy if player.rotation_index > previous.rotation_index
+    ]
+    if after:
+        return after[0]
+    return needy[0]
+
+
+def _selection_wraps(
+    previous: GameSessionPlayer | None, nxt: GameSessionPlayer
+) -> bool:
+    if previous is None:
+        return False
+    return nxt.rotation_index <= previous.rotation_index
 
 
 def _admit_waiting_players(db: Session, room: Room, session: GameSession) -> list[UUID]:
     """
     Pull mid-game room joiners into the frozen roster (appended to rotation).
 
-    Called at round boundaries so late joiners enter the next round, not the
-    next full game.
+    Called at drawing boundaries (COUNTDOWN admission and every ROUND_END →
+    next WORD_SELECTION) so late joiners enter the next drawing.
     """
     existing = {player.user_id for player in session.players}
     next_index = max((player.rotation_index for player in session.players), default=-1) + 1
+    draw_target = _late_join_draw_target(session)
     admitted: list[UUID] = []
     for membership in room.players:
         if membership.user_id in existing:
@@ -457,6 +492,8 @@ def _admit_waiting_players(db: Session, room: Room, session: GameSession) -> lis
                 score=0,
                 has_guessed_correctly=False,
                 round_points=0,
+                draws_done=0,
+                draw_target=draw_target,
             )
         )
         admitted.append(membership.user_id)
@@ -479,6 +516,7 @@ def _return_to_lobby(room: Room, session: GameSession) -> None:
     session.deadline_at = None
     session.drawer_user_id = None
     session.current_turn = 0
+    session.current_round = 0
     session.revision += 1
     session.winner_user_id = None
     _clear_round_word_state(session)
@@ -556,9 +594,23 @@ def _record_drawing_done(db: Session, drawer_user_id: UUID | None) -> None:
     drawer.drawings_done = int(drawer.drawings_done or 0) + 1
 
 
+def _credit_session_draw(session: GameSession, drawer_user_id: UUID | None) -> None:
+    """Credit one drawing seat toward the session player's draw_target."""
+    if drawer_user_id is None:
+        return
+    player = next(
+        (item for item in session.players if item.user_id == drawer_user_id),
+        None,
+    )
+    if player is None:
+        return
+    player.draws_done = int(player.draws_done or 0) + 1
+
+
 def _end_round_active(db: Session, room: Room, session: GameSession) -> tuple[list[str], dict]:
     from app.services.vote_kick import clear_room_votes
 
+    _credit_session_draw(session, session.drawer_user_id)
     _record_drawing_done(db, session.drawer_user_id)
     clear_room_votes(room.code)
     session.phase = GAME_PHASE_ROUND_END
@@ -679,7 +731,27 @@ def submit_chat(
     # Never leak the secret word into public chat.
     if matches_secret:
         if waiting:
-            raise GameError("WAITING", "Waiting players cannot guess.")
+            # Acknowledge privately with zero points; no secret / score / early-end.
+            session.revision += 1
+            db.commit()
+            return GameMutation(
+                room.code,
+                ("CHAT_MESSAGE",),
+                session.phase,
+                session.revision,
+                session_id=session.id,
+                chat_events=(
+                    ChatEvent(
+                        kind="system",
+                        message=(
+                            "Correct — scoring starts on the next drawing!"
+                        ),
+                        player_id=str(user_id),
+                        player_name=player_name,
+                        recipient_ids=(user_id,),
+                    ),
+                ),
+            )
         if session.drawer_user_id == user_id:
             raise GameError("NOT_ALLOWED", "The drawer cannot guess.")
         if frozen is None or not frozen.is_active:
@@ -922,19 +994,17 @@ def advance_due_session(db: Session, session_id: UUID) -> GameMutation | None:
         event_extras["SCORES_UPDATED"] = {"scores": list(_scoreboard(session))}
     elif session.phase == GAME_PHASE_ROUND_END:
         room = session.room
-        next_turn = session.current_turn + 1
-        old_size = _roster_size(session)
-        # Full-round boundary: admit waiters, then rebase turn index to the new roster.
-        if old_size > 0 and next_turn % old_size == 0:
-            rounds_done = next_turn // old_size
-            if _admit_waiting_players(db, room, session):
-                new_size = _roster_size(session)
-                session.current_turn = rounds_done * new_size - 1
-                next_turn = session.current_turn + 1
-                events.append("GAME_STATE_UPDATED")
+        # Admit every waiting member at each drawing boundary (not full-round only).
+        if _admit_waiting_players(db, room, session):
+            events.append("GAME_STATE_UPDATED")
 
-        next_player = _player_for_turn(session, next_turn)
-        if next_player is None or len(_active_players(session)) < 2:
+        previous_drawer = _drawer_player(session)
+        next_player = _next_drawer(session)
+        if (
+            next_player is None
+            or not _any_active_needs_draw(session)
+            or len(_active_players(session)) < 2
+        ):
             session.phase = GAME_PHASE_GAME_FINISHED
             session.deadline_at = _phase_deadline(GAME_FINISHED_SECONDS)
             session.drawer_user_id = None
@@ -948,8 +1018,11 @@ def advance_due_session(db: Session, session_id: UUID) -> GameMutation | None:
             }
             event_extras["SCORES_UPDATED"] = {"scores": list(_scoreboard(session))}
         else:
-            session.current_turn, player = next_player
-            session.drawer_user_id = player.user_id
+            if _selection_wraps(previous_drawer, next_player):
+                session.current_round += 1
+            # Monotonic canvas/hint epoch only — not used for roster modulo.
+            session.current_turn += 1
+            session.drawer_user_id = next_player.user_id
             private = _begin_word_selection(session)
             events.extend(
                 ("WORD_CHOICES_OFFERED", "CANVAS_CLEAR", "GAME_STATE_UPDATED")
@@ -1005,32 +1078,37 @@ def handle_player_departure(
     private: PrivateDrawerPayload | None = None
     summary: dict | None = None
     event_extras: dict[str, dict] = {}
+    was_drawer = session.drawer_user_id == user_id
+    was_drawing = was_drawer and session.phase == GAME_PHASE_ROUND_ACTIVE
+    # Credit before the <2 collapse so ROUND_ACTIVE ends still count when the
+    # room immediately returns to lobby (e.g. 2-player drawer leave).
+    if was_drawing:
+        from app.services.vote_kick import clear_room_votes
+
+        _credit_session_draw(session, user_id)
+        _record_drawing_done(db, user_id)
+        clear_room_votes(room.code)
+
     active = _active_players(session)
     if len(active) < 2:
         _return_to_lobby(room, session)
         stop_timer = True
-    elif session.drawer_user_id == user_id:
+    elif was_drawer:
         # Drawer left: skip the rest of their turn. Do not bump current_turn here —
-        # advance_due_session / _player_for_turn skip inactive seats on the next step.
+        # advance_due_session / _next_drawer skip inactive seats on the next step.
         if session.phase == GAME_PHASE_COUNTDOWN:
-            replacement = _player_for_turn(session, session.current_turn)
+            replacement = _next_drawer(session)
             if replacement is not None:
-                session.current_turn, player = replacement
-                session.drawer_user_id = player.user_id
+                session.drawer_user_id = replacement.user_id
             else:
                 _return_to_lobby(room, session)
                 stop_timer = True
         elif session.phase in (GAME_PHASE_WORD_SELECTION, GAME_PHASE_ROUND_ACTIVE):
             # Keep secret_word for ROUND_ENDED reveal when drawing had started.
-            from app.services.vote_kick import clear_room_votes
-
-            was_drawing = session.phase == GAME_PHASE_ROUND_ACTIVE
+            # ROUND_ACTIVE seat credit already applied above.
             session.word_choices_json = None
             session.phase = GAME_PHASE_ROUND_END
             session.deadline_at = utcnow() + timedelta(seconds=ROUND_END_SECONDS)
-            if was_drawing:
-                _record_drawing_done(db, session.drawer_user_id)
-                clear_room_votes(room.code)
             summary = _build_round_summary(room, session)
             _store_round_summary(session, summary)
             events.insert(0, "ROUND_ENDED")

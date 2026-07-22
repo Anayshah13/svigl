@@ -8,6 +8,12 @@
 
 export { Whiteboard } from "./Whiteboard";
 export type { WhiteboardProps } from "./Whiteboard";
+export { DRAWER_WHITEBOARD_UI } from "./drawerUi";
+export {
+  DRAW_COLOR_SHEETS,
+  DRAW_COLOR_SHEET_PRIMARY,
+  DRAW_COLOR_SHEET_MORE,
+} from "./drawPalette";
 
 export { WhiteboardCanvas } from "./WhiteboardCanvas";
 export { SquareBoard } from "./SquareBoard";
@@ -18,6 +24,7 @@ export { ActionBar } from "./ActionBar";
 export { PropertiesPanel } from "./PropertiesPanel";
 export { ContextMenu } from "./ContextMenu";
 export { DrawerOnboarding, useDrawerOnboarding } from "./DrawerOnboarding";
+export { ShortcutHelp } from "./ShortcutHelp";
 export { CurveIcon, ToolIcon } from "./icons";
 export { ShapeList, ShapeNode, BezierDraftOverlay, SelectionOverlay } from "./ShapeRenderer";
 
@@ -55,9 +62,12 @@ export type {
 export {
   createId,
   bezierPathD,
+  bezierCurveControl,
+  cubicFromCurveControl,
   normalizeRect,
   rectToEllipse,
   defaultBezierHandles,
+  shapesInMarquee,
   arrowHeadPoints,
   rotateTransform,
   skewTransform,
@@ -68,7 +78,24 @@ export {
   resizeEllipseFromCorner,
   distToSegment,
   offsetTransform,
+  snapCoord,
+  snapPoint,
+  maybeSnapCoord,
+  maybeSnapPoint,
 } from "./geometry";
+
+export {
+  FIT_VIEWPORT,
+  MIN_ZOOM,
+  MAX_ZOOM,
+  ZOOM_STEP,
+  clampZoom,
+  clampViewport,
+  zoomToward,
+  panBy,
+  viewBoxString,
+} from "./viewport";
+export type { ViewportState } from "./viewport";
 
 export {
   cloneShapeForClipboard,
@@ -96,12 +123,14 @@ export type {
   HistoryOp,
   Point,
   StrokeWidth,
+  ColorTarget,
 } from "./types";
 
 export {
   WHITEBOARD_VIEWBOX,
   PRESET_COLORS,
   STROKE_WIDTHS,
+  GRID_SIZE,
   PASTE_OFFSET,
   NUDGE_SMALL,
   NUDGE_LARGE,

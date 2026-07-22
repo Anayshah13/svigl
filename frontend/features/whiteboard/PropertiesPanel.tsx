@@ -197,8 +197,9 @@ export function PropertiesPanel({
 
       {selected ? (
         <p className="text-[11px] leading-relaxed text-ink-muted">
-          Drag to move · corner handles resize · green diamonds edit curve controls ·
-          arrows nudge (±1, Shift ±10)
+          Drag to move · handles resize (Shift locks aspect) · marquee for
+          multi-select group scale · green handle bends curves · arrows nudge
+          (±1, Shift ±10)
         </p>
       ) : null}
     </aside>

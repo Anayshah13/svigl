@@ -1,5 +1,6 @@
 "use client";
 
+import * as React from "react";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/cn";
 import { RedoIcon, UndoIcon } from "./icons";
@@ -33,31 +34,60 @@ function DeleteIcon({ className = "h-5 w-5" }: { className?: string }) {
   );
 }
 
+function ClearIcon({ className = "h-5 w-5" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+      <path d="M4 7h16" strokeLinecap="round" />
+      <path d="M9 7V5h6v2" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M10 11v6M14 11v6" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function HelpIcon({ className = "h-5 w-5" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M9.5 9.5a2.5 2.5 0 1 1 3.6 2.2c-.7.4-1.1.9-1.1 1.8" strokeLinecap="round" />
+      <circle cx="12" cy="17" r="0.8" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
 function ActionButton({
   label,
   shortcut,
+  tooltip,
   disabled,
   onClick,
   children,
+  destructive,
 }: {
   label: string;
   shortcut?: string;
+  /** Hover / a11y name when different from visible label (e.g. Clear board). */
+  tooltip?: string;
   disabled?: boolean;
   onClick: () => void;
   children: ReactNode;
+  destructive?: boolean;
 }) {
+  const tip = tooltip ?? label;
   return (
     <button
       type="button"
-      title={shortcut ? `${label} (${shortcut})` : label}
-      aria-label={shortcut ? `${label}, ${shortcut}` : label}
+      title={shortcut ? `${tip} (${shortcut})` : tip}
+      aria-label={shortcut ? `${tip}, ${shortcut}` : tip}
       disabled={disabled}
       onClick={onClick}
       className={cn(
         "inline-flex min-h-11 min-w-11 touch-manipulation items-center justify-center gap-1.5 rounded-xl px-2.5 text-xs font-semibold transition-all",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-plum/40",
         "disabled:pointer-events-none disabled:opacity-35",
-        "bg-white/90 text-ink hover:bg-plum-light/80",
+        destructive
+          ? "bg-red-50 text-red-700 hover:bg-red-100"
+          : "bg-white/90 text-ink hover:bg-plum-light/80",
       )}
     >
       {children}
@@ -66,14 +96,24 @@ function ActionButton({
   );
 }
 
-/** Undo / Redo / Copy / Paste / Delete — for drawer top bar. */
+/** Undo / Redo / Copy / Paste / Delete / Clear — for drawer top bar. */
 export function ActionBar({
   controller,
   className,
+  onOpenShortcuts,
 }: {
   controller: WhiteboardController;
   className?: string;
+  onOpenShortcuts?: () => void;
 }) {
+  const [confirmClear, setConfirmClear] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!confirmClear) return;
+    const t = window.setTimeout(() => setConfirmClear(false), 4000);
+    return () => window.clearTimeout(t);
+  }, [confirmClear]);
+
   return (
     <div
       role="toolbar"
@@ -120,6 +160,32 @@ export function ActionBar({
       >
         <DeleteIcon />
       </ActionButton>
+      <ActionButton
+        label={confirmClear ? "Confirm?" : "Clear"}
+        tooltip={confirmClear ? "Click again to clear the board" : "Clear board"}
+        shortcut={confirmClear ? "Click again" : undefined}
+        disabled={!controller.canClear}
+        destructive={confirmClear}
+        onClick={() => {
+          if (!confirmClear) {
+            setConfirmClear(true);
+            return;
+          }
+          setConfirmClear(false);
+          controller.clear();
+        }}
+      >
+        <ClearIcon />
+      </ActionButton>
+      {onOpenShortcuts ? (
+        <ActionButton
+          label="Help"
+          shortcut="? / Ctrl+/"
+          onClick={onOpenShortcuts}
+        >
+          <HelpIcon />
+        </ActionButton>
+      ) : null}
     </div>
   );
 }

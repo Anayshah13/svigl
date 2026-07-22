@@ -218,7 +218,11 @@ function PlayerList({
                   ) : null}
                 </p>
                 <p className="text-xs font-medium text-ink-muted">
-                  {waiting ? "Waiting for next game" : ready ? "Ready" : "Not ready"}
+                  {waiting
+                    ? "Waiting for next drawing"
+                    : ready
+                      ? "Ready"
+                      : "Not ready"}
                 </p>
               </div>
             </div>

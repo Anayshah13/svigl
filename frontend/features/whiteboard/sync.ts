@@ -6,7 +6,6 @@
  * without rewriting the room presence stack.
  */
 
-import { throttle } from "@/features/whiteboard/throttle";
 import {
   importShapes,
   isValidShape,
@@ -18,6 +17,7 @@ import type { WSEventType } from "@/types/room";
 
 /** ~30fps for in-progress stroke updates. */
 export const SHAPE_UPDATE_THROTTLE_MS = 33;
+export const MAX_PREVIEW_BUFFERED_BYTES = 256 * 1024;
 
 export type CanvasSyncEventType =
   | "SHAPE_CREATED"
@@ -39,6 +39,12 @@ export interface CanvasSnapshot {
 
 export type CanvasSyncListener = (shapes: WhiteboardShape[], meta: CanvasSnapshot) => void;
 export type CanvasSyncErrorListener = (code: string, message: string) => void;
+export type CanvasSyncEventListener = (
+  type: CanvasSyncEventType,
+  payload: Record<string, unknown>,
+  shapes: WhiteboardShape[],
+  meta: CanvasSnapshot,
+) => void;
 
 function parseSnapshot(payload: Record<string, unknown>): CanvasSnapshot {
   let shapes: WhiteboardShape[] = [];
@@ -115,8 +121,8 @@ const CANVAS_EVENT_SET = new Set<string>([
  *
  * ```ts
  * const stop = canvasSync.attach({ onShapes: setShapes });
- * canvasSync.publishShapeUpdated(shape); // throttled ~30fps
- * canvasSync.publishShapeCreated(shape); // on pointer up
+ * canvasSync.publishShapePreview(shape); // coalesced ~30fps, not persisted
+ * canvasSync.publishShapeCreated(shape); // persisted on pointer up
  * ```
  */
 export function createCanvasSyncClient() {
@@ -130,22 +136,73 @@ export function createCanvasSyncClient() {
   };
   const listeners = new Set<CanvasSyncListener>();
   const errorListeners = new Set<CanvasSyncErrorListener>();
+  const eventListeners = new Set<CanvasSyncEventListener>();
   let unsubscribeWs: (() => void) | null = null;
+  let expectedSessionId: string | null | undefined;
+  const pendingPreviews = new Map<string, WhiteboardShape>();
+  const previewTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  const lastPreviewSentAt = new Map<string, number>();
 
   const emit = () => {
     const snapshot: CanvasSnapshot = { ...meta, shapes: [...shapes] };
     for (const listener of listeners) listener(shapes, snapshot);
   };
 
+  const payloadSessionId = (payload: Record<string, unknown>): string | null =>
+    payload.session_id == null ? null : String(payload.session_id);
+
+  const isWrongEpoch = (payload: Record<string, unknown>): boolean => {
+    const incomingSessionId = payloadSessionId(payload);
+    if (
+      expectedSessionId !== undefined &&
+      incomingSessionId !== null &&
+      incomingSessionId !== expectedSessionId
+    ) {
+      return true;
+    }
+    if (
+      meta.sessionId !== null &&
+      incomingSessionId !== null &&
+      incomingSessionId !== meta.sessionId
+    ) {
+      return true;
+    }
+    const incomingTurn =
+      typeof payload.current_turn === "number" ? payload.current_turn : null;
+    return incomingTurn !== null && incomingTurn < meta.currentTurn;
+  };
+
+  const notifyEvent = (
+    type: CanvasSyncEventType,
+    payload: Record<string, unknown>,
+  ) => {
+    const snapshot = { ...meta, shapes: [...shapes] };
+    for (const listener of eventListeners) {
+      listener(type, payload, shapes, snapshot);
+    }
+  };
+
   const applyIncoming = (type: CanvasSyncEventType, payload: Record<string, unknown>) => {
     if (type === "CANVAS_SNAPSHOT") {
       const snap = parseSnapshot(payload);
+      if (
+        (expectedSessionId !== undefined &&
+          snap.sessionId !== null &&
+          snap.sessionId !== expectedSessionId) ||
+        (meta.sessionId === snap.sessionId &&
+          (snap.currentTurn < meta.currentTurn ||
+            (snap.currentTurn === meta.currentTurn && snap.opSeq < meta.opSeq)))
+      ) {
+        return;
+      }
       shapes = snap.shapes;
       meta = snap;
       emit();
+      notifyEvent(type, payload);
       return;
     }
 
+    if (isWrongEpoch(payload)) return;
     const nextSeq = typeof payload.op_seq === "number" ? payload.op_seq : null;
     if (nextSeq != null && nextSeq > 0 && nextSeq <= meta.opSeq) {
       return;
@@ -169,6 +226,7 @@ export function createCanvasSyncClient() {
       canDraw: meta.canDraw,
     };
     emit();
+    notifyEvent(type, payload);
   };
 
   const onWsCanvas = (type: WSEventType, payload: Record<string, unknown>) => {
@@ -185,9 +243,56 @@ export function createCanvasSyncClient() {
     }
   };
 
-  const publishShapeUpdatedThrottled = throttle((shape: WhiteboardShape) => {
-    send("SHAPE_UPDATED", { shape });
-  }, SHAPE_UPDATE_THROTTLE_MS);
+  const clearPreviewTimer = (shapeId: string) => {
+    const timer = previewTimers.get(shapeId);
+    if (timer) clearTimeout(timer);
+    previewTimers.delete(shapeId);
+  };
+
+  const drainPreview = (shapeId: string) => {
+    clearPreviewTimer(shapeId);
+    const shape = pendingPreviews.get(shapeId);
+    if (!shape) return;
+    if (appWebSocket.bufferedAmount > MAX_PREVIEW_BUFFERED_BYTES) {
+      previewTimers.set(
+        shapeId,
+        setTimeout(() => drainPreview(shapeId), SHAPE_UPDATE_THROTTLE_MS),
+      );
+      return;
+    }
+    pendingPreviews.delete(shapeId);
+    lastPreviewSentAt.set(shapeId, Date.now());
+    send("SHAPE_UPDATED", { shape, ephemeral: true });
+  };
+
+  const schedulePreview = (shape: WhiteboardShape) => {
+    pendingPreviews.set(shape.id, shape);
+    if (previewTimers.has(shape.id)) return;
+    const elapsed = Date.now() - (lastPreviewSentAt.get(shape.id) ?? 0);
+    const delay = Math.max(0, SHAPE_UPDATE_THROTTLE_MS - elapsed);
+    if (delay === 0) {
+      drainPreview(shape.id);
+      return;
+    }
+    previewTimers.set(shape.id, setTimeout(() => drainPreview(shape.id), delay));
+  };
+
+  const cancelPendingPreviews = (shapeId?: string) => {
+    const ids = shapeId
+      ? [shapeId]
+      : [
+          ...new Set([
+            ...pendingPreviews.keys(),
+            ...previewTimers.keys(),
+            ...lastPreviewSentAt.keys(),
+          ]),
+        ];
+    for (const id of ids) {
+      clearPreviewTimer(id);
+      pendingPreviews.delete(id);
+      lastPreviewSentAt.delete(id);
+    }
+  };
 
   return {
     getShapes(): WhiteboardShape[] {
@@ -211,9 +316,11 @@ export function createCanvasSyncClient() {
     attach(opts?: {
       onShapes?: CanvasSyncListener;
       onError?: CanvasSyncErrorListener;
+      onEvent?: CanvasSyncEventListener;
     }): () => void {
       if (opts?.onShapes) listeners.add(opts.onShapes);
       if (opts?.onError) errorListeners.add(opts.onError);
+      if (opts?.onEvent) eventListeners.add(opts.onEvent);
 
       if (!unsubscribeWs) {
         unsubscribeWs = appWebSocket.subscribeCanvas(onWsCanvas);
@@ -222,10 +329,16 @@ export function createCanvasSyncClient() {
       return () => {
         if (opts?.onShapes) listeners.delete(opts.onShapes);
         if (opts?.onError) errorListeners.delete(opts.onError);
-        if (listeners.size === 0 && errorListeners.size === 0 && unsubscribeWs) {
+        if (opts?.onEvent) eventListeners.delete(opts.onEvent);
+        if (
+          listeners.size === 0 &&
+          errorListeners.size === 0 &&
+          eventListeners.size === 0 &&
+          unsubscribeWs
+        ) {
           unsubscribeWs();
           unsubscribeWs = null;
-          publishShapeUpdatedThrottled.cancel();
+          cancelPendingPreviews();
         }
       };
     },
@@ -233,12 +346,33 @@ export function createCanvasSyncClient() {
     applySnapshot(payload: Record<string, unknown> | CanvasSnapshot): void {
       if ("sessionId" in payload && Array.isArray((payload as CanvasSnapshot).shapes)) {
         const snap = payload as CanvasSnapshot;
-        shapes = snap.shapes;
-        meta = { ...snap };
-        emit();
+        applyIncoming("CANVAS_SNAPSHOT", {
+          session_id: snap.sessionId,
+          current_turn: snap.currentTurn,
+          op_seq: snap.opSeq,
+          shapes: snap.shapes,
+          can_draw: snap.canDraw,
+        });
         return;
       }
       applyIncoming("CANVAS_SNAPSHOT", payload as Record<string, unknown>);
+    },
+
+    setExpectedSessionId(sessionId: string | null): void {
+      if (expectedSessionId === sessionId) return;
+      expectedSessionId = sessionId;
+      cancelPendingPreviews();
+      if (meta.sessionId !== null && meta.sessionId !== sessionId) {
+        shapes = [];
+        meta = {
+          sessionId,
+          currentTurn: 0,
+          opSeq: 0,
+          shapes: [],
+          canDraw: false,
+        };
+        emit();
+      }
     },
 
     requestSnapshot(): void {
@@ -246,44 +380,57 @@ export function createCanvasSyncClient() {
     },
 
     publishShapeCreated(shape: WhiteboardShape): void {
-      publishShapeUpdatedThrottled.flush();
-      publishShapeUpdatedThrottled.cancel();
+      cancelPendingPreviews(shape.id);
       shapes = mergeShapesById(shapes, [shape]);
       emit();
       send("SHAPE_CREATED", { shape });
     },
 
-    /** Throttled ~30fps for in-progress strokes. */
+    /** Coalesced ~30fps per shape; broadcasts without persistence. */
+    publishShapePreview(shape: WhiteboardShape): void {
+      shapes = mergeShapesById(shapes, [shape]);
+      schedulePreview(shape);
+    },
+
+    cancelShapePreview(shapeId: string): void {
+      cancelPendingPreviews(shapeId);
+      shapes = shapes.filter((shape) => shape.id !== shapeId);
+      send("SHAPE_DELETED", { shape_id: shapeId, ephemeral: true });
+    },
+
+    /** Persist a completed edit immediately. */
     publishShapeUpdated(shape: WhiteboardShape): void {
+      cancelPendingPreviews(shape.id);
       shapes = mergeShapesById(shapes, [shape]);
       emit();
-      publishShapeUpdatedThrottled(shape);
+      send("SHAPE_UPDATED", { shape });
     },
 
     flushShapeUpdated(): void {
-      publishShapeUpdatedThrottled.flush();
+      for (const shapeId of [...pendingPreviews.keys()]) drainPreview(shapeId);
     },
 
     publishShapeDeleted(shapeId: string): void {
+      cancelPendingPreviews(shapeId);
       shapes = shapes.filter((s) => s.id !== shapeId);
       emit();
       send("SHAPE_DELETED", { shape_id: shapeId });
     },
 
     publishClear(): void {
-      publishShapeUpdatedThrottled.cancel();
+      cancelPendingPreviews();
       shapes = [];
       emit();
       send("CANVAS_CLEARED", {});
     },
 
     publishUndo(): void {
-      publishShapeUpdatedThrottled.cancel();
+      cancelPendingPreviews();
       send("UNDO", {});
     },
 
     publishRedo(): void {
-      publishShapeUpdatedThrottled.cancel();
+      cancelPendingPreviews();
       send("REDO", {});
     },
 
@@ -292,8 +439,12 @@ export function createCanvasSyncClient() {
       emit();
     },
 
+    cancelPendingUpdates(): void {
+      cancelPendingPreviews();
+    },
+
     reset(): void {
-      publishShapeUpdatedThrottled.cancel();
+      cancelPendingPreviews();
       shapes = [];
       meta = {
         sessionId: null,

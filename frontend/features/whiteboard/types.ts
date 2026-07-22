@@ -3,30 +3,42 @@
 /** Square logical board — same aspect on phone, tablet, and laptop. */
 export const WHITEBOARD_VIEWBOX = { width: 800, height: 800 } as const;
 
+/** Fallback swatches when no `colorSheets` are passed (matches draw palette primary). */
 export const PRESET_COLORS = [
-  "#2C2C2C",
+  "#000000",
   "#FFFFFF",
-  "#ED7FB8",
-  "#10865C",
-  "#703F93",
-  "#BBE331",
+  "#C1C1C1",
   "#EF4444",
+  "#F97316",
+  "#FCEE09",
+  "#22C55E",
   "#3B82F6",
+  "#A855F7",
+  "#EC4899",
 ] as const;
 
 export const STROKE_WIDTHS = [2, 5, 10] as const;
 export type StrokeWidth = (typeof STROKE_WIDTHS)[number];
 
-/** Drawing / editing tools. `"select"` is interaction-only (never stored on shapes). */
+/** Default snap grid size in board units (logical SVG coords). */
+export const GRID_SIZE = 16;
+
+/** Which color slot the palette currently edits. */
+export type ColorTarget = "stroke" | "fill";
+
+/** Drawing / editing tools. Interaction-only tools are never stored on shapes. */
 export type WhiteboardTool =
   | "select"
+  | "hand"
   | "bezier"
   | "rectangle"
   | "ellipse"
   | "arrow"
-  | "fill";
+  | "fill"
+  | "eraser";
 
-export type DrawingTool = Exclude<WhiteboardTool, "select">;
+/** Tools that may appear on persisted shapes. */
+export type DrawingTool = Exclude<WhiteboardTool, "select" | "hand" | "eraser">;
 
 export interface Point {
   x: number;
@@ -102,6 +114,10 @@ export type HistoryOp =
 
 export interface WhiteboardSyncCallbacks {
   onShapeCreated?: (shape: WhiteboardShape) => void;
+  /** Ephemeral geometry while creating or editing; never persisted by the server. */
+  onShapePreview?: (shape: WhiteboardShape) => void;
+  /** Remove an abandoned ephemeral creation from remote canvases. */
+  onShapePreviewCancelled?: (shapeId: string) => void;
   onShapeUpdated?: (shape: WhiteboardShape) => void;
   onShapeDeleted?: (shapeId: string) => void;
   onClear?: () => void;

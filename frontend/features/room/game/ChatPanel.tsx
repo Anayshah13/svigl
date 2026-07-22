@@ -15,10 +15,7 @@ function useKeyboardBottomInset(active: boolean): number {
   const [inset, setInset] = React.useState(0);
 
   React.useEffect(() => {
-    if (!active) {
-      setInset(0);
-      return;
-    }
+    if (!active) return;
 
     const vv = window.visualViewport;
     if (!vv) return;
@@ -43,20 +40,23 @@ function useKeyboardBottomInset(active: boolean): number {
     };
   }, [active]);
 
-  return inset;
+  return active ? inset : 0;
 }
 
 export function ChatPanel({
   messages,
-  canGuess,
+  canSendChat,
   disabledReason,
+  inputHint,
   onSend,
   className,
   placeholder = "Type your guess here...",
 }: {
   messages: ChatMessage[];
-  canGuess: boolean;
+  canSendChat: boolean;
   disabledReason?: string;
+  /** Contextual note when the input is enabled (waiting / private chat). */
+  inputHint?: string;
   onSend: (text: string) => void;
   className?: string;
   placeholder?: string;
@@ -75,7 +75,7 @@ export function ChatPanel({
   const submit = (event: React.FormEvent) => {
     event.preventDefault();
     const text = draft.trim();
-    if (!text || !canGuess) return;
+    if (!text || !canSendChat) return;
     onSend(text);
     setDraft("");
   };
@@ -130,6 +130,11 @@ export function ChatPanel({
                           : "text-ink",
                 )}
               >
+                {isPrivate ? (
+                  <span className="mr-1.5 inline-flex align-middle text-[10px] font-bold uppercase tracking-wide text-green sm:text-[11px]">
+                    Private
+                  </span>
+                ) : null}
                 {!isSystem && msg.playerName ? (
                   <span className="font-semibold text-plum">
                     {formatDisplayName(msg.playerName)}:{" "}
@@ -152,26 +157,46 @@ export function ChatPanel({
             onChange={(event) => setDraft(event.currentTarget.value)}
             onFocus={() => setInputFocused(true)}
             onBlur={() => setInputFocused(false)}
-            placeholder={canGuess ? placeholder : disabledReason ?? "Chat disabled"}
-            disabled={!canGuess}
+            placeholder={
+              canSendChat ? placeholder : disabledReason ?? "Chat disabled"
+            }
+            disabled={!canSendChat}
             maxLength={200}
             autoComplete="off"
             enterKeyHint="send"
             aria-label="Guess or chat message"
+            aria-describedby={
+              !canSendChat && disabledReason
+                ? "chat-disabled-reason"
+                : canSendChat && inputHint
+                  ? "chat-input-hint"
+                  : undefined
+            }
             className="min-h-10 text-sm"
           />
           <Button
             type="submit"
             size="sm"
-            disabled={!canGuess || !draft.trim()}
+            disabled={!canSendChat || !draft.trim()}
             className="min-h-10 shrink-0 touch-manipulation px-3"
           >
             Send
           </Button>
         </div>
-        {!canGuess && disabledReason ? (
-          <p className="mt-1.5 hidden text-xs text-ink-muted sm:mt-2 sm:block">
+        {!canSendChat && disabledReason ? (
+          <p
+            id="chat-disabled-reason"
+            className="mt-1.5 hidden text-xs text-ink-muted sm:mt-2 sm:block"
+          >
             {disabledReason}
+          </p>
+        ) : null}
+        {canSendChat && inputHint ? (
+          <p
+            id="chat-input-hint"
+            className="mt-1.5 hidden text-xs text-ink-muted sm:mt-2 sm:block"
+          >
+            {inputHint}
           </p>
         ) : null}
       </form>

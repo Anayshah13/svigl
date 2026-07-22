@@ -232,7 +232,7 @@ def test_earlier_guess_scores_higher(db: Session) -> None:
     assert late >= 50
 
 
-def test_waiting_player_cannot_guess(db: Session) -> None:
+def test_waiting_player_exact_guess_is_private_zero_points(db: Session) -> None:
     host = _user(db, "Host")
     guest = _user(db, "Guest")
     late = _user(db, "Late")
@@ -240,17 +240,69 @@ def test_waiting_player_cannot_guess(db: Session) -> None:
     join_room(db, code=room.code, user_id=guest.id)
     _ready_and_start(db, room.code, host.id, [host, guest])
     db.refresh(room)
-    session, word, _drawer_id = _enter_round_with_word(db, room)
+    session, word, drawer_id = _enter_round_with_word(db, room)
 
     join_room(db, code=room.code, user_id=late.id)
-    with pytest.raises(GameError) as exc:
-        submit_chat(db, room.code, late.id, text=word)
-    assert exc.value.code == "WAITING"
-
-    # Waiting can still send non-secret chat
-    mutation = submit_chat(db, room.code, late.id, text="hello")
+    before_scores = {p.user_id: p.score for p in room.game_session.players}
+    mutation = submit_chat(db, room.code, late.id, text=word)
     assert mutation.events == ("CHAT_MESSAGE",)
-    assert mutation.chat_events[0].message == "hello"
+    assert mutation.phase == GAME_PHASE_ROUND_ACTIVE
+    assert len(mutation.chat_events) == 1
+    chat = mutation.chat_events[0]
+    assert chat.kind == "system"
+    assert chat.recipient_ids == (late.id,)
+    assert word not in chat.message
+    assert "PLAYER_GUESSED" not in mutation.events
+    assert "ROUND_ENDED" not in mutation.events
+    db.refresh(room)
+    assert room.game_session.phase == GAME_PHASE_ROUND_ACTIVE
+    assert {p.user_id: p.score for p in room.game_session.players} == before_scores
+    assert not any(p.has_guessed_correctly for p in room.game_session.players)
+
+    # Ordinary waiting chat stays public.
+    public = submit_chat(db, room.code, late.id, text="hello")
+    assert public.events == ("CHAT_MESSAGE",)
+    assert public.chat_events[0].kind == "chat"
+    assert public.chat_events[0].message == "hello"
+    assert public.chat_events[0].recipient_ids is None
+
+
+def test_waiting_player_scores_after_next_drawing_admission(db: Session) -> None:
+    host = _user(db, "Host")
+    guest = _user(db, "Guest")
+    late = _user(db, "Late")
+    room = create_room(db, host_id=host.id, max_players=8)
+    join_room(db, code=room.code, user_id=guest.id)
+    _ready_and_start(db, room.code, host.id, [host, guest])
+    db.refresh(room)
+    _session, word, drawer_id = _enter_round_with_word(db, room)
+    join_room(db, code=room.code, user_id=late.id)
+
+    # Close current drawing and admit late joiner on the next boundary.
+    session_id = _force_deadline(db, room)
+    assert advance_due_session(db, session_id).phase == GAME_PHASE_ROUND_END
+    session_id = _force_deadline(db, room)
+    assert advance_due_session(db, session_id).phase == GAME_PHASE_WORD_SELECTION
+    db.refresh(room)
+    assert late.id in {p.user_id for p in room.game_session.players if p.is_active}
+
+    session = room.game_session
+    assert session.drawer_user_id is not None
+    choices = json.loads(session.word_choices_json)
+    next_word = choices[0]
+    select_word(db, room.code, session.drawer_user_id, word=next_word)
+    db.refresh(room)
+
+    guesser_id = late.id
+    if room.game_session.drawer_user_id == late.id:
+        # Late joiner became drawer — have an original guess instead.
+        guesser_id = guest.id if drawer_id == host.id else host.id
+    mutation = submit_chat(db, room.code, guesser_id, text=next_word)
+    assert "PLAYER_GUESSED" in mutation.events
+    db.refresh(room)
+    guesser = next(p for p in room.game_session.players if p.user_id == guesser_id)
+    assert guesser.score > 0
+    assert guesser.has_guessed_correctly is True
 
 
 def test_secret_never_in_public_snapshot_during_round(db: Session) -> None:

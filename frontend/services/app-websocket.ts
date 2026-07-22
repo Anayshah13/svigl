@@ -105,6 +105,10 @@ class AppWebSocketManager {
     return this.joinedRoomCode;
   }
 
+  get bufferedAmount(): number {
+    return this.socket?.bufferedAmount ?? 0;
+  }
+
   subscribe(onUpdate: RoomUpdateHandler, onError: RoomErrorHandler): () => void {
     this.updateHandlers.add(onUpdate);
     this.errorHandlers.add(onError);

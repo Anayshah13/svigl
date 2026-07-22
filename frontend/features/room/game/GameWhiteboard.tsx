@@ -2,13 +2,13 @@
 
 import * as React from "react";
 import {
+  DRAWER_WHITEBOARD_UI,
   Whiteboard,
   type WhiteboardController,
   type WhiteboardShape,
 } from "@/features/whiteboard";
 import { createCanvasSyncClient, type CanvasSyncClient } from "@/features/whiteboard/sync";
-import { importShapes, isValidShape } from "@/features/whiteboard/serialize";
-import { appWebSocket } from "@/services/app-websocket";
+import { isValidShape } from "@/features/whiteboard/serialize";
 
 /**
  * Bridges the SVG whiteboard to collaborative canvas sync.
@@ -21,7 +21,7 @@ export function GameWhiteboard({
   playerId,
   isDrawer,
   sessionId,
-  roundNumber,
+  currentTurn,
   className,
   fill = false,
   headerInfo,
@@ -30,7 +30,8 @@ export function GameWhiteboard({
   playerId: string;
   isDrawer: boolean;
   sessionId: string | null;
-  roundNumber: number;
+  /** Monotonic drawing epoch — wipe local canvas when the seat advances. */
+  currentTurn: number;
   className?: string;
   /** Fill parent height; drawer chrome wraps the canvas. */
   fill?: boolean;
@@ -42,67 +43,60 @@ export function GameWhiteboard({
   const controllerRef = React.useRef<WhiteboardController | null>(null);
   const syncRef = React.useRef<CanvasSyncClient | null>(null);
   const isDrawerRef = React.useRef(isDrawer);
-  isDrawerRef.current = isDrawer;
+
+  React.useEffect(() => {
+    isDrawerRef.current = isDrawer;
+  }, [isDrawer]);
 
   React.useEffect(() => {
     const sync = createCanvasSyncClient();
     syncRef.current = sync;
+    if (sessionId) sync.setExpectedSessionId(sessionId);
+
+    // Subscribe first so a fast snapshot response cannot race the listener.
+    const stopCanvas = sync.attach({
+      onEvent: (type, payload, nextShapes) => {
+        const ctrl = controllerRef.current;
+        if (!ctrl) return;
+
+        if (type === "CANVAS_CLEAR" || type === "CANVAS_CLEARED") {
+          ctrl.applyRemoteClear();
+          return;
+        }
+
+        if (type === "CANVAS_SNAPSHOT") {
+          ctrl.loadShapes(nextShapes);
+          return;
+        }
+
+        if (type === "SHAPE_CREATED" || type === "SHAPE_UPDATED") {
+          const shape = payload.shape;
+          if (isValidShape(shape)) {
+            ctrl.applyRemoteShape(shape as WhiteboardShape);
+          }
+          return;
+        }
+
+        if (type === "SHAPE_DELETED") {
+          const id =
+            typeof payload.shape_id === "string"
+              ? payload.shape_id
+              : typeof payload.shapeId === "string"
+                ? payload.shapeId
+                : null;
+          if (id) ctrl.applyRemoteDelete(id);
+          return;
+        }
+
+        // Drawer already applied undo/redo locally; remotes use authoritative list.
+        if (type === "UNDO" || type === "REDO") {
+          if (!isDrawerRef.current) ctrl.loadShapes(nextShapes);
+        }
+      },
+    });
 
     // JOIN already sends CANVAS_SNAPSHOT; re-request covers remount / gaps.
     sync.requestSnapshot();
-
-    const stopCanvas = appWebSocket.subscribeCanvas((type, payload) => {
-      const ctrl = controllerRef.current;
-      if (!ctrl) return;
-
-      if (type === "CANVAS_CLEAR" || type === "CANVAS_CLEARED") {
-        sync.reset();
-        ctrl.applyRemoteClear();
-        return;
-      }
-
-      if (type === "CANVAS_SNAPSHOT") {
-        sync.applySnapshot(payload);
-        try {
-          const shapes = Array.isArray(payload.shapes)
-            ? importShapes(payload.shapes)
-            : [];
-          ctrl.loadShapes(shapes);
-        } catch {
-          ctrl.loadShapes([]);
-        }
-        return;
-      }
-
-      if (type === "SHAPE_CREATED" || type === "SHAPE_UPDATED") {
-        const shape = payload.shape;
-        if (isValidShape(shape)) {
-          ctrl.applyRemoteShape(shape as WhiteboardShape);
-        }
-        return;
-      }
-
-      if (type === "SHAPE_DELETED") {
-        const id =
-          typeof payload.shape_id === "string"
-            ? payload.shape_id
-            : typeof payload.shapeId === "string"
-              ? payload.shapeId
-              : null;
-        if (id) ctrl.applyRemoteDelete(id);
-        return;
-      }
-
-      // Drawer already applied undo/redo locally; loadShapes would wipe HistoryStack.
-      if ((type === "UNDO" || type === "REDO") && Array.isArray(payload.shapes)) {
-        if (isDrawerRef.current) return;
-        try {
-          ctrl.loadShapes(importShapes(payload.shapes));
-        } catch {
-          /* ignore corrupt remote undo/redo payload */
-        }
-      }
-    });
 
     return () => {
       stopCanvas();
@@ -111,11 +105,12 @@ export function GameWhiteboard({
     };
   }, [sessionId]);
 
-  // New turn / round: wipe local document (server also clears via CANVAS_CLEARED).
+  // New drawing seat: wipe local document (server also clears via CANVAS_CLEARED).
+  // Use currentTurn (not display round) so overtime late-join draws still reset.
   React.useEffect(() => {
-    syncRef.current?.reset();
+    syncRef.current?.cancelPendingUpdates();
     controllerRef.current?.loadShapes([]);
-  }, [sessionId, roundNumber]);
+  }, [sessionId, currentTurn]);
 
   return (
     <Whiteboard
@@ -125,9 +120,15 @@ export function GameWhiteboard({
       showToolbar={isDrawer}
       fill={fill}
       immersive
+      // Same drawer chrome as `/demo` (see DRAWER_WHITEBOARD_UI).
+      {...(isDrawer ? DRAWER_WHITEBOARD_UI : {})}
       headerInfo={headerInfo}
       aside={aside}
       controllerRef={controllerRef}
+      onShapePreview={(shape) => syncRef.current?.publishShapePreview(shape)}
+      onShapePreviewCancelled={(shapeId) =>
+        syncRef.current?.cancelShapePreview(shapeId)
+      }
       onShapeCreated={(shape) => syncRef.current?.publishShapeCreated(shape)}
       onShapeUpdated={(shape) => syncRef.current?.publishShapeUpdated(shape)}
       onShapeDeleted={(shapeId) => syncRef.current?.publishShapeDeleted(shapeId)}

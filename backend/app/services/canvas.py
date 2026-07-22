@@ -223,8 +223,8 @@ def apply_shape_created(
     """
     Commit a finished shape.
 
-    If the shape was streamed via SHAPE_UPDATED first, this upserts and pushes
-    a single undoable ``add`` (or ``update`` if already committed).
+    Transient SHAPE_UPDATED previews are never persisted, so the normal path
+    pushes one undoable ``add``. A repeated commit safely becomes an update.
     """
     room = _room(db, room_code)
     session = _session(room)
@@ -275,33 +275,24 @@ def apply_shape_updated(
     session = _session(room)
     _assert_drawer(session, user_id)
     after = parse_shape(shape_raw)
+    if after.createdBy != str(user_id):
+        after = after.model_copy(update={"createdBy": str(user_id)})
 
     canvas = _get_or_create_canvas(db, room, session)
     shapes = _load_shapes(canvas)
     idx = next((i for i, s in enumerate(shapes) if s.id == after.id), None)
     if idx is None:
-        # In-progress stroke: create if missing (first update before commit).
         shapes.append(after)
         _store_shapes(canvas, shapes)
-        op_seq = _bump(canvas)
-        db.commit()
-        return CanvasBroadcast(
-            room_code=room.code,
-            event="SHAPE_UPDATED",
-            payload={
-                "shape": shape_to_dict(after),
-                "session_id": str(session.id),
-                "current_turn": canvas.current_turn,
-                "op_seq": op_seq,
-                "ephemeral": True,
-            },
-            exclude_user_id=user_id,
-        )
-
-    before = shapes[idx]
-    shapes[idx] = after
-    _store_shapes(canvas, shapes)
-    # Progressive stroke updates are ephemeral — only commit to undo on create/delete/clear.
+        _push_undo(canvas, HistoryAddOp(type="add", shape=after))
+    else:
+        before = shapes[idx]
+        shapes[idx] = after
+        _store_shapes(canvas, shapes)
+        if before != after:
+            _push_undo(
+                canvas, HistoryUpdateOp(type="update", before=before, after=after)
+            )
     op_seq = _bump(canvas)
     db.commit()
 
@@ -313,7 +304,49 @@ def apply_shape_updated(
             "session_id": str(session.id),
             "current_turn": canvas.current_turn,
             "op_seq": op_seq,
-            "before_id": before.id,
+        },
+        exclude_user_id=user_id,
+    )
+
+
+def apply_shape_preview(
+    db: Session, room_code: str, user_id: UUID, shape_raw: Any
+) -> CanvasBroadcast:
+    """Validate and broadcast transient geometry without writing CanvasState."""
+    room = _room(db, room_code)
+    session = _session(room)
+    _assert_drawer(session, user_id)
+    shape = parse_shape(shape_raw)
+    if shape.createdBy != str(user_id):
+        shape = shape.model_copy(update={"createdBy": str(user_id)})
+    return CanvasBroadcast(
+        room_code=room.code,
+        event="SHAPE_UPDATED",
+        payload={
+            "shape": shape_to_dict(shape),
+            "session_id": str(session.id),
+            "current_turn": session.current_turn,
+            "ephemeral": True,
+        },
+        exclude_user_id=user_id,
+    )
+
+
+def apply_shape_preview_deleted(
+    db: Session, room_code: str, user_id: UUID, shape_id: str
+) -> CanvasBroadcast:
+    """Remove an abandoned transient creation from remote canvases."""
+    room = _room(db, room_code)
+    session = _session(room)
+    _assert_drawer(session, user_id)
+    return CanvasBroadcast(
+        room_code=room.code,
+        event="SHAPE_DELETED",
+        payload={
+            "shape_id": shape_id,
+            "session_id": str(session.id),
+            "current_turn": session.current_turn,
+            "ephemeral": True,
         },
         exclude_user_id=user_id,
     )

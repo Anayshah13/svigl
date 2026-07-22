@@ -144,6 +144,7 @@ class GameSession(Base):
         ),
         CheckConstraint("revision >= 0", name="ck_game_sessions_revision"),
         CheckConstraint("current_turn >= 0", name="ck_game_sessions_current_turn"),
+        CheckConstraint("current_round >= 0", name="ck_game_sessions_current_round"),
         CheckConstraint("rotation_start_offset >= 0", name="ck_game_sessions_offset"),
     )
 
@@ -163,6 +164,8 @@ class GameSession(Base):
     )
     revision: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     current_turn: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # 1-based in-game round; 0 in lobby. Display is clamped to total_rounds.
+    current_round: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     rotation_start_offset: Mapped[int] = mapped_column(
         Integer, nullable=False, default=0
     )
@@ -219,6 +222,8 @@ class GameSessionPlayer(Base):
         ),
         CheckConstraint("rotation_index >= 0", name="ck_game_session_players_rotation"),
         CheckConstraint("score >= 0", name="ck_game_session_players_score"),
+        CheckConstraint("draws_done >= 0", name="ck_game_session_players_draws_done"),
+        CheckConstraint("draw_target >= 0", name="ck_game_session_players_draw_target"),
     )
 
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
@@ -242,6 +247,14 @@ class GameSessionPlayer(Base):
         Boolean, nullable=False, default=False, server_default="false"
     )
     round_points: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
+    # Completed drawing seats credited this game (not lifetime User.drawings_done).
+    draws_done: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
+    # Draws owed this game; fixed at start/admit (late joiners get remaining rounds).
+    draw_target: Mapped[int] = mapped_column(
         Integer, nullable=False, default=0, server_default="0"
     )
 

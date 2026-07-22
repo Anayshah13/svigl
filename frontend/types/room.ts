@@ -60,6 +60,8 @@ export interface RoomGameState {
   phaseEndsAt: string | null;
   remainingSeconds: number | null;
   roundNumber: number;
+  /** Monotonic drawing epoch (canvas/hints); not remapped when roster grows. */
+  currentTurn: number;
   totalRounds: number;
   drawer: GameDrawer | null;
   activePlayerIds: string[];

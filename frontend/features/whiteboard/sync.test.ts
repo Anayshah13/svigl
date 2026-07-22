@@ -1,9 +1,10 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/services/app-websocket", () => {
   const handlers = new Set<(type: string, payload: Record<string, unknown>) => void>();
   return {
     appWebSocket: {
+      bufferedAmount: 0,
       sendRaw: vi.fn(() => true),
       subscribeCanvas: (fn: (type: string, payload: Record<string, unknown>) => void) => {
         handlers.add(fn);
@@ -34,6 +35,12 @@ const rect = (id: string): WhiteboardShape => ({
 });
 
 describe("canvas sync client", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.useRealTimers();
+    (appWebSocket as unknown as { bufferedAmount: number }).bufferedAmount = 0;
+  });
+
   it("applies CANVAS_SNAPSHOT then live SHAPE_CREATED ops", () => {
     const client = createCanvasSyncClient();
     const seen: WhiteboardShape[][] = [];
@@ -79,7 +86,7 @@ describe("canvas sync client", () => {
     expect(seen.length).toBeGreaterThanOrEqual(3);
   });
 
-  it("publishes throttled shape updates via sendRaw", () => {
+  it("publishes committed shape updates via sendRaw", () => {
     const client = createCanvasSyncClient();
     client.attach();
     const shape = rect("stroke-1");
@@ -88,5 +95,100 @@ describe("canvas sync client", () => {
     expect(appWebSocket.sendRaw).toHaveBeenCalledWith("SHAPE_UPDATED", { shape });
     client.publishShapeCreated(shape);
     expect(appWebSocket.sendRaw).toHaveBeenCalledWith("SHAPE_CREATED", { shape });
+  });
+
+  it("rejects snapshots older than the active epoch sequence", () => {
+    const client = createCanvasSyncClient();
+    client.applySnapshot({
+      session_id: "sess-1",
+      current_turn: 2,
+      op_seq: 8,
+      shapes: [rect("new")],
+    });
+    client.applySnapshot({
+      session_id: "sess-1",
+      current_turn: 2,
+      op_seq: 7,
+      shapes: [rect("stale")],
+    });
+    client.applySnapshot({
+      session_id: "sess-1",
+      current_turn: 1,
+      op_seq: 99,
+      shapes: [rect("old-turn")],
+    });
+
+    expect(client.getShapes().map((shape) => shape.id)).toEqual(["new"]);
+    expect(client.getSnapshot().opSeq).toBe(8);
+  });
+
+  it("coalesces previews independently by shape id", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(1_000);
+    const client = createCanvasSyncClient();
+    const a = rect("a");
+    const b = rect("b");
+    client.publishShapePreview(a);
+    client.publishShapePreview(b);
+
+    vi.setSystemTime(1_010);
+    const latestA = {
+      ...a,
+      geometry: { ...a.geometry, width: 42 },
+    } as WhiteboardShape;
+    client.publishShapePreview(latestA);
+    vi.advanceTimersByTime(33);
+
+    expect(appWebSocket.sendRaw).toHaveBeenCalledWith("SHAPE_UPDATED", {
+      shape: a,
+      ephemeral: true,
+    });
+    expect(appWebSocket.sendRaw).toHaveBeenCalledWith("SHAPE_UPDATED", {
+      shape: b,
+      ephemeral: true,
+    });
+    expect(appWebSocket.sendRaw).toHaveBeenCalledWith("SHAPE_UPDATED", {
+      shape: latestA,
+      ephemeral: true,
+    });
+  });
+
+  it("cancels queued previews on clear", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(1_000);
+    const client = createCanvasSyncClient();
+    const shape = rect("draft");
+    client.publishShapePreview(shape);
+    vi.setSystemTime(1_001);
+    client.publishShapePreview({ ...shape, stroke: "#fff" });
+    client.publishClear();
+    vi.advanceTimersByTime(100);
+
+    const previewCalls = vi
+      .mocked(appWebSocket.sendRaw)
+      .mock.calls.filter(
+        ([type, payload]) => type === "SHAPE_UPDATED" && payload?.ephemeral,
+      );
+    expect(previewCalls).toHaveLength(1);
+  });
+
+  it("holds and coalesces previews while the socket is backpressured", () => {
+    vi.useFakeTimers();
+    const socket = appWebSocket as unknown as { bufferedAmount: number };
+    socket.bufferedAmount = 300_000;
+    const client = createCanvasSyncClient();
+    const shape = rect("backpressured");
+    const latest = { ...shape, stroke: "#fff" };
+
+    client.publishShapePreview(shape);
+    client.publishShapePreview(latest);
+    expect(appWebSocket.sendRaw).not.toHaveBeenCalled();
+
+    socket.bufferedAmount = 0;
+    vi.advanceTimersByTime(33);
+    expect(appWebSocket.sendRaw).toHaveBeenCalledWith("SHAPE_UPDATED", {
+      shape: latest,
+      ephemeral: true,
+    });
   });
 });
