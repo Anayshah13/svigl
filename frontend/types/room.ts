@@ -168,14 +168,6 @@ export const ROOM_STATUS_LABELS: Record<RoomStatus, string> = {
   FINISHED: "Finished",
 };
 
-/** WebSocket connection lifecycle states. */
-export type ConnectionState =
-  | "connecting"
-  | "connected"
-  | "disconnected"
-  | "reconnecting"
-  | "error";
-
 /** Typed event names matching backend EventType. */
 export type WSEventType =
   | "PING"
@@ -185,8 +177,6 @@ export type WSEventType =
   | "ROOM_LEFT"
   | "PLAYER_JOINED"
   | "PLAYER_LEFT"
-  | "PLAYER_CONNECTED"
-  | "PLAYER_DISCONNECTED"
   | "ROOM_UPDATED"
   | "PLAYER_KICKED"
   | "VOTE_KICK"

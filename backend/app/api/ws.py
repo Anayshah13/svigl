@@ -1,10 +1,10 @@
 """
 WebSocket endpoint — one authenticated connection per user.
 
-Room membership changes via JOIN_ROOM / LEAVE_ROOM events on the same socket.
-REST leave/kick still apply immediately. A short disconnect grace also removes
-DB membership if the socket drops and the client does not rejoin quickly
-(tab close / kill), while allowing page reload to reconnect.
+JOIN_ROOM / LEAVE_ROOM manage the in-memory room channel only.
+REST create/join/leave/kick own Postgres membership. A disconnect grace also
+removes DB membership if the socket drops and the client does not rejoin
+quickly (tab close / kill), while allowing page reload to reconnect.
 """
 
 from __future__ import annotations
@@ -33,8 +33,10 @@ async def _handle_ws_disconnect(client: ConnectedClient) -> None:
     """
     Leave the in-memory room channel, then start a short disconnect grace.
 
-    Reload/reconnect within a few seconds keeps DB membership. Closed tabs that
-    never rejoin are removed so host migrates and drawer turns can skip.
+    Reload/reconnect within the grace window keeps DB membership. Closed tabs
+    that never rejoin are removed so host migrates and drawer turns can skip.
+    If this socket was replaced by a newer connection for the same user, skip
+    grace — the new socket owns reconnect / leave.
     """
     room_code = client.room_code
     user_id = client.user_id
@@ -42,6 +44,10 @@ async def _handle_ws_disconnect(client: ConnectedClient) -> None:
         return
 
     await room_manager.disconnect(client)
+
+    current = connection_manager.get(user_id)
+    if current is not None and current.websocket is not client.websocket:
+        return
 
     from app.services.disconnect_grace import schedule_disconnect_grace
 

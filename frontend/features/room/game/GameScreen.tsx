@@ -53,7 +53,6 @@ function OverlayScrim({ children }: { children: ReactNode }) {
 export function GameScreen({
   room,
   currentPlayer,
-  isWaiting,
   onSelectWord,
   onSendChat,
   voteTallies,
@@ -61,7 +60,6 @@ export function GameScreen({
 }: {
   room: Room;
   currentPlayer: RoomPlayer | null;
-  isWaiting: boolean;
   onSelectWord: (word: string) => void;
   onSendChat: (text: string) => void;
   voteTallies?: Record<string, VoteKickTally>;
@@ -81,14 +79,13 @@ export function GameScreen({
   );
   const [mobileChatOpen, setMobileChatOpen] = React.useState(false);
   const guesserOnboarding = useGuesserOnboarding(
-    game.phase === "ROUND_ACTIVE" && !isDrawer && !isWaiting,
+    game.phase === "ROUND_ACTIVE" && !isDrawer,
   );
 
   const chatPolicy = getChatInputPolicy({
     phase: game.phase,
     hasSelf: Boolean(selfId),
     isDrawer,
-    isWaiting,
     hasGuessed,
   });
 
@@ -103,8 +100,7 @@ export function GameScreen({
     game.phase === "ROUND_END" ||
     game.phase === "GAME_FINISHED";
 
-  const canDraw =
-    game.phase === "ROUND_ACTIVE" && isDrawer && !isWaiting;
+  const canDraw = game.phase === "ROUND_ACTIVE" && isDrawer;
 
   if (!showBoard) {
     return null;
@@ -167,15 +163,6 @@ export function GameScreen({
         <OverlayScrim>
           <RoundEndPanel room={room} />
         </OverlayScrim>
-      ) : null}
-
-      {isWaiting && chatPolicy.waitingBanner ? (
-        <p
-          role="status"
-          className="absolute bottom-3 left-1/2 z-30 max-w-md -translate-x-1/2 rounded-2xl bg-pink-light px-4 py-2.5 text-center text-sm font-semibold text-plum shadow-sm"
-        >
-          {chatPolicy.waitingBanner}
-        </p>
       ) : null}
     </>
   );

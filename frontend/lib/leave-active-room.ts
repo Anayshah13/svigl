@@ -1,6 +1,5 @@
-import { appWebSocket } from "@/services/app-websocket";
-import { disconnectRoomSync } from "@/lib/room-sync";
 import { releaseRoomTab } from "@/lib/room-tab-lock";
+import { appWebSocket } from "@/services/app-websocket";
 import { fetchActiveRoom, isUserInRoom, leaveRoom } from "@/services/room";
 import { readPersistedRoomCode, useRoomStore } from "@/stores/room";
 import type { RoomError } from "@/types/room";
@@ -26,7 +25,7 @@ export async function leaveActiveRoomIfAny(userId: string | null): Promise<void>
       throw error;
     }
   } finally {
-    disconnectRoomSync();
+    appWebSocket.leaveRoom();
     if (code && userId) {
       releaseRoomTab(userId, code);
     }

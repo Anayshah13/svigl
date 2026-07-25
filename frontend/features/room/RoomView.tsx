@@ -171,7 +171,6 @@ function PlayerList({
   room,
   currentPlayerId,
   isHost,
-  waiting = false,
   onKick,
   onMakeHost,
 }: {
@@ -179,12 +178,11 @@ function PlayerList({
   room: Room;
   currentPlayerId?: string;
   isHost: boolean;
-  waiting?: boolean;
   onKick: (id: string) => Promise<void>;
   onMakeHost: (id: string) => Promise<void>;
 }) {
   if (players.length === 0) {
-    return <p className="mt-3 text-sm text-ink-muted">No players waiting.</p>;
+    return <p className="mt-3 text-sm text-ink-muted">No players yet.</p>;
   }
 
   return (
@@ -218,11 +216,7 @@ function PlayerList({
                   ) : null}
                 </p>
                 <p className="text-xs font-medium text-ink-muted">
-                  {waiting
-                    ? "Waiting for next drawing"
-                    : ready
-                      ? "Ready"
-                      : "Not ready"}
+                  {ready ? "Ready" : "Not ready"}
                 </p>
               </div>
             </div>
@@ -398,17 +392,6 @@ export function RoomView() {
     currentPlayer &&
       (currentPlayer.isReady || room.readyPlayerIds.includes(currentPlayer.id)),
   );
-  const isWaiting = Boolean(
-    currentPlayer &&
-      (currentPlayer.isWaiting || room.waitingPlayerIds.includes(currentPlayer.id)),
-  );
-  const activePlayers = room.players.filter(
-    (player) => !room.waitingPlayerIds.includes(player.id) && !player.isWaiting,
-  );
-  const waitingPlayers = room.players.filter(
-    (player) => room.waitingPlayerIds.includes(player.id) || player.isWaiting,
-  );
-
   const inGame = room.game.phase !== "LOBBY";
 
   return (
@@ -594,30 +577,13 @@ export function RoomView() {
               Active players
             </h2>
             <PlayerList
-              players={activePlayers}
+              players={room.players}
               room={room}
               currentPlayerId={currentPlayer?.id}
               isHost={isHost}
               onKick={kickPlayer}
               onMakeHost={transferHost}
             />
-
-            {waitingPlayers.length > 0 ? (
-              <div className="mt-6 border-t border-plum/10 pt-5">
-                <h2 className="text-sm font-bold uppercase tracking-wider text-ink-muted">
-                  Waiting players
-                </h2>
-                <PlayerList
-                  players={waitingPlayers}
-                  room={room}
-                  currentPlayerId={currentPlayer?.id}
-                  isHost={isHost}
-                  waiting
-                  onKick={kickPlayer}
-                  onMakeHost={transferHost}
-                />
-              </div>
-            ) : null}
           </Card>
 
           <p className="text-center text-xs text-ink-muted">
@@ -628,7 +594,6 @@ export function RoomView() {
         <GameScreen
           room={room}
           currentPlayer={currentPlayer}
-          isWaiting={isWaiting}
           onSelectWord={selectWord}
           onSendChat={sendChat}
           voteTallies={tallies}

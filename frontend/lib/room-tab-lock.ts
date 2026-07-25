@@ -1,9 +1,7 @@
 /**
- * Prevents the same authenticated user from holding an active room session
- * across multiple browser tabs. Uses localStorage + heartbeat so locks survive
- * refreshes within the same tab but block concurrent tabs.
- *
- * Replace or complement with server-side presence when WebSockets land.
+ * Ensures one browser tab owns the active room WebSocket session per user.
+ * Uses localStorage + heartbeat so locks survive refresh in the same tab
+ * but yield when another tab takes over.
  */
 
 const STORAGE_KEY = "svigl:room-tab-lock";
@@ -68,25 +66,45 @@ export function claimRoomTab(userId: string, roomCode: string): "claimed" | "blo
   return "claimed";
 }
 
-/** Keep the tab lock fresh while the room page is mounted. */
-export function startRoomTabHeartbeat(userId: string, roomCode: string): () => void {
+/**
+ * Keep the tab lock fresh while this tab owns the room session.
+ * Stops and invokes onLostOwnership if another tab takes the lock.
+ * Does not release on stop — leave/sign-out clear ownership explicitly.
+ */
+export function startRoomTabHeartbeat(
+  userId: string,
+  roomCode: string,
+  onLostOwnership?: () => void,
+): () => void {
   const tabId = getTabId();
   const normalizedCode = roomCode.toUpperCase();
+  let intervalId = 0;
 
   const tick = () => {
-    writeLock({ userId, roomCode: normalizedCode, tabId, updatedAt: Date.now() });
+    const now = Date.now();
+    const existing = readLock();
+    if (
+      existing &&
+      existing.userId === userId &&
+      existing.tabId !== tabId &&
+      isLockActive(existing, now)
+    ) {
+      window.clearInterval(intervalId);
+      onLostOwnership?.();
+      return;
+    }
+    writeLock({ userId, roomCode: normalizedCode, tabId, updatedAt: now });
   };
 
   tick();
-  const intervalId = window.setInterval(tick, HEARTBEAT_MS);
+  intervalId = window.setInterval(tick, HEARTBEAT_MS);
 
   return () => {
     window.clearInterval(intervalId);
-    releaseRoomTab(userId, normalizedCode);
   };
 }
 
-/** Release the tab lock when leaving the room or unmounting. */
+/** Release the tab lock when leaving the room or signing out. */
 export function releaseRoomTab(userId: string, roomCode: string): void {
   const tabId = getTabId();
   const existing = readLock();
@@ -98,6 +116,15 @@ export function releaseRoomTab(userId: string, roomCode: string): void {
     existing.roomCode === normalizedCode &&
     existing.tabId === tabId
   ) {
+    localStorage.removeItem(STORAGE_KEY);
+  }
+}
+
+/** Release whatever lock this tab currently holds (e.g. clearActiveRoom). */
+export function releaseOwnRoomTab(): void {
+  const tabId = getTabId();
+  const existing = readLock();
+  if (existing && existing.tabId === tabId) {
     localStorage.removeItem(STORAGE_KEY);
   }
 }

@@ -162,7 +162,7 @@ def _advance_to_round_active(db: Session, room) -> None:
     assert advance_due_session(db, session_id).phase == GAME_PHASE_ROUND_ACTIVE
 
 
-def test_midgame_join_waits_then_enters_next_drawing(db: Session) -> None:
+def test_midgame_join_admits_immediately_into_roster(db: Session) -> None:
     host = _user(db, "Host")
     guest = _user(db, "Guest")
     late = _user(db, "Late")
@@ -178,24 +178,17 @@ def test_midgame_join_waits_then_enters_next_drawing(db: Session) -> None:
     _advance_to_round_active(db, room)
 
     change = join_room(db, code=room.code, user_id=late.id)
-    assert change.joined_as_waiting is True
+    assert change.joined_as_waiting is False
     db.refresh(room)
-    assert late.id in RoomResponse.from_room(room).waiting_player_ids
-    assert late.id not in {p.user_id for p in room.game_session.players}
-
-    # Finish the in-progress drawing -> admit at next WORD_SELECTION boundary.
-    session_id = _force_deadline(db, room)
-    assert advance_due_session(db, session_id).phase == GAME_PHASE_ROUND_END
-    session_id = _force_deadline(db, room)
-    mutation = advance_due_session(db, session_id)
-    assert mutation is not None
-    assert mutation.phase == GAME_PHASE_WORD_SELECTION
-    db.refresh(room)
-    assert late.id in {p.user_id for p in room.game_session.players if p.is_active}
     assert late.id not in RoomResponse.from_room(room).waiting_player_ids
+    assert late.id in {p.user_id for p in room.game_session.players if p.is_active}
     late_player = next(p for p in room.game_session.players if p.user_id == late.id)
     assert late_player.draw_target == 2  # remaining rounds at admit (round 1)
     assert late_player.draws_done == 0
+    # Current drawer is unchanged; late joiner is appended to the rotation.
+    assert room.game_session.drawer_user_id != late.id
+    max_index = max(p.rotation_index for p in room.game_session.players)
+    assert late_player.rotation_index == max_index
 
 
 def test_late_join_preserves_next_drawer_order(db: Session) -> None:
@@ -256,6 +249,11 @@ def test_last_round_late_join_gets_bounded_draw_target(db: Session) -> None:
     db.commit()
 
     join_room(db, code=room.code, user_id=late.id)
+    db.refresh(room)
+    late_player = next(p for p in room.game_session.players if p.user_id == late.id)
+    assert late_player.draw_target == 1
+    assert late_player.draws_done == 0
+
     session_id = _force_deadline(db, room)
     assert advance_due_session(db, session_id).phase == GAME_PHASE_ROUND_END
     session_id = _force_deadline(db, room)
@@ -268,7 +266,7 @@ def test_last_round_late_join_gets_bounded_draw_target(db: Session) -> None:
     assert late_player.draws_done == 0
 
 
-def test_multiple_waiters_admitted_same_boundary(db: Session) -> None:
+def test_multiple_late_joiners_admitted_immediately(db: Session) -> None:
     host = _user(db, "Host")
     guest = _user(db, "Guest")
     late_a = _user(db, "LateA")
@@ -282,11 +280,6 @@ def test_multiple_waiters_admitted_same_boundary(db: Session) -> None:
     _advance_to_round_active(db, room)
     join_room(db, code=room.code, user_id=late_a.id)
     join_room(db, code=room.code, user_id=late_b.id)
-
-    session_id = _force_deadline(db, room)
-    assert advance_due_session(db, session_id).phase == GAME_PHASE_ROUND_END
-    session_id = _force_deadline(db, room)
-    assert advance_due_session(db, session_id).phase == GAME_PHASE_WORD_SELECTION
     db.refresh(room)
     active_ids = {p.user_id for p in room.game_session.players if p.is_active}
     assert late_a.id in active_ids
@@ -299,7 +292,7 @@ def test_multiple_waiters_admitted_same_boundary(db: Session) -> None:
     assert targets[late_a.id] == targets[late_b.id] == 2
 
 
-def test_countdown_join_admitted_before_first_drawing(db: Session) -> None:
+def test_countdown_join_admits_immediately(db: Session) -> None:
     host = _user(db, "Host")
     guest = _user(db, "Guest")
     late = _user(db, "Late")
@@ -314,19 +307,18 @@ def test_countdown_join_admitted_before_first_drawing(db: Session) -> None:
     assert room.game_session.phase == GAME_PHASE_COUNTDOWN
 
     join_room(db, code=room.code, user_id=late.id)
-    assert late.id not in {p.user_id for p in room.game_session.players}
-
-    mutation = advance_due_session(db, _force_deadline(db, room))
-    assert mutation is not None
-    assert mutation.phase == GAME_PHASE_WORD_SELECTION
     db.refresh(room)
     late_player = next(p for p in room.game_session.players if p.user_id == late.id)
     assert late_player.is_active is True
     assert late_player.draw_target == 2
     assert late.id not in RoomResponse.from_room(room).waiting_player_ids
 
+    mutation = advance_due_session(db, _force_deadline(db, room))
+    assert mutation is not None
+    assert mutation.phase == GAME_PHASE_WORD_SELECTION
 
-def test_round_end_join_admitted_at_next_drawing(db: Session) -> None:
+
+def test_round_end_join_admits_immediately(db: Session) -> None:
     host = _user(db, "Host")
     guest = _user(db, "Guest")
     late = _user(db, "Late")
@@ -342,7 +334,8 @@ def test_round_end_join_admitted_at_next_drawing(db: Session) -> None:
     db.refresh(room)
 
     join_room(db, code=room.code, user_id=late.id)
-    assert late.id not in {p.user_id for p in room.game_session.players}
+    db.refresh(room)
+    assert late.id in {p.user_id for p in room.game_session.players if p.is_active}
 
     mutation = advance_due_session(db, _force_deadline(db, room))
     assert mutation is not None

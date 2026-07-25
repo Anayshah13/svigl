@@ -2,9 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { disconnectRoomSync, roomSyncAdapter } from "@/lib/room-sync";
-import { wsDebug } from "@/lib/ws-debug";
-import { claimRoomTab, releaseRoomTab, startRoomTabHeartbeat } from "@/lib/room-tab-lock";
+import { claimRoomTab, releaseRoomTab } from "@/lib/room-tab-lock";
 import { redirectToSignInWithReturn } from "@/lib/post-auth-redirect";
 import { validateRoomCode } from "@/lib/room-code";
 import {
@@ -141,12 +139,13 @@ interface UseRoomOptions {
   autoJoin?: boolean;
 }
 
-/** Room page state: load, poll, leave, membership checks. */
+/** Room page state: load, leave, membership checks, realtime sync. */
 export function useRoom(code: string, options: UseRoomOptions = {}) {
   const router = useRouter();
   const selfId = useSessionStore((s) => s.selfId);
   const authUser = useSessionStore((s) => s.authUser);
   const authReady = useSessionStore((s) => s.authReady);
+  const autoJoin = options.autoJoin ?? false;
 
   const [room, setRoom] = useState<Room | null>(null);
   const [loading, setLoading] = useState(true);
@@ -194,7 +193,7 @@ export function useRoom(code: string, options: UseRoomOptions = {}) {
         setNotMember(true);
       } else {
         setNotMember(false);
-        // Membership confirmed — never auto-rejoin if a later sync drops us.
+        // Membership confirmed — block invite auto-join until an eviction resets this.
         autoJoinAttempted.current = true;
         if (selfId) {
           useRoomStore.getState().setActiveRoom(nextRoom);
@@ -250,7 +249,7 @@ export function useRoom(code: string, options: UseRoomOptions = {}) {
 
     try {
       await leaveRoom(normalizedCode);
-      disconnectRoomSync();
+      appWebSocket.leaveRoom();
       latestRoomRef.current = null;
       setRoom(null);
       setNotMember(false);
@@ -348,8 +347,23 @@ export function useRoom(code: string, options: UseRoomOptions = {}) {
   }, [authReady, codeValidationError, normalizedCode, router, selfId]);
 
   const isMember = Boolean(room && selfId && isUserInRoom(room, selfId));
+  const activeRoomCode = useRoomStore((s) => s.activeRoom?.code ?? null);
 
-  // Tab lock + initial REST load (no WebSocket yet)
+  // Presence / grace eviction can clear the store while this page still thinks
+  // we are a member — allow auto-rejoin instead of a stale lobby.
+  useEffect(() => {
+    if (!autoJoin || wasKicked.current || leaving || leaveInFlight.current) return;
+    if (!isMember || activeRoomCode === normalizedCode) return;
+    if (activeRoomCode) return;
+
+    autoJoinAttempted.current = false;
+    latestRoomRef.current = null;
+    setRoom(null);
+    setNotMember(true);
+    setError(null);
+  }, [activeRoomCode, autoJoin, isMember, leaving, normalizedCode]);
+
+  // Tab lock check + initial REST load
   useEffect(() => {
     if (!authReady || !selfId || codeValidationError) return;
 
@@ -362,88 +376,82 @@ export function useRoom(code: string, options: UseRoomOptions = {}) {
     }
 
     setTabBlocked(false);
-    const stopHeartbeat = startRoomTabHeartbeat(selfId, normalizedCode);
-
+    let cancelled = false;
     let firstLoad = true;
 
-    const unsubscribe = roomSyncAdapter.subscribe(
-      normalizedCode,
-      (nextRoom) => {
+    void fetchRoom(normalizedCode)
+      .then((nextRoom) => {
+        if (cancelled) return;
         applyRoom(nextRoom);
-        if (firstLoad) {
-          firstLoad = false;
-          setLoading(false);
-        }
-      },
-      (roomError) => {
+      })
+      .catch((caught) => {
+        if (cancelled) return;
+        const roomError = caught as RoomError;
         if (!handleAuthError(roomError)) {
           setError(roomError);
         }
+      })
+      .finally(() => {
+        if (cancelled) return;
         if (firstLoad) {
           firstLoad = false;
           setLoading(false);
         }
-      },
-      { enableWebSocket: false },
-    );
+      });
 
     return () => {
-      unsubscribe();
-      stopHeartbeat();
+      cancelled = true;
     };
   }, [applyRoom, authReady, codeValidationError, handleAuthError, normalizedCode, selfId]);
 
   // WebSocket realtime sync — only after confirmed membership
   useEffect(() => {
-    wsDebug("useRoom_ws_effect_mount", {
-      component: "useRoom",
-      userId: selfId,
-      roomCode: normalizedCode,
-      detail: `isMember=${isMember}`,
-    });
-
     if (!authReady || !selfId || codeValidationError || tabBlocked || !isMember) {
-      return () => {
-        wsDebug("useRoom_ws_effect_unmount", {
-          component: "useRoom",
-          userId: selfId,
-          roomCode: normalizedCode,
-        });
-      };
+      return;
     }
 
-    const unsubscribe = roomSyncAdapter.subscribe(
-      normalizedCode,
+    const unsubscribe = appWebSocket.subscribe(
       (nextRoom) => applyRoom(nextRoom),
       (roomError) => {
         if (roomError.code === "KICKED") {
           wasKicked.current = true;
+          autoJoinAttempted.current = true;
           latestRoomRef.current = null;
           setRoom(null);
           setNotMember(true);
           setError(roomError);
           useRoomStore.getState().clearActiveRoom();
-          disconnectRoomSync();
+          appWebSocket.leaveRoom();
           return;
         }
+
+        // Disconnect-grace / sweeper eviction while still on the room page.
+        if (roomError.code === "NOT_IN_ROOM" && !wasKicked.current) {
+          latestRoomRef.current = null;
+          setRoom(null);
+          setNotMember(true);
+          useRoomStore.getState().clearActiveRoom();
+          appWebSocket.leaveRoom();
+          if (autoJoin) {
+            autoJoinAttempted.current = false;
+            setError(null);
+            return;
+          }
+        }
+
         if (!handleAuthError(roomError)) {
           setError(roomError);
         }
       },
-      { enableWebSocket: true, skipInitialFetch: true },
     );
 
     return () => {
-      wsDebug("useRoom_ws_effect_unmount", {
-        component: "useRoom",
-        userId: selfId,
-        roomCode: normalizedCode,
-      });
       unsubscribe();
     };
   }, [
     applyRoom,
     authReady,
+    autoJoin,
     codeValidationError,
     handleAuthError,
     isMember,
@@ -452,15 +460,14 @@ export function useRoom(code: string, options: UseRoomOptions = {}) {
     tabBlocked,
   ]);
 
-  // Auto-join once on mount when landing on /room/{code} without membership (invite/bookmark).
-  // Never rejoin after a kick or after a later sync flips notMember.
+  // Auto-join once when landing without membership (invite/bookmark), or again after soft eviction.
   useEffect(() => {
-    if (!options.autoJoin || autoJoinAttempted.current || wasKicked.current) return;
+    if (!autoJoin || autoJoinAttempted.current || wasKicked.current) return;
     if (!authReady || loading || tabBlocked || joining) return;
     if (!notMember || error) return;
     autoJoinAttempted.current = true;
     void attemptJoin();
-  }, [attemptJoin, authReady, error, joining, loading, notMember, options.autoJoin, tabBlocked]);
+  }, [attemptJoin, authReady, autoJoin, error, joining, loading, notMember, tabBlocked]);
 
   const isHost = Boolean(room && selfId && room.hostId === selfId);
   const currentPlayer = room?.players.find((player) => player.id === selfId) ?? null;

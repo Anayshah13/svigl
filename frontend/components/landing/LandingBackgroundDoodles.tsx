@@ -1,12 +1,22 @@
 "use client";
 
 import { motion, useAnimationFrame } from "framer-motion";
-import { useEffect, useRef, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 import { colors, palette } from "@/lib/colors";
+import { prefersReducedMotion } from "@/lib/gsap";
 
-const SHAPE_OPACITY = 0.14;
-const CURVE_OPACITY = 0.13;
-const DOT_OPACITY = 0.11;
+const SHAPE_OPACITY = 0.22;
+const CURVE_OPACITY = 0.2;
+const DOT_OPACITY = 0.18;
 
 type BaseDoodle = { x: string; y: string; color: string; delay: number; duration?: number; opacity?: number };
 
@@ -19,9 +29,32 @@ type CrossDoodle = BaseDoodle & { kind: "cross"; size: number };
 
 type Doodle = CircleDoodle | RectDoodle | RingDoodle | TriangleDoodle | DiamondDoodle | CrossDoodle;
 
-/** Dense field — hero through footer, scattered across x and y */
+/** Soft color washes — fill hero side margins with living light */
+const HERO_ORBS = [
+  { x: "3%", y: "8%", size: 280, color: colors.chartreuse, opacity: 0.2, duration: 18, blur: 48 },
+  { x: "78%", y: "4%", size: 320, color: colors.pink, opacity: 0.18, duration: 22, blur: 56 },
+  { x: "68%", y: "42%", size: 240, color: colors.plum, opacity: 0.14, duration: 20, blur: 52 },
+  { x: "0%", y: "48%", size: 260, color: colors.green, opacity: 0.16, duration: 24, blur: 50 },
+  { x: "85%", y: "28%", size: 200, color: colors.chartreuse, opacity: 0.15, duration: 16, blur: 44 },
+  { x: "12%", y: "28%", size: 180, color: colors.pink, opacity: 0.12, duration: 19, blur: 40 },
+];
+
+/** Extra hero-margin shapes — denser where the canvas used to live */
+const HERO_MARGIN_DOODLES: Doodle[] = [
+  { kind: "circle", x: "6%", y: "18%", size: 56, color: colors.chartreuse, delay: 0.1, duration: 11, opacity: 0.28 },
+  { kind: "ring", x: "88%", y: "16%", size: 96, stroke: 2.5, color: colors.plum, delay: 0.2, duration: 16, opacity: 0.32 },
+  { kind: "triangle", x: "82%", y: "38%", size: 48, rotate: -18, color: colors.green, delay: 0.35, duration: 14, opacity: 0.26 },
+  { kind: "diamond", x: "4%", y: "42%", size: 40, rotate: 12, color: colors.pink, delay: 0.45, duration: 13, opacity: 0.24 },
+  { kind: "cross", x: "92%", y: "48%", size: 34, color: colors.chartreuse, delay: 0.15, duration: 12, opacity: 0.3 },
+  { kind: "rect", x: "2%", y: "62%", w: 42, h: 42, rx: 10, color: colors.plum, delay: 0.55, duration: 15, opacity: 0.22 },
+  { kind: "circle", x: "90%", y: "62%", size: 64, color: colors.pink, delay: 0.25, duration: 10, opacity: 0.2 },
+  { kind: "ring", x: "8%", y: "72%", size: 72, stroke: 2, color: colors.green, delay: 0.4, duration: 18, opacity: 0.28 },
+  { kind: "triangle", x: "94%", y: "8%", size: 36, rotate: 25, color: colors.plum, delay: 0.6, duration: 12, opacity: 0.24 },
+  { kind: "diamond", x: "14%", y: "8%", size: 32, rotate: -8, color: colors.green, delay: 0.3, duration: 14, opacity: 0.26 },
+];
+
+/** Dense field — hero through footer */
 const DOODLES: Doodle[] = [
-  // ── Hero (0–16%) ──
   { kind: "circle", x: "4%", y: "2%", size: 72, color: colors.chartreuse, delay: 0 },
   { kind: "circle", x: "88%", y: "1%", size: 64, color: colors.pink, delay: 0.3 },
   { kind: "rect", x: "72%", y: "8%", w: 48, h: 48, rx: 12, color: colors.pink, delay: 0.15 },
@@ -34,7 +67,6 @@ const DOODLES: Doodle[] = [
   { kind: "circle", x: "50%", y: "8%", size: 28, color: colors.pink, delay: 0.7 },
   { kind: "ring", x: "78%", y: "14%", size: 56, stroke: 1.5, color: colors.green, delay: 0.55, duration: 28 },
 
-  // ── Hero lower / pre-features (16–28%) ──
   { kind: "circle", x: "6%", y: "20%", size: 52, color: colors.pink, delay: 0.2 },
   { kind: "rect", x: "38%", y: "18%", w: 64, h: 24, rx: 12, color: colors.plum, delay: 0.65 },
   { kind: "triangle", x: "82%", y: "22%", size: 48, rotate: -20, color: colors.plum, delay: 0.5, duration: 22 },
@@ -44,7 +76,6 @@ const DOODLES: Doodle[] = [
   { kind: "ring", x: "12%", y: "24%", size: 70, stroke: 2, color: colors.chartreuse, delay: 0.4, duration: 26 },
   { kind: "circle", x: "94%", y: "26%", size: 34, color: colors.green, delay: 0.75 },
 
-  // ── Game features band (28–48%) ──
   { kind: "circle", x: "18%", y: "32%", size: 58, color: colors.chartreuse, delay: 0.1 },
   { kind: "rect", x: "52%", y: "30%", w: 44, h: 44, rx: 10, color: colors.green, delay: 0.55 },
   { kind: "ring", x: "76%", y: "34%", size: 80, stroke: 2, color: colors.pink, delay: 0.35, duration: 30 },
@@ -56,8 +87,7 @@ const DOODLES: Doodle[] = [
   { kind: "circle", x: "42%", y: "34%", size: 24, color: colors.pink, delay: 0.85 },
   { kind: "ring", x: "28%", y: "44%", size: 52, stroke: 1.5, color: colors.plum, delay: 0.5, duration: 22 },
 
-  // ── Vector primitives band (48–68%) ──
-  { kind: "circle", x: "72%", y: "50%", size: 68, color: colors.green, delay: 0.15, opacity: 0.12 },
+  { kind: "circle", x: "72%", y: "50%", size: 68, color: colors.green, delay: 0.15, opacity: 0.18 },
   { kind: "rect", x: "14%", y: "52%", w: 40, h: 64, rx: 8, color: colors.pink, delay: 0.4 },
   { kind: "triangle", x: "46%", y: "54%", size: 50, rotate: -12, color: colors.chartreuse, delay: 0.55, duration: 21 },
   { kind: "diamond", x: "88%", y: "56%", size: 38, rotate: 45, color: colors.plum, delay: 0.3, duration: 24 },
@@ -68,7 +98,6 @@ const DOODLES: Doodle[] = [
   { kind: "circle", x: "52%", y: "66%", size: 30, color: colors.pink, delay: 0.8 },
   { kind: "triangle", x: "22%", y: "68%", size: 42, rotate: 25, color: colors.green, delay: 0.35, duration: 19 },
 
-  // ── CTA band (68–84%) ──
   { kind: "circle", x: "38%", y: "72%", size: 54, color: colors.chartreuse, delay: 0.5 },
   { kind: "rect", x: "66%", y: "70%", w: 48, h: 48, rx: 12, color: colors.pink, delay: 0.25 },
   { kind: "ring", x: "10%", y: "74%", size: 74, stroke: 2, color: colors.plum, delay: 0.6, duration: 27 },
@@ -78,7 +107,6 @@ const DOODLES: Doodle[] = [
   { kind: "triangle", x: "92%", y: "82%", size: 44, rotate: -15, color: colors.chartreuse, delay: 0.55, duration: 20 },
   { kind: "circle", x: "18%", y: "80%", size: 36, color: colors.pink, delay: 0.3 },
 
-  // ── Footer band (84–98%) ──
   { kind: "circle", x: "62%", y: "86%", size: 48, color: colors.green, delay: 0.45 },
   { kind: "rect", x: "28%", y: "88%", w: 44, h: 24, rx: 8, color: colors.plum, delay: 0.65 },
   { kind: "ring", x: "48%", y: "90%", size: 60, stroke: 1.5, color: colors.pink, delay: 0.2, duration: 25 },
@@ -154,62 +182,87 @@ export type BezierConfig = {
   opacity?: number;
 };
 
-/** Cubic beziers with live control-point manipulation — spread across full page */
 const BACKGROUND_BEZIERS: BezierConfig[] = [
-  { id: "b1", left: "2%", top: "4%", width: 220, viewH: 110, start: { x: 10, y: 90 }, end: { x: 210, y: 20 }, cp1Base: { x: 50, y: 30 }, cp2Base: { x: 160, y: 80 }, cp1Motion: { ax: 22, ay: 18, speed: 0.52 }, cp2Motion: { ax: 18, ay: 14, speed: 0.4 }, color: colors.plum, phase: 0 },
-  { id: "b2", left: "55%", top: "2%", width: 200, viewH: 100, start: { x: 15, y: 75 }, end: { x: 185, y: 25 }, cp1Base: { x: 60, y: 20 }, cp2Base: { x: 130, y: 70 }, cp1Motion: { ax: 16, ay: 20, speed: 0.48 }, cp2Motion: { ax: 14, ay: 12, speed: 0.55 }, color: colors.pink, phase: 0.9 },
-  { id: "b3", left: "32%", top: "12%", width: 240, viewH: 90, start: { x: 5, y: 45 }, end: { x: 235, y: 48 }, cp1Base: { x: 75, y: 8 }, cp2Base: { x: 165, y: 82 }, cp1Motion: { ax: 20, ay: 14, speed: 0.44 }, cp2Motion: { ax: 16, ay: 18, speed: 0.5 }, color: colors.green, phase: 1.6 },
-  { id: "b4", left: "68%", top: "16%", width: 180, viewH: 120, start: { x: 20, y: 100 }, end: { x: 160, y: 15 }, cp1Base: { x: 55, y: 55 }, cp2Base: { x: 120, y: 40 }, cp1Motion: { ax: 18, ay: 16, speed: 0.58 }, cp2Motion: { ax: 12, ay: 14, speed: 0.42 }, color: colors.chartreuse, phase: 2.2 },
-  { id: "b5", left: "8%", top: "24%", width: 260, viewH: 95, start: { x: 8, y: 48 }, end: { x: 252, y: 52 }, cp1Base: { x: 85, y: 12 }, cp2Base: { x: 175, y: 88 }, cp1Motion: { ax: 24, ay: 16, speed: 0.46 }, cp2Motion: { ax: 18, ay: 20, speed: 0.52 }, color: colors.plum, phase: 0.5 },
-  { id: "b6", left: "48%", top: "28%", width: 210, viewH: 105, start: { x: 12, y: 85 }, end: { x: 198, y: 18 }, cp1Base: { x: 65, y: 35 }, cp2Base: { x: 145, y: 65 }, cp1Motion: { ax: 20, ay: 14, speed: 0.5 }, cp2Motion: { ax: 15, ay: 12, speed: 0.45 }, color: colors.pink, phase: 3.0 },
-  { id: "b7", left: "18%", top: "38%", width: 230, viewH: 100, start: { x: 10, y: 50 }, end: { x: 220, y: 55 }, cp1Base: { x: 70, y: 10 }, cp2Base: { x: 160, y: 90 }, cp1Motion: { ax: 22, ay: 18, speed: 0.54 }, cp2Motion: { ax: 16, ay: 14, speed: 0.48 }, color: colors.green, phase: 1.2 },
-  { id: "b8", left: "72%", top: "36%", width: 190, viewH: 115, start: { x: 15, y: 95 }, end: { x: 175, y: 20 }, cp1Base: { x: 50, y: 40 }, cp2Base: { x: 130, y: 75 }, cp1Motion: { ax: 18, ay: 16, speed: 0.56 }, cp2Motion: { ax: 14, ay: 10, speed: 0.44 }, color: colors.chartreuse, phase: 2.8 },
-  { id: "b9", left: "4%", top: "48%", width: 250, viewH: 90, start: { x: 5, y: 42 }, end: { x: 245, y: 48 }, cp1Base: { x: 80, y: 5 }, cp2Base: { x: 170, y: 85 }, cp1Motion: { ax: 26, ay: 12, speed: 0.42 }, cp2Motion: { ax: 20, ay: 16, speed: 0.5 }, color: colors.plum, phase: 0.3 },
-  { id: "b10", left: "38%", top: "46%", width: 220, viewH: 110, start: { x: 18, y: 88 }, end: { x: 202, y: 22 }, cp1Base: { x: 68, y: 38 }, cp2Base: { x: 152, y: 62 }, cp1Motion: { ax: 16, ay: 20, speed: 0.6 }, cp2Motion: { ax: 18, ay: 14, speed: 0.46 }, color: colors.pink, phase: 3.6 },
-  { id: "b11", left: "58%", top: "54%", width: 200, viewH: 100, start: { x: 10, y: 80 }, end: { x: 190, y: 25 }, cp1Base: { x: 55, y: 30 }, cp2Base: { x: 140, y: 70 }, cp1Motion: { ax: 20, ay: 14, speed: 0.48 }, cp2Motion: { ax: 14, ay: 18, speed: 0.54 }, color: colors.green, phase: 1.8 },
-  { id: "b12", left: "12%", top: "58%", width: 240, viewH: 95, start: { x: 8, y: 47 }, end: { x: 232, y: 50 }, cp1Base: { x: 78, y: 8 }, cp2Base: { x: 168, y: 88 }, cp1Motion: { ax: 22, ay: 16, speed: 0.5 }, cp2Motion: { ax: 16, ay: 14, speed: 0.42 }, color: colors.chartreuse, phase: 2.4 },
-  { id: "b13", left: "44%", top: "66%", width: 210, viewH: 105, start: { x: 15, y: 90 }, end: { x: 195, y: 15 }, cp1Base: { x: 62, y: 42 }, cp2Base: { x: 148, y: 58 }, cp1Motion: { ax: 18, ay: 12, speed: 0.52 }, cp2Motion: { ax: 12, ay: 16, speed: 0.48 }, color: colors.plum, phase: 0.7 },
-  { id: "b14", left: "78%", top: "62%", width: 185, viewH: 115, start: { x: 12, y: 95 }, end: { x: 173, y: 18 }, cp1Base: { x: 48, y: 38 }, cp2Base: { x: 125, y: 72 }, cp1Motion: { ax: 16, ay: 18, speed: 0.56 }, cp2Motion: { ax: 14, ay: 10, speed: 0.44 }, color: colors.pink, phase: 3.2 },
-  { id: "b15", left: "22%", top: "74%", width: 230, viewH: 90, start: { x: 6, y: 44 }, end: { x: 224, y: 46 }, cp1Base: { x: 72, y: 6 }, cp2Base: { x: 162, y: 84 }, cp1Motion: { ax: 24, ay: 14, speed: 0.46 }, cp2Motion: { ax: 18, ay: 18, speed: 0.52 }, color: colors.green, phase: 1.4 },
-  { id: "b16", left: "52%", top: "78%", width: 200, viewH: 100, start: { x: 10, y: 82 }, end: { x: 190, y: 20 }, cp1Base: { x: 58, y: 32 }, cp2Base: { x: 138, y: 68 }, cp1Motion: { ax: 20, ay: 16, speed: 0.5 }, cp2Motion: { ax: 14, ay: 12, speed: 0.46 }, color: colors.chartreuse, phase: 2.0, opacity: 0.1 },
-  { id: "b17", left: "6%", top: "86%", width: 220, viewH: 95, start: { x: 8, y: 48 }, end: { x: 212, y: 50 }, cp1Base: { x: 68, y: 10 }, cp2Base: { x: 158, y: 86 }, cp1Motion: { ax: 22, ay: 14, speed: 0.48 }, cp2Motion: { ax: 16, ay: 16, speed: 0.54 }, color: colors.plum, phase: 3.8 },
-  { id: "b18", left: "62%", top: "88%", width: 195, viewH: 105, start: { x: 14, y: 88 }, end: { x: 181, y: 22 }, cp1Base: { x: 52, y: 36 }, cp2Base: { x: 132, y: 64 }, cp1Motion: { ax: 18, ay: 12, speed: 0.52 }, cp2Motion: { ax: 12, ay: 14, speed: 0.42 }, color: colors.pink, phase: 1.0 },
+  { id: "b1", left: "2%", top: "4%", width: 240, viewH: 120, start: { x: 10, y: 90 }, end: { x: 230, y: 20 }, cp1Base: { x: 55, y: 28 }, cp2Base: { x: 170, y: 85 }, cp1Motion: { ax: 32, ay: 26, speed: 0.62 }, cp2Motion: { ax: 26, ay: 20, speed: 0.48 }, color: colors.plum, phase: 0 },
+  { id: "b2", left: "58%", top: "2%", width: 220, viewH: 110, start: { x: 15, y: 75 }, end: { x: 205, y: 22 }, cp1Base: { x: 60, y: 18 }, cp2Base: { x: 145, y: 72 }, cp1Motion: { ax: 24, ay: 28, speed: 0.55 }, cp2Motion: { ax: 20, ay: 18, speed: 0.65 }, color: colors.pink, phase: 0.9 },
+  { id: "b3", left: "28%", top: "10%", width: 260, viewH: 100, start: { x: 5, y: 45 }, end: { x: 255, y: 48 }, cp1Base: { x: 80, y: 6 }, cp2Base: { x: 175, y: 90 }, cp1Motion: { ax: 28, ay: 20, speed: 0.5 }, cp2Motion: { ax: 22, ay: 24, speed: 0.58 }, color: colors.green, phase: 1.6 },
+  { id: "b4", left: "72%", top: "14%", width: 200, viewH: 130, start: { x: 20, y: 110 }, end: { x: 180, y: 12 }, cp1Base: { x: 55, y: 55 }, cp2Base: { x: 130, y: 40 }, cp1Motion: { ax: 26, ay: 22, speed: 0.68 }, cp2Motion: { ax: 18, ay: 20, speed: 0.5 }, color: colors.chartreuse, phase: 2.2 },
+  { id: "b5", left: "4%", top: "22%", width: 280, viewH: 100, start: { x: 8, y: 48 }, end: { x: 272, y: 52 }, cp1Base: { x: 90, y: 10 }, cp2Base: { x: 185, y: 92 }, cp1Motion: { ax: 34, ay: 22, speed: 0.52 }, cp2Motion: { ax: 26, ay: 28, speed: 0.6 }, color: colors.plum, phase: 0.5 },
+  { id: "b6", left: "48%", top: "26%", width: 230, viewH: 115, start: { x: 12, y: 90 }, end: { x: 218, y: 16 }, cp1Base: { x: 70, y: 32 }, cp2Base: { x: 155, y: 68 }, cp1Motion: { ax: 28, ay: 20, speed: 0.58 }, cp2Motion: { ax: 22, ay: 18, speed: 0.52 }, color: colors.pink, phase: 3.0 },
+  { id: "b7", left: "14%", top: "36%", width: 250, viewH: 110, start: { x: 10, y: 50 }, end: { x: 240, y: 55 }, cp1Base: { x: 75, y: 8 }, cp2Base: { x: 170, y: 95 }, cp1Motion: { ax: 30, ay: 24, speed: 0.62 }, cp2Motion: { ax: 22, ay: 20, speed: 0.55 }, color: colors.green, phase: 1.2 },
+  { id: "b8", left: "75%", top: "34%", width: 210, viewH: 125, start: { x: 15, y: 105 }, end: { x: 195, y: 18 }, cp1Base: { x: 50, y: 40 }, cp2Base: { x: 140, y: 78 }, cp1Motion: { ax: 26, ay: 22, speed: 0.64 }, cp2Motion: { ax: 20, ay: 16, speed: 0.5 }, color: colors.chartreuse, phase: 2.8 },
+  { id: "b9", left: "2%", top: "48%", width: 270, viewH: 95, start: { x: 5, y: 42 }, end: { x: 265, y: 48 }, cp1Base: { x: 85, y: 4 }, cp2Base: { x: 180, y: 90 }, cp1Motion: { ax: 36, ay: 16, speed: 0.48 }, cp2Motion: { ax: 28, ay: 22, speed: 0.56 }, color: colors.plum, phase: 0.3 },
+  { id: "b10", left: "40%", top: "44%", width: 240, viewH: 120, start: { x: 18, y: 95 }, end: { x: 222, y: 20 }, cp1Base: { x: 72, y: 36 }, cp2Base: { x: 160, y: 65 }, cp1Motion: { ax: 24, ay: 28, speed: 0.7 }, cp2Motion: { ax: 26, ay: 20, speed: 0.52 }, color: colors.pink, phase: 3.6 },
+  { id: "b11", left: "60%", top: "52%", width: 220, viewH: 110, start: { x: 10, y: 85 }, end: { x: 210, y: 22 }, cp1Base: { x: 58, y: 28 }, cp2Base: { x: 150, y: 72 }, cp1Motion: { ax: 28, ay: 20, speed: 0.55 }, cp2Motion: { ax: 20, ay: 24, speed: 0.62 }, color: colors.green, phase: 1.8 },
+  { id: "b12", left: "10%", top: "58%", width: 260, viewH: 100, start: { x: 8, y: 47 }, end: { x: 252, y: 50 }, cp1Base: { x: 82, y: 6 }, cp2Base: { x: 175, y: 92 }, cp1Motion: { ax: 30, ay: 22, speed: 0.58 }, cp2Motion: { ax: 22, ay: 20, speed: 0.48 }, color: colors.chartreuse, phase: 2.4 },
 ];
 
-type BezierState = { cp1: { x: number; y: number }; cp2: { x: number; y: number } };
+type BezierDomRefs = {
+  path: SVGPathElement | null;
+  line1: SVGLineElement | null;
+  line2: SVGLineElement | null;
+  line3: SVGLineElement | null;
+  cp1: SVGCircleElement | null;
+  cp1Ring: SVGCircleElement | null;
+  cp2: SVGRectElement | null;
+};
 
-function AnimatedBezierLayer({ configs }: { configs: BezierConfig[] }) {
-  const [states, setStates] = useState<BezierState[]>(() =>
-    configs.map((c) => ({ cp1: c.cp1Base, cp2: c.cp2Base })),
-  );
-  const t = useRef(0);
+function AnimatedBezierLayer({
+  configs,
+  reduced,
+}: {
+  configs: BezierConfig[];
+  reduced: boolean;
+}) {
+  const refs = useRef<BezierDomRefs[]>(configs.map(() => ({
+    path: null,
+    line1: null,
+    line2: null,
+    line3: null,
+    cp1: null,
+    cp1Ring: null,
+    cp2: null,
+  })));
 
   useAnimationFrame((time) => {
-    t.current = time / 1000;
-    setStates(
-      configs.map((c) => {
-        const phase = t.current + c.phase;
-        return {
-          cp1: {
-            x: c.cp1Base.x + Math.sin(phase * c.cp1Motion.speed) * c.cp1Motion.ax,
-            y: c.cp1Base.y + Math.cos(phase * c.cp1Motion.speed * 0.9) * c.cp1Motion.ay,
-          },
-          cp2: {
-            x: c.cp2Base.x + Math.cos(phase * c.cp2Motion.speed * 1.1) * c.cp2Motion.ax,
-            y: c.cp2Base.y + Math.sin(phase * c.cp2Motion.speed * 0.85) * c.cp2Motion.ay,
-          },
-        };
-      }),
-    );
+    if (reduced) return;
+    const t = time / 1000;
+    configs.forEach((c, i) => {
+      const el = refs.current[i];
+      if (!el.path) return;
+      const phase = t + c.phase;
+      const cp1x = c.cp1Base.x + Math.sin(phase * c.cp1Motion.speed) * c.cp1Motion.ax;
+      const cp1y = c.cp1Base.y + Math.cos(phase * c.cp1Motion.speed * 0.9) * c.cp1Motion.ay;
+      const cp2x = c.cp2Base.x + Math.cos(phase * c.cp2Motion.speed * 1.1) * c.cp2Motion.ax;
+      const cp2y = c.cp2Base.y + Math.sin(phase * c.cp2Motion.speed * 0.85) * c.cp2Motion.ay;
+      const { start, end } = c;
+      el.path.setAttribute("d", `M ${start.x} ${start.y} C ${cp1x} ${cp1y} ${cp2x} ${cp2y} ${end.x} ${end.y}`);
+      el.line1?.setAttribute("x2", String(cp1x));
+      el.line1?.setAttribute("y2", String(cp1y));
+      el.line2?.setAttribute("x2", String(cp2x));
+      el.line2?.setAttribute("y2", String(cp2y));
+      el.line3?.setAttribute("x1", String(cp1x));
+      el.line3?.setAttribute("y1", String(cp1y));
+      el.line3?.setAttribute("x2", String(cp2x));
+      el.line3?.setAttribute("y2", String(cp2y));
+      el.cp1?.setAttribute("cx", String(cp1x));
+      el.cp1?.setAttribute("cy", String(cp1y));
+      el.cp1Ring?.setAttribute("cx", String(cp1x));
+      el.cp1Ring?.setAttribute("cy", String(cp1y));
+      el.cp2?.setAttribute("x", String(cp2x - 3.5));
+      el.cp2?.setAttribute("y", String(cp2y - 3.5));
+    });
   });
 
   return (
     <>
       {configs.map((config, i) => {
-        const { cp1, cp2 } = states[i];
-        const { start, end } = config;
-        const pathD = `M ${start.x} ${start.y} C ${cp1.x} ${cp1.y} ${cp2.x} ${cp2.y} ${end.x} ${end.y}`;
+        const { start, end, cp1Base, cp2Base } = config;
+        const pathD = `M ${start.x} ${start.y} C ${cp1Base.x} ${cp1Base.y} ${cp2Base.x} ${cp2Base.y} ${end.x} ${end.y}`;
         const opacity = config.opacity ?? CURVE_OPACITY;
+        const bind = <K extends keyof BezierDomRefs>(key: K) => (node: BezierDomRefs[K]) => {
+          refs.current[i][key] = node;
+        };
 
         return (
           <motion.svg
@@ -223,27 +276,89 @@ function AnimatedBezierLayer({ configs }: { configs: BezierConfig[] }) {
               height: config.viewH,
               opacity,
             }}
-            animate={{ x: [0, 6, -4, 0], y: [0, -5, 4, 0] }}
+            animate={
+              reduced
+                ? undefined
+                : { x: [0, 10, -8, 0], y: [0, -9, 7, 0], rotate: [0, 1.5, -1, 0] }
+            }
             transition={{
-              duration: 20 + (i % 5) * 2,
+              duration: 14 + (i % 5) * 2,
               repeat: Infinity,
               ease: "easeInOut",
               delay: config.phase,
             }}
           >
-            {/* Control polygon — shows cubic bezier handles being manipulated */}
-            <line x1={start.x} y1={start.y} x2={cp1.x} y2={cp1.y} stroke={config.color} strokeWidth={1} strokeOpacity={0.4} strokeDasharray="4 5" />
-            <line x1={end.x} y1={end.y} x2={cp2.x} y2={cp2.y} stroke={config.color} strokeWidth={1} strokeOpacity={0.4} strokeDasharray="4 5" />
-            <line x1={cp1.x} y1={cp1.y} x2={cp2.x} y2={cp2.y} stroke={config.color} strokeWidth={0.8} strokeOpacity={0.18} strokeDasharray="3 6" />
-            <path d={pathD} fill="none" stroke={config.color} strokeWidth={2.5} strokeLinecap="round" />
-            {/* Anchor points */}
+            <line
+              ref={bind("line1")}
+              x1={start.x}
+              y1={start.y}
+              x2={cp1Base.x}
+              y2={cp1Base.y}
+              stroke={config.color}
+              strokeWidth={1}
+              strokeOpacity={0.45}
+              strokeDasharray="4 5"
+            />
+            <line
+              ref={bind("line2")}
+              x1={end.x}
+              y1={end.y}
+              x2={cp2Base.x}
+              y2={cp2Base.y}
+              stroke={config.color}
+              strokeWidth={1}
+              strokeOpacity={0.45}
+              strokeDasharray="4 5"
+            />
+            <line
+              ref={bind("line3")}
+              x1={cp1Base.x}
+              y1={cp1Base.y}
+              x2={cp2Base.x}
+              y2={cp2Base.y}
+              stroke={config.color}
+              strokeWidth={0.8}
+              strokeOpacity={0.22}
+              strokeDasharray="3 6"
+            />
+            <path
+              ref={bind("path")}
+              d={pathD}
+              fill="none"
+              stroke={config.color}
+              strokeWidth={2.8}
+              strokeLinecap="round"
+            />
             <circle cx={start.x} cy={start.y} r={3.5} fill={colors.whitePure} stroke={config.color} strokeWidth={1.5} />
             <circle cx={end.x} cy={end.y} r={3.5} fill={colors.whitePure} stroke={config.color} strokeWidth={1.5} />
-            {/* cp1 — circular handle */}
-            <circle cx={cp1.x} cy={cp1.y} r={5} fill={config.color} fillOpacity={0.9} />
-            <circle cx={cp1.x} cy={cp1.y} r={9} fill="none" stroke={config.color} strokeWidth={1} strokeOpacity={0.35} />
-            {/* cp2 — square handle */}
-            <rect x={cp2.x - 3.5} y={cp2.y - 3.5} width={7} height={7} fill={colors.whitePure} stroke={config.color} strokeWidth={1.5} />
+            <circle
+              ref={bind("cp1")}
+              cx={cp1Base.x}
+              cy={cp1Base.y}
+              r={5}
+              fill={config.color}
+              fillOpacity={0.95}
+            />
+            <circle
+              ref={bind("cp1Ring")}
+              cx={cp1Base.x}
+              cy={cp1Base.y}
+              r={10}
+              fill="none"
+              stroke={config.color}
+              strokeWidth={1}
+              strokeOpacity={0.4}
+            />
+            <rect
+              ref={bind("cp2")}
+              x={cp2Base.x - 3.5}
+              y={cp2Base.y - 3.5}
+              width={7}
+              height={7}
+              fill={colors.whitePure}
+              stroke={config.color}
+              strokeWidth={1.5}
+            />
           </motion.svg>
         );
       })}
@@ -251,41 +366,56 @@ function AnimatedBezierLayer({ configs }: { configs: BezierConfig[] }) {
   );
 }
 
-function driftAnimation(index: number, kind: string) {
-  const amp = kind === "ring" ? 10 : 14;
-  const rot = kind === "rect" || kind === "diamond" || kind === "triangle" || kind === "cross" ? 8 : 0;
+function driftAnimation(kind: string, ampBoost = 1) {
+  const amp = (kind === "ring" ? 16 : 22) * ampBoost;
+  const rot = kind === "rect" || kind === "diamond" || kind === "triangle" || kind === "cross" ? 14 : 0;
   return {
-    x: [0, amp * 0.55, -amp * 0.4, amp * 0.25, 0],
-    y: [0, -amp * 0.8, amp * 0.45, -amp * 0.3, 0],
-    rotate: rot ? [0, rot * 0.45, -rot * 0.3, rot * 0.15, 0] : [0, 0, 0, 0, 0],
-    scale: kind === "circle" ? [1, 1.05, 0.97, 1.03, 1] : [1, 1.04, 0.98, 1.02, 1],
+    x: [0, amp * 0.65, -amp * 0.5, amp * 0.35, 0],
+    y: [0, -amp * 0.95, amp * 0.55, -amp * 0.4, 0],
+    rotate: rot ? [0, rot * 0.55, -rot * 0.4, rot * 0.2, 0] : [0, 0, 0, 0, 0],
+    scale: kind === "circle" ? [1, 1.12, 0.94, 1.08, 1] : [1, 1.08, 0.96, 1.05, 1],
   };
 }
 
-function DoodleShape({ d, i }: { d: Doodle; i: number }) {
+function DoodleShape({
+  d,
+  i,
+  reduced,
+  amplify = false,
+  strength = 16,
+  radius = 145,
+}: {
+  d: Doodle;
+  i: number;
+  reduced: boolean;
+  amplify?: boolean;
+  strength?: number;
+  radius?: number;
+}) {
   const opacity = d.opacity ?? SHAPE_OPACITY;
-  const duration = d.duration ?? 14 + (i % 6) * 2;
-  const animate = driftAnimation(i, d.kind);
+  const duration = reduced ? 0 : (d.duration ?? 10 + (i % 6) * 1.6);
+  const animate = reduced ? undefined : driftAnimation(d.kind, amplify ? 1.35 : 1);
   const transition = { duration, repeat: Infinity, ease: "easeInOut" as const, delay: d.delay };
 
+  const w = d.kind === "rect" ? d.w : d.size;
+  const h =
+    d.kind === "rect" ? d.h : d.kind === "triangle" ? d.size * 0.86 : d.size;
+
+  let inner: ReactNode = null;
+
   if (d.kind === "circle") {
-    return (
+    inner = (
       <motion.div
-        className="absolute rounded-full"
-        style={{ left: d.x, top: d.y, width: d.size, height: d.size, backgroundColor: d.color, opacity }}
+        className="rounded-full"
+        style={{ width: d.size, height: d.size, backgroundColor: d.color, opacity }}
         animate={animate}
         transition={transition}
       />
     );
-  }
-
-  if (d.kind === "rect") {
-    return (
+  } else if (d.kind === "rect") {
+    inner = (
       <motion.div
-        className="absolute"
         style={{
-          left: d.x,
-          top: d.y,
           width: d.w,
           height: d.h,
           borderRadius: d.rx,
@@ -296,17 +426,14 @@ function DoodleShape({ d, i }: { d: Doodle; i: number }) {
         transition={transition}
       />
     );
-  }
-
-  if (d.kind === "ring") {
-    return (
+  } else if (d.kind === "ring") {
+    inner = (
       <motion.div
-        className="absolute"
-        style={{ left: d.x, top: d.y, width: d.size, height: d.size, opacity }}
-        animate={{ ...animate, rotate: [0, 360] }}
+        style={{ width: d.size, height: d.size, opacity }}
+        animate={reduced ? undefined : { ...animate!, rotate: [0, 360] }}
         transition={{
           ...transition,
-          rotate: { duration: duration * 1.5, repeat: Infinity, ease: "linear", delay: d.delay },
+          rotate: { duration: duration * 1.2, repeat: Infinity, ease: "linear", delay: d.delay },
         }}
       >
         <svg viewBox="0 0 100 100" className="h-full w-full">
@@ -314,103 +441,388 @@ function DoodleShape({ d, i }: { d: Doodle; i: number }) {
         </svg>
       </motion.div>
     );
-  }
-
-  if (d.kind === "triangle") {
-    return (
+  } else if (d.kind === "triangle") {
+    inner = (
       <motion.svg
         viewBox="0 0 100 86"
-        className="absolute"
-        style={{ left: d.x, top: d.y, width: d.size, height: d.size * 0.86, opacity }}
-        animate={{ ...animate, rotate: [d.rotate, d.rotate + 10, d.rotate] }}
+        style={{ width: d.size, height: d.size * 0.86, opacity }}
+        animate={
+          reduced ? undefined : { ...animate!, rotate: [d.rotate, d.rotate + 16, d.rotate] }
+        }
         transition={{
           ...transition,
-          rotate: { duration: duration * 1.2, repeat: Infinity, ease: "easeInOut", delay: d.delay },
+          rotate: { duration: duration * 1.1, repeat: Infinity, ease: "easeInOut", delay: d.delay },
         }}
       >
         <polygon points="50,4 96,82 4,82" fill={d.color} />
       </motion.svg>
     );
-  }
-
-  if (d.kind === "cross") {
-    return (
+  } else if (d.kind === "cross") {
+    inner = (
       <motion.svg
         viewBox="0 0 40 40"
-        className="absolute"
-        style={{ left: d.x, top: d.y, width: d.size, height: d.size, opacity }}
-        animate={{ ...animate, rotate: [0, 90, 180, 270, 360] }}
+        style={{ width: d.size, height: d.size, opacity }}
+        animate={
+          reduced ? undefined : { ...animate!, rotate: [0, 90, 180, 270, 360] }
+        }
         transition={{
           ...transition,
-          rotate: { duration: duration * 2, repeat: Infinity, ease: "linear", delay: d.delay },
+          rotate: { duration: duration * 1.6, repeat: Infinity, ease: "linear", delay: d.delay },
         }}
       >
         <rect x="17" y="4" width="6" height="32" rx="2" fill={d.color} />
         <rect x="4" y="17" width="32" height="6" rx="2" fill={d.color} />
       </motion.svg>
     );
+  } else {
+    inner = (
+      <motion.div
+        className="rotate-45"
+        style={{ width: d.size, height: d.size, backgroundColor: d.color, opacity }}
+        animate={
+          reduced ? undefined : { ...animate!, rotate: [d.rotate, d.rotate + 14, d.rotate] }
+        }
+        transition={{
+          ...transition,
+          rotate: { duration: duration * 1.05, repeat: Infinity, ease: "easeInOut", delay: d.delay },
+        }}
+      />
+    );
   }
 
   return (
-    <motion.div
-      className="absolute rotate-45"
-      style={{ left: d.x, top: d.y, width: d.size, height: d.size, backgroundColor: d.color, opacity }}
-      animate={{ ...animate, rotate: [d.rotate, d.rotate + 8, d.rotate] }}
-      transition={{
-        ...transition,
-        rotate: { duration: duration * 1.1, repeat: Infinity, ease: "easeInOut", delay: d.delay },
-      }}
-    />
+    <RepelShell
+      strength={strength}
+      radius={radius}
+      className="absolute"
+      style={{ left: d.x, top: d.y, width: w, height: h }}
+    >
+      {inner}
+    </RepelShell>
+  );
+}
+
+function HeroOrbs({ reduced }: { reduced: boolean }) {
+  return (
+    <div className="absolute inset-0 overflow-hidden">
+      {HERO_ORBS.map((orb, i) => (
+        <motion.div
+          key={`orb-${i}`}
+          className="absolute rounded-full"
+          style={{
+            left: orb.x,
+            top: orb.y,
+            width: orb.size,
+            height: orb.size,
+            background: `radial-gradient(circle at 40% 40%, ${orb.color} 0%, transparent 70%)`,
+            opacity: orb.opacity,
+            filter: `blur(${orb.blur}px)`,
+            willChange: "transform",
+          }}
+          animate={
+            reduced
+              ? undefined
+              : {
+                  x: [0, 40 + i * 8, -28, 18, 0],
+                  y: [0, -32 - i * 4, 28, -16, 0],
+                  scale: [1, 1.18, 0.9, 1.1, 1],
+                }
+          }
+          transition={{
+            duration: orb.duration,
+            repeat: Infinity,
+            ease: "easeInOut",
+            delay: i * 0.4,
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+/** Tiny orbiting “cursors” — sell the multiplayer vector feel in empty margins */
+function FloatingCursors({ reduced }: { reduced: boolean }) {
+  const cursors = [
+    { x: "10%", y: "30%", color: colors.plum, label: "A", duration: 11 },
+    { x: "86%", y: "24%", color: colors.green, label: "M", duration: 13 },
+    { x: "78%", y: "58%", color: colors.pink, label: "K", duration: 12 },
+    { x: "8%", y: "55%", color: colors.chartreuse, label: "R", duration: 14 },
+  ];
+
+  return (
+    <>
+      {cursors.map((c, i) => (
+        <RepelShell
+          key={`cursor-${i}`}
+          strength={8}
+          radius={130}
+          className="absolute hidden sm:block"
+          style={{ left: c.x, top: c.y }}
+        >
+          <motion.div
+            animate={
+              reduced
+                ? undefined
+                : {
+                    x: [0, 28, -18, 12, 0],
+                    y: [0, -22, 16, -10, 0],
+                  }
+            }
+            transition={{ duration: c.duration, repeat: Infinity, ease: "easeInOut", delay: i * 0.6 }}
+          >
+            <svg width="18" height="22" viewBox="0 0 18 22" fill="none" aria-hidden>
+              <path
+                d="M1 1L1 18L5.5 14.5L9 21L11.5 20L8 13.5H14L1 1Z"
+                fill={c.color}
+                stroke={colors.whitePure}
+                strokeWidth="1"
+              />
+            </svg>
+            <span
+              className="absolute left-3.5 top-4 rounded-md px-1.5 py-0.5 text-[9px] font-bold text-white shadow-sm"
+              style={{ backgroundColor: c.color }}
+            >
+              {c.label}
+            </span>
+          </motion.div>
+        </RepelShell>
+      ))}
+    </>
+  );
+}
+
+type RepelBody = {
+  el: HTMLElement;
+  strength: number;
+  radius: number;
+  ox: number;
+  oy: number;
+  baseX: number;
+  baseY: number;
+};
+
+type RepelApi = {
+  register: (el: HTMLElement, strength: number, radius: number) => () => void;
+};
+
+const RepelContext = createContext<RepelApi | null>(null);
+
+/** Very minor outer-space push — soft falloff, inertial settle. */
+function CursorRepelProvider({
+  children,
+  enabled,
+}: {
+  children: ReactNode;
+  enabled: boolean;
+}) {
+  const bodies = useRef(new Map<HTMLElement, RepelBody>());
+  const cursor = useRef({ x: -9999, y: -9999, active: false });
+
+  const register = useCallback((el: HTMLElement, strength: number, radius: number) => {
+    const rect = el.getBoundingClientRect();
+    bodies.current.set(el, {
+      el,
+      strength,
+      radius,
+      ox: 0,
+      oy: 0,
+      baseX: rect.left + rect.width / 2,
+      baseY: rect.top + rect.height / 2,
+    });
+
+    return () => {
+      bodies.current.delete(el);
+      el.style.transform = "";
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!enabled) return;
+
+    const refreshBases = () => {
+      bodies.current.forEach((body) => {
+        const rect = body.el.getBoundingClientRect();
+        // undo current visual offset so we measure rest position
+        body.baseX = rect.left + rect.width / 2 - body.ox;
+        body.baseY = rect.top + rect.height / 2 - body.oy;
+      });
+    };
+
+    const onMove = (e: MouseEvent) => {
+      cursor.current = { x: e.clientX, y: e.clientY, active: true };
+    };
+    const onLeave = () => {
+      cursor.current.active = false;
+    };
+
+    window.addEventListener("mousemove", onMove, { passive: true });
+    window.addEventListener("mouseleave", onLeave);
+    window.addEventListener("resize", refreshBases);
+    window.addEventListener("scroll", refreshBases, { passive: true });
+
+    // Initial base positions after layout
+    const t = window.setTimeout(refreshBases, 50);
+
+    return () => {
+      window.clearTimeout(t);
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseleave", onLeave);
+      window.removeEventListener("resize", refreshBases);
+      window.removeEventListener("scroll", refreshBases);
+    };
+  }, [enabled]);
+
+  useAnimationFrame(() => {
+    if (!enabled) return;
+    const { x: cx, y: cy, active } = cursor.current;
+    const ease = 0.055; // inertial — floats like space dust
+
+    bodies.current.forEach((body) => {
+      let tx = 0;
+      let ty = 0;
+
+      if (active) {
+        const dx = body.baseX - cx;
+        const dy = body.baseY - cy;
+        const dist = Math.hypot(dx, dy);
+
+        if (dist > 0 && dist < body.radius) {
+          const t = 1 - dist / body.radius;
+          // soft quadratic falloff — gentle nudge, not a shove
+          const force = t * t * body.strength;
+          tx = (dx / dist) * force;
+          ty = (dy / dist) * force;
+        }
+      }
+
+      body.ox += (tx - body.ox) * ease;
+      body.oy += (ty - body.oy) * ease;
+
+      if (Math.abs(body.ox) < 0.05 && Math.abs(body.oy) < 0.05 && tx === 0 && ty === 0) {
+        body.ox = 0;
+        body.oy = 0;
+        body.el.style.transform = "";
+        return;
+      }
+
+      body.el.style.transform = `translate3d(${body.ox.toFixed(2)}px, ${body.oy.toFixed(2)}px, 0)`;
+    });
+  });
+
+  return <RepelContext.Provider value={{ register }}>{children}</RepelContext.Provider>;
+}
+
+function RepelShell({
+  children,
+  strength = 9,
+  radius = 150,
+  className,
+  style,
+}: {
+  children: ReactNode;
+  strength?: number;
+  radius?: number;
+  className?: string;
+  style?: CSSProperties;
+}) {
+  const api = useContext(RepelContext);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || !api) return;
+    return api.register(el, strength, radius);
+  }, [api, strength, radius]);
+
+  return (
+    <div
+      ref={ref}
+      className={className}
+      style={{ willChange: "transform", ...style }}
+    >
+      {children}
+    </div>
   );
 }
 
 export function LandingBackgroundDoodles() {
   const [mounted, setMounted] = useState(false);
+  const [reduced, setReduced] = useState(false);
 
   useEffect(() => {
     setMounted(true);
+    setReduced(prefersReducedMotion());
   }, []);
 
   return (
     <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden" aria-hidden="true">
       {mounted ? (
-        <>
+        <CursorRepelProvider enabled={!reduced}>
+          <HeroOrbs reduced={reduced} />
+
           <div className="absolute inset-0">
-            <AnimatedBezierLayer configs={BACKGROUND_BEZIERS} />
+            <AnimatedBezierLayer configs={BACKGROUND_BEZIERS} reduced={reduced} />
 
             {SCATTER_DOTS.map((dot, i) => (
-              <motion.div
+              <RepelShell
                 key={`dot-${i}`}
-                className="absolute rounded-full"
+                strength={6}
+                radius={110}
+                className="absolute"
                 style={{
                   left: `${dot.x}%`,
                   top: `${dot.y}%`,
                   width: dot.size,
                   height: dot.size,
-                  backgroundColor: dot.color,
-                  opacity: DOT_OPACITY,
                 }}
-                animate={{
-                  x: [0, 8, -5, 4, 0],
-                  y: [0, -10, 6, -4, 0],
-                  scale: [1, 1.15, 0.92, 1.08, 1],
-                }}
-                transition={{
-                  duration: 9 + (i % 7) * 1.3,
-                  repeat: Infinity,
-                  ease: "easeInOut",
-                  delay: (i % 11) * 0.28,
-                }}
+              >
+                <motion.div
+                  className="rounded-full"
+                  style={{
+                    width: dot.size,
+                    height: dot.size,
+                    backgroundColor: dot.color,
+                    opacity: DOT_OPACITY,
+                  }}
+                  animate={
+                    reduced
+                      ? undefined
+                      : {
+                          x: [0, 14, -9, 7, 0],
+                          y: [0, -16, 10, -7, 0],
+                          scale: [1, 1.28, 0.88, 1.14, 1],
+                          opacity: [DOT_OPACITY, DOT_OPACITY * 1.35, DOT_OPACITY * 0.75, DOT_OPACITY],
+                        }
+                  }
+                  transition={{
+                    duration: 7 + (i % 7) * 1.1,
+                    repeat: Infinity,
+                    ease: "easeInOut",
+                    delay: (i % 11) * 0.22,
+                  }}
+                />
+              </RepelShell>
+            ))}
+
+            {DOODLES.map((d, i) => (
+              <DoodleShape key={`${d.kind}-${i}`} d={d} i={i} reduced={reduced} />
+            ))}
+
+            {HERO_MARGIN_DOODLES.map((d, i) => (
+              <DoodleShape
+                key={`margin-${d.kind}-${i}`}
+                d={d}
+                i={i}
+                reduced={reduced}
+                amplify
+                strength={10}
+                radius={165}
               />
             ))}
-          </div>
 
-          <div className="absolute inset-0">
-            {DOODLES.map((d, i) => (
-              <DoodleShape key={`${d.kind}-${i}`} d={d} i={i} />
-            ))}
+            <FloatingCursors reduced={reduced} />
           </div>
-        </>
+        </CursorRepelProvider>
       ) : null}
     </div>
   );

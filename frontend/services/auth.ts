@@ -1,4 +1,4 @@
-import { clearAccessToken, getAccessToken, setAccessToken } from "@/lib/access-token";
+import { clearAccessToken, setAccessToken } from "@/lib/access-token";
 import { getGuestDeviceId } from "@/lib/guest";
 import { getApiUrl, withAuthHeaders } from "@/lib/api";
 import { formatDisplayName } from "@/lib/names";
@@ -35,12 +35,6 @@ export interface UpdateProfileInput {
 
 let sessionRequest: Promise<AuthUser | null> | null = null;
 
-/** Temporary audit logging — remove after auth stability is confirmed. */
-function authLog(event: string, detail?: Record<string, unknown>): void {
-  if (process.env.NODE_ENV === "production") return;
-  console.log(`[auth] ${event}`, detail ?? "");
-}
-
 function mapMeResponse(data: MeResponse): AuthUser {
   return {
     id: data.id,
@@ -54,7 +48,6 @@ function mapMeResponse(data: MeResponse): AuthUser {
 }
 
 export function startGoogleSignIn(returnPath?: string | null): void {
-  authLog("loginGoogle called");
   sessionRequest = null;
   sessionStorage.removeItem("svigl:auth-callback-processing");
 
@@ -75,11 +68,9 @@ export function startGoogleSignIn(returnPath?: string | null): void {
 }
 
 export async function startGuestSignIn(): Promise<AuthUser> {
-  authLog("loginGuest called");
   sessionRequest = null;
   const guestDeviceId = getGuestDeviceId();
 
-  authLog("/auth/guest request started", { guestDeviceId });
   const response = await fetch(`${getApiUrl()}/auth/guest`, {
     method: "POST",
     credentials: "include",
@@ -95,25 +86,16 @@ export async function startGuestSignIn(): Promise<AuthUser> {
   if (data.access_token) {
     setAccessToken(data.access_token);
   }
-  const user = mapMeResponse(data);
-  authLog("/auth/guest response", { userId: user.id, provider: user.provider });
-  return user;
+  return mapMeResponse(data);
 }
 
 export async function fetchAuthSession(): Promise<AuthUser | null> {
-  authLog("fetchAuthSession called", { deduped: Boolean(sessionRequest) });
-
   if (!sessionRequest) {
-    authLog("/me request started");
     sessionRequest = fetch(`${getApiUrl()}/me`, {
       credentials: "include",
       headers: withAuthHeaders(),
     })
       .then(async (response) => {
-        authLog("/me response", {
-          status: response.status,
-          hasBearer: Boolean(getAccessToken()),
-        });
         if (response.status === 401) {
           clearAccessToken();
           return null;
@@ -124,9 +106,7 @@ export async function fetchAuthSession(): Promise<AuthUser | null> {
         }
 
         const data = (await response.json()) as MeResponse;
-        const user = mapMeResponse(data);
-        authLog("/me response body", { userId: user.id, provider: user.provider });
-        return user;
+        return mapMeResponse(data);
       })
       .finally(() => {
         sessionRequest = null;
@@ -161,7 +141,6 @@ export async function updateProfile(input: UpdateProfileInput): Promise<AuthUser
 }
 
 export async function signOut(): Promise<void> {
-  authLog("logout called");
   sessionRequest = null;
 
   await fetch(`${getApiUrl()}/logout`, {

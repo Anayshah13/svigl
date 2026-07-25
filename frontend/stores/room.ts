@@ -1,6 +1,7 @@
 "use client";
 
 import { createStore } from "@/lib/create-store";
+import { releaseOwnRoomTab } from "@/lib/room-tab-lock";
 import type { Room, RoomStatus } from "@/types/room";
 
 const STORAGE_KEY = "svigl:active-room-code";
@@ -29,7 +30,6 @@ interface ActiveRoomSnapshot {
 interface RoomStoreState {
   activeRoom: ActiveRoomSnapshot | null;
   setActiveRoom: (room: Room) => void;
-  syncActiveRoom: (room: Room) => void;
   clearActiveRoom: () => void;
 }
 
@@ -48,19 +48,8 @@ export const useRoomStore = createStore<RoomStoreState>((set) => ({
     });
   },
 
-  syncActiveRoom: (room) => {
-    persistRoomCode(room.code);
-    set({
-      activeRoom: {
-        code: room.code,
-        status: room.status,
-        playerCount: room.players.length,
-        maxPlayers: room.maxPlayers,
-      },
-    });
-  },
-
   clearActiveRoom: () => {
+    releaseOwnRoomTab();
     persistRoomCode(null);
     set({ activeRoom: null });
   },

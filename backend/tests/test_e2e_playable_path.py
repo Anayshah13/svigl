@@ -195,7 +195,7 @@ def test_full_playable_path_with_draw_guess_and_return_lobby(db: Session) -> Non
     assert all(not p.is_ready for p in room.players)
 
 
-def test_midgame_join_receives_canvas_and_waits(db: Session) -> None:
+def test_midgame_join_receives_canvas_and_can_score(db: Session) -> None:
     host = _user(db, "Host")
     guest = _user(db, "Guest")
     late = _user(db, "Late")
@@ -219,29 +219,20 @@ def test_midgame_join_receives_canvas_and_waits(db: Session) -> None:
     join_room(db, code=room.code, user_id=late.id)
     db.refresh(room)
     snap = RoomResponse.from_room(room, viewer_id=late.id)
-    assert late.id in snap.waiting_player_ids
+    assert late.id not in snap.waiting_player_ids
+    assert late.id in {p.user_id for p in room.game_session.players if p.is_active}
     canvas = get_canvas_snapshot(db, room.code, user_id=late.id)
     assert len(canvas["shapes"]) == 1
     assert canvas["can_draw"] is False
 
-    # Waiting players can chat immediately; exact secret is privately acknowledged.
     chat = submit_chat(db, room.code, late.id, text="looking good")
     assert chat.chat_events[0].kind == "chat"
-    private = submit_chat(db, room.code, late.id, text=word)
-    assert private.chat_events[0].kind == "system"
-    assert private.chat_events[0].recipient_ids == (late.id,)
-    assert word not in private.chat_events[0].message
-
-    # Active on the next drawing boundary.
-    session_id = _force_deadline(db, room)
-    assert advance_due_session(db, session_id).phase == GAME_PHASE_ROUND_END
-    session_id = _force_deadline(db, room)
-    mutation = advance_due_session(db, session_id)
-    assert mutation is not None
-    assert mutation.phase == GAME_PHASE_WORD_SELECTION
+    scored = submit_chat(db, room.code, late.id, text=word)
+    assert "PLAYER_GUESSED" in scored.events
     db.refresh(room)
-    assert late.id not in RoomResponse.from_room(room).waiting_player_ids
-    assert late.id in {p.user_id for p in room.game_session.players if p.is_active}
+    late_player = next(p for p in room.game_session.players if p.user_id == late.id)
+    assert late_player.score > 0
+    assert late_player.has_guessed_correctly is True
 
 
 def test_host_migration_preserves_active_round(db: Session) -> None:

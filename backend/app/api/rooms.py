@@ -22,6 +22,7 @@ from app.services.room import (
     touch_room_presence,
     transfer_host,
 )
+from app.services.disconnect_grace import cancel_disconnect_grace
 from app.websocket.events import EventType
 from app.websocket.notify import (
     fire_and_forget,
@@ -30,7 +31,6 @@ from app.websocket.notify import (
     notify_player_joined,
     notify_player_kicked,
     notify_player_left,
-    notify_player_waiting,
     notify_room_updated,
 )
 from app.websocket.room_manager import room_manager
@@ -70,10 +70,7 @@ def join(
 ) -> RoomResponse:
     change = join_room(db, code=code, user_id=current_user.id)
     assert change.room is not None
-    if change.joined_as_waiting:
-        notify_player_waiting(change.room, current_user.id, current_user.name)
-    else:
-        notify_player_joined(change.room, current_user.id, current_user.name)
+    notify_player_joined(change.room, current_user.id, current_user.name)
     return RoomResponse.from_room(change.room, viewer_id=current_user.id)
 
 
@@ -83,13 +80,16 @@ def leave(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> RoomResponse | dict[str, str]:
+    room_code = code.upper()
     change = leave_room(db, code=code, user_id=current_user.id)
     apply_mutation_side_effects(change.game_mutation)
+    cancel_disconnect_grace(room_code, current_user.id)
+    fire_and_forget(room_manager.disconnect_user(room_code, current_user.id))
     if change.room is None:
-        game_runtime.stop(code.upper())
-        notify_player_left(code.upper(), current_user.id, current_user.name)
+        game_runtime.stop(room_code)
+        notify_player_left(room_code, current_user.id, current_user.name)
         return {"detail": "Room deleted (no players remain)."}
-    notify_player_left(code.upper(), current_user.id, current_user.name, change.room)
+    notify_player_left(room_code, current_user.id, current_user.name, change.room)
     notify_game_mutation(change.game_mutation, change.room)
     if change.host_changed and change.previous_host_id is not None:
         notify_host_changed(change.room, change.previous_host_id)

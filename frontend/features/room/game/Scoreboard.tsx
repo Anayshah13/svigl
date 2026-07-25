@@ -17,7 +17,7 @@ function resolveScores(room: Room): ScoreEntry[] {
       score: player.score ?? 0,
       roundPoints: 0,
       hasGuessedCorrectly: room.game.guessedPlayerIds.includes(player.id),
-      isActive: !room.waitingPlayerIds.includes(player.id),
+      isActive: true,
     }))
     .sort((a, b) => b.score - a.score);
 }
@@ -94,11 +94,7 @@ export function Scoreboard({
                     </span>
                   ) : null}
                 </p>
-                {!entry.isActive ? (
-                  <p className="hidden text-[11px] font-medium text-ink-muted sm:block">
-                    Waiting
-                  </p>
-                ) : entry.roundPoints > 0 ? (
+                {entry.roundPoints > 0 ? (
                   <p className="hidden text-[11px] font-medium text-green sm:block">
                     +{entry.roundPoints} this turn
                   </p>

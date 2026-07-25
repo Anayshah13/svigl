@@ -5,7 +5,7 @@ const LOGO_SIZES = {
   sm: "text-xl",
   default: "text-3xl",
   lg: "text-4xl sm:text-5xl",
-  hero: "text-[clamp(3rem,14vw,4.75rem)]",
+  hero: "text-[clamp(3.75rem,17vw,5.5rem)]",
 } as const;
 
 export function SviglLogo({

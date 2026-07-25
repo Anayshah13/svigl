@@ -46,7 +46,7 @@ export function useRoomPresence(roomCode: string | null, enabled: boolean): void
         if (cancelled) return;
 
         if (isUserInRoom(room, selfId)) {
-          useRoomStore.getState().syncActiveRoom(room);
+          useRoomStore.getState().setActiveRoom(room);
         } else {
           useRoomStore.getState().clearActiveRoom();
         }

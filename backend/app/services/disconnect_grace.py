@@ -13,8 +13,9 @@ from uuid import UUID
 
 logger = logging.getLogger(__name__)
 
-# Long enough for a normal page reload; short enough that closed tabs leave quickly.
-DISCONNECT_GRACE_SECONDS = 5
+# Long enough for Next.js reload + auth/room hydration; short enough that
+# closed tabs still leave before the next round feels stuck.
+DISCONNECT_GRACE_SECONDS = 15
 
 _pending: dict[tuple[str, UUID], asyncio.Task[None]] = {}
 

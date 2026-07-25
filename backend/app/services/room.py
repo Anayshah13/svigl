@@ -18,7 +18,11 @@ from app.models.room import (
     Room,
     RoomPlayer,
 )
-from app.services.game import GameMutation, handle_player_departure
+from app.services.game import (
+    GameMutation,
+    _admit_waiting_players,
+    handle_player_departure,
+)
 
 
 _CODE_CHARS = string.ascii_uppercase
@@ -327,17 +331,15 @@ def join_room(db: Session, code: str, user_id: UUID) -> MembershipChange:
     already_in = next((rp for rp in room.players if rp.user_id == user_id), None)
     if already_in:
         already_in.last_seen_at = _utcnow()
-        db.commit()
-        db.refresh(room)
-        waiting = (
+        if (
             room.game_session is not None
             and room.game_session.phase != GAME_PHASE_LOBBY
-            and user_id
-            not in {
-                p.user_id for p in room.game_session.players if p.is_active
-            }
-        )
-        return MembershipChange(room=room, joined_as_waiting=waiting)
+        ):
+            if _admit_waiting_players(db, room, room.game_session):
+                room.game_session.revision += 1
+        db.commit()
+        db.refresh(room)
+        return MembershipChange(room=room, joined_as_waiting=False)
 
     existing = _get_active_room_for_user(db, user_id)
     if existing:
@@ -352,25 +354,24 @@ def join_room(db: Session, code: str, user_id: UUID) -> MembershipChange:
             detail="Room is full.",
         )
 
-    # Midgame join: allowed while PLAYING; player is waiting and excluded from rotation.
-    joined_as_waiting = (
-        room.status == ROOM_STATUS_PLAYING
-        and room.game_session is not None
-        and room.game_session.phase != GAME_PHASE_LOBBY
-    )
-
     player = RoomPlayer(
         room_id=room.id,
         user_id=user_id,
         last_seen_at=_utcnow(),
         is_ready=False,
     )
-    db.add(player)
-    if room.game_session is not None and joined_as_waiting:
+    room.players.append(player)
+    # Mid-game join: admit into the active roster immediately so they can
+    # guess/score now and receive a draw seat in the current round's queue.
+    if (
+        room.game_session is not None
+        and room.game_session.phase != GAME_PHASE_LOBBY
+    ):
+        _admit_waiting_players(db, room, room.game_session)
         room.game_session.revision += 1
     db.commit()
     db.refresh(room)
-    return MembershipChange(room=room, joined_as_waiting=joined_as_waiting)
+    return MembershipChange(room=room, joined_as_waiting=False)
 
 
 def leave_room(db: Session, code: str, user_id: UUID) -> MembershipChange:

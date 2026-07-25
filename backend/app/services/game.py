@@ -471,10 +471,10 @@ def _selection_wraps(
 
 def _admit_waiting_players(db: Session, room: Room, session: GameSession) -> list[UUID]:
     """
-    Pull mid-game room joiners into the frozen roster (appended to rotation).
+    Pull mid-game room joiners into the active roster (appended to rotation).
 
-    Called at drawing boundaries (COUNTDOWN admission and every ROUND_END →
-    next WORD_SELECTION) so late joiners enter the next drawing.
+    Called immediately on join, and kept as a safety net at drawing boundaries
+    (COUNTDOWN → WORD_SELECTION and ROUND_END → next WORD_SELECTION).
     """
     existing = {player.user_id for player in session.players}
     next_index = max((player.rotation_index for player in session.players), default=-1) + 1
@@ -645,9 +645,6 @@ def select_word(
         raise GameError("UNKNOWN", "Word selection is not active.")
     if session.drawer_user_id != user_id:
         raise GameError("NOT_DRAWER", "Only the drawer can select a word.", status_code=403)
-    if is_waiting_player(room, user_id):
-        raise GameError("WAITING", "Waiting players cannot select a word.")
-
     choices = _parse_word_choices(session)
     normalized = normalize_guess(word)
     match = next((choice for choice in choices if normalize_guess(choice) == normalized), None)
@@ -695,7 +692,6 @@ def submit_chat(
             status_code=422,
         )
 
-    waiting = is_waiting_player(room, user_id)
     player_name = membership.user.name
     secret = session.secret_word
     is_round = session.phase == GAME_PHASE_ROUND_ACTIVE and secret is not None
@@ -730,32 +726,10 @@ def submit_chat(
 
     # Never leak the secret word into public chat.
     if matches_secret:
-        if waiting:
-            # Acknowledge privately with zero points; no secret / score / early-end.
-            session.revision += 1
-            db.commit()
-            return GameMutation(
-                room.code,
-                ("CHAT_MESSAGE",),
-                session.phase,
-                session.revision,
-                session_id=session.id,
-                chat_events=(
-                    ChatEvent(
-                        kind="system",
-                        message=(
-                            "Correct — scoring starts on the next drawing!"
-                        ),
-                        player_id=str(user_id),
-                        player_name=player_name,
-                        recipient_ids=(user_id,),
-                    ),
-                ),
-            )
         if session.drawer_user_id == user_id:
             raise GameError("NOT_ALLOWED", "The drawer cannot guess.")
         if frozen is None or not frozen.is_active:
-            raise GameError("WAITING", "Only active players can guess.")
+            raise GameError("NOT_ALLOWED", "Only active players can guess.")
 
         now = utcnow()
         if session.deadline_at is not None:
@@ -840,7 +814,6 @@ def submit_chat(
     if (
         is_round
         and secret is not None
-        and not waiting
         and session.drawer_user_id != user_id
         and frozen is not None
         and frozen.is_active
@@ -994,7 +967,7 @@ def advance_due_session(db: Session, session_id: UUID) -> GameMutation | None:
         event_extras["SCORES_UPDATED"] = {"scores": list(_scoreboard(session))}
     elif session.phase == GAME_PHASE_ROUND_END:
         room = session.room
-        # Admit every waiting member at each drawing boundary (not full-round only).
+        # Safety net: admit any member still missing from the roster.
         if _admit_waiting_players(db, room, session):
             events.append("GAME_STATE_UPDATED")
 
@@ -1147,14 +1120,6 @@ def active_sessions(db: Session) -> list[tuple[UUID, str]]:
         .all()
     )
     return [(session_id, code) for session_id, code in rows]
-
-
-def is_waiting_player(room: Room, user_id: UUID) -> bool:
-    session = room.game_session
-    if session is None or session.phase == GAME_PHASE_LOBBY:
-        return False
-    active_ids = {player.user_id for player in session.players if player.is_active}
-    return user_id not in active_ids
 
 
 def public_word_hint(session: GameSession | None) -> str | None:

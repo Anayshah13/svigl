@@ -4,9 +4,9 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
-import { disconnectRoomSync } from "@/lib/room-sync";
 import { redirectToSignInWithReturn } from "@/lib/post-auth-redirect";
 import { releaseRoomTab } from "@/lib/room-tab-lock";
+import { appWebSocket } from "@/services/app-websocket";
 import { fetchActiveRoom, fetchRoom, isUserInRoom, leaveRoom } from "@/services/room";
 import { useSessionStore } from "@/stores/session";
 import { readPersistedRoomCode, useRoomStore } from "@/stores/room";
@@ -23,7 +23,6 @@ export function useActiveRoomSession() {
 
   const activeRoom = useRoomStore((s) => s.activeRoom);
   const setActiveRoom = useRoomStore((s) => s.setActiveRoom);
-  const syncActiveRoom = useRoomStore((s) => s.syncActiveRoom);
   const clearActiveRoom = useRoomStore((s) => s.clearActiveRoom);
 
   const [leaving, setLeaving] = useState(false);
@@ -33,7 +32,7 @@ export function useActiveRoomSession() {
   const refreshActiveRoom = useCallback(async () => {
     if (!selfId) return;
 
-    let code = useRoomStore.getState().activeRoom?.code ?? readPersistedRoomCode();
+    const code = useRoomStore.getState().activeRoom?.code ?? readPersistedRoomCode();
 
     try {
       let room = code ? await fetchRoom(code) : await fetchActiveRoom();
@@ -47,7 +46,7 @@ export function useActiveRoomSession() {
         return;
       }
 
-      syncActiveRoom(room);
+      setActiveRoom(room);
     } catch (error) {
       const roomError = error as RoomError;
       if (roomError.code === "AUTH_EXPIRED") {
@@ -62,7 +61,7 @@ export function useActiveRoomSession() {
         clearActiveRoom();
       }
     }
-  }, [activeRoom, clearActiveRoom, router, selfId, syncActiveRoom]);
+  }, [activeRoom, clearActiveRoom, router, selfId, setActiveRoom]);
 
   // Restore session from localStorage after auth bootstrap
   useEffect(() => {
@@ -135,7 +134,7 @@ export function useActiveRoomSession() {
 
     try {
       await leaveRoom(activeRoom.code);
-      disconnectRoomSync();
+      appWebSocket.leaveRoom();
       if (selfId) {
         releaseRoomTab(selfId, activeRoom.code);
       }

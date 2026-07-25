@@ -8,7 +8,6 @@ Does NOT duplicate REST room logic — works alongside it.
 from __future__ import annotations
 
 import asyncio
-import logging
 from dataclasses import dataclass, field
 from uuid import UUID
 
@@ -16,8 +15,6 @@ from fastapi import WebSocket
 
 from app.websocket.connection_manager import ConnectedClient
 from app.websocket.events import EventType, make_event
-
-logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -34,7 +31,7 @@ class RoomManager:
         self._lock = asyncio.Lock()
 
     async def connect(self, client: ConnectedClient, room_code: str) -> None:
-        """Add a client to a room and broadcast PLAYER_CONNECTED."""
+        """Add a client to a room's in-memory channel."""
         async with self._lock:
             room = self._rooms.get(room_code)
             if room is None:
@@ -43,22 +40,12 @@ class RoomManager:
             room.clients[client.user_id] = client
             client.room_code = room_code
 
-        await self.broadcast_except(
-            room_code,
-            client.user_id,
-            EventType.PLAYER_CONNECTED,
-            player_id=str(client.user_id),
-            player_name=client.user_name,
-            avatar_url=client.avatar_url,
-        )
-
     async def disconnect(self, client: ConnectedClient) -> None:
-        """Remove a client from their room and broadcast PLAYER_DISCONNECTED."""
+        """Remove a client from their room channel (no-op if already replaced)."""
         room_code = client.room_code
         if room_code is None:
             return
 
-        removed = False
         async with self._lock:
             room = self._rooms.get(room_code)
             if room is None:
@@ -68,20 +55,9 @@ class RoomManager:
             # Only remove if this socket is still the registered one (reconnect-safe).
             if existing is not None and existing.websocket is client.websocket:
                 room.clients.pop(client.user_id, None)
-                removed = True
                 if not room.clients:
                     del self._rooms[room_code]
             client.room_code = None
-
-        if not removed:
-            return
-
-        await self.broadcast(
-            room_code,
-            EventType.PLAYER_DISCONNECTED,
-            player_id=str(client.user_id),
-            player_name=client.user_name,
-        )
 
     async def disconnect_user(self, room_code: str, user_id: UUID) -> ConnectedClient | None:
         """Force-remove a user from the in-memory room (e.g. after kick)."""
@@ -136,12 +112,6 @@ class RoomManager:
 
     def get_room(self, room_code: str) -> RoomState | None:
         return self._rooms.get(room_code)
-
-    def get_online_player_ids(self, room_code: str) -> list[str]:
-        room = self._rooms.get(room_code)
-        if room is None:
-            return []
-        return [str(uid) for uid in room.clients.keys()]
 
     def remove_empty_room(self, room_code: str) -> bool:
         """Remove a room if it has no connected clients. Returns True if removed."""

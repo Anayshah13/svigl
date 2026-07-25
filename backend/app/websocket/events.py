@@ -21,8 +21,6 @@ class EventType(StrEnum):
     # Presence
     PLAYER_JOINED = "PLAYER_JOINED"
     PLAYER_LEFT = "PLAYER_LEFT"
-    PLAYER_CONNECTED = "PLAYER_CONNECTED"
-    PLAYER_DISCONNECTED = "PLAYER_DISCONNECTED"
 
     # Room session (client → server)
     JOIN_ROOM = "JOIN_ROOM"

@@ -8,15 +8,6 @@
 import { getAccessToken } from "@/lib/access-token";
 import { getWsUrl } from "@/lib/api";
 import { mapRoomPayload } from "@/lib/room-payload";
-import { nextSocketId, wsDebug } from "@/lib/ws-debug";
-
-function buildAuthenticatedWsUrl(path = "/ws"): string {
-  const base = getWsUrl(path);
-  const token = getAccessToken();
-  if (!token) return base;
-  const sep = base.includes("?") ? "&" : "?";
-  return `${base}${sep}access_token=${encodeURIComponent(token)}`;
-}
 import type {
   ChatMessage,
   GameSettings,
@@ -25,6 +16,14 @@ import type {
   WSEventType,
   WSMessage,
 } from "@/types/room";
+
+function buildAuthenticatedWsUrl(path = "/ws"): string {
+  const base = getWsUrl(path);
+  const token = getAccessToken();
+  if (!token) return base;
+  const sep = base.includes("?") ? "&" : "?";
+  return `${base}${sep}access_token=${encodeURIComponent(token)}`;
+}
 
 type RoomUpdateHandler = (room: Room) => void;
 type RoomErrorHandler = (error: RoomError) => void;
@@ -77,9 +76,13 @@ const CANVAS_EVENTS: WSEventType[] = [
   "REDO",
 ];
 
+/** Server closed this socket because another tab registered the same user. */
+const WS_REPLACED_BY_NEW_CONNECTION = 4001;
+const WS_AUTH_FAILED = 4003;
+const WS_NOT_A_MEMBER = 4004;
+
 class AppWebSocketManager {
   private socket: WebSocket | null = null;
-  private socketId: string | null = null;
   private userId: string | null = null;
   private joinedRoomCode: string | null = null;
   private pendingJoinCode: string | null = null;
@@ -96,10 +99,6 @@ class AppWebSocketManager {
   private chatHandlers = new Set<ChatHandler>();
   private canvasHandlers = new Set<CanvasEventHandler>();
   private voteKickHandlers = new Set<VoteKickHandler>();
-
-  get activeSocketId(): string | null {
-    return this.socketId;
-  }
 
   get activeRoomCode(): string | null {
     return this.joinedRoomCode;
@@ -153,7 +152,6 @@ class AppWebSocketManager {
 
   connect(userId: string): void {
     if (this.socket && (this.socket.readyState === WebSocket.OPEN || this.socket.readyState === WebSocket.CONNECTING)) {
-      wsDebug("connect_skipped_already_open", { userId, socketId: this.socketId ?? undefined });
       return;
     }
 
@@ -164,13 +162,6 @@ class AppWebSocketManager {
   }
 
   disconnect(): void {
-    wsDebug("app_disconnect", {
-      userId: this.userId,
-      socketId: this.socketId ?? undefined,
-      roomCode: this.joinedRoomCode,
-      component: "AppWebSocketManager",
-    });
-
     this.intentionalClose = true;
     this.clearTimers();
     this.joinedRoomCode = null;
@@ -181,8 +172,6 @@ class AppWebSocketManager {
       this.safeClose(this.socket);
       this.socket = null;
     }
-
-    this.socketId = null;
   }
 
   /** Seed baseline from REST so TIMER_UPDATED deltas can merge before JOIN ack. */
@@ -201,12 +190,6 @@ class AppWebSocketManager {
     if (this.joinedRoomCode === code) return;
 
     this.pendingJoinCode = code;
-    wsDebug("join_room_requested", {
-      userId: this.userId,
-      socketId: this.socketId ?? undefined,
-      roomCode: code,
-      component: "AppWebSocketManager",
-    });
 
     if (this.socket?.readyState === WebSocket.OPEN) {
       this.sendJoin(code);
@@ -215,13 +198,6 @@ class AppWebSocketManager {
 
   leaveRoom(): void {
     if (!this.joinedRoomCode && !this.pendingJoinCode) return;
-
-    wsDebug("leave_room_requested", {
-      userId: this.userId,
-      socketId: this.socketId ?? undefined,
-      roomCode: this.joinedRoomCode,
-      component: "AppWebSocketManager",
-    });
 
     this.pendingJoinCode = null;
     this.joinedRoomCode = null;
@@ -272,20 +248,7 @@ class AppWebSocketManager {
   private openSocket(): void {
     this.clearTimers();
 
-    const id = nextSocketId();
-    this.socketId = id;
-
-    const wsUrl = buildAuthenticatedWsUrl("/ws");
-
-    wsDebug("socket_created", {
-      userId: this.userId,
-      socketId: id,
-      roomCode: this.pendingJoinCode ?? this.joinedRoomCode,
-      component: "AppWebSocketManager",
-      detail: getWsUrl("/ws"),
-    });
-
-    const socket = new WebSocket(wsUrl);
+    const socket = new WebSocket(buildAuthenticatedWsUrl("/ws"));
     this.socket = socket;
 
     socket.onopen = () => {
@@ -295,7 +258,6 @@ class AppWebSocketManager {
       }
 
       this.reconnectAttempts = 0;
-      wsDebug("socket_open", { userId: this.userId, socketId: id, component: "AppWebSocketManager" });
 
       this.heartbeatTimer = setInterval(() => {
         if (socket.readyState === WebSocket.OPEN) {
@@ -321,13 +283,6 @@ class AppWebSocketManager {
 
     socket.onclose = (event) => {
       this.clearTimers();
-      wsDebug("socket_closed", {
-        userId: this.userId,
-        socketId: id,
-        roomCode: this.joinedRoomCode,
-        component: "AppWebSocketManager",
-        detail: `code=${event.code} reason=${event.reason}`,
-      });
 
       // Preserve room for reconnect JOIN_ROOM; clear joined so joinRoom() won't early-return.
       if (this.joinedRoomCode && !this.pendingJoinCode) {
@@ -337,15 +292,21 @@ class AppWebSocketManager {
 
       if (this.socket === socket) {
         this.socket = null;
-        this.socketId = null;
       }
 
       if (this.intentionalClose) return;
 
-      if (event.code === 4003 || event.code === 4004) {
+      // Another tab took this user's socket — do not fight for it.
+      if (event.code === WS_REPLACED_BY_NEW_CONNECTION) {
+        this.pendingJoinCode = null;
+        this.intentionalClose = true;
+        return;
+      }
+
+      if (event.code === WS_AUTH_FAILED || event.code === WS_NOT_A_MEMBER) {
         this.pendingJoinCode = null;
         this.emitError({
-          code: event.code === 4003 ? "AUTH_EXPIRED" : "NOT_IN_ROOM",
+          code: event.code === WS_AUTH_FAILED ? "AUTH_EXPIRED" : "NOT_IN_ROOM",
           message: event.reason || "Connection rejected",
         });
         return;
@@ -355,7 +316,7 @@ class AppWebSocketManager {
     };
 
     socket.onerror = () => {
-      wsDebug("socket_error", { userId: this.userId, socketId: id, component: "AppWebSocketManager" });
+      // onclose handles reconnect / terminal codes
     };
   }
 
@@ -395,13 +356,6 @@ class AppWebSocketManager {
       this.latestRoom?.code === nextRoom.code &&
       nextRoom.revision < this.latestRoom.revision
     ) {
-      wsDebug("stale_room_revision_ignored", {
-        userId: this.userId,
-        socketId: this.socketId ?? undefined,
-        roomCode: nextRoom.code,
-        component: "AppWebSocketManager",
-        detail: `incoming=${nextRoom.revision} current=${this.latestRoom.revision}`,
-      });
       return null;
     }
     this.latestRoom = nextRoom;
@@ -433,14 +387,7 @@ class AppWebSocketManager {
     }
 
     if (msg.type === "TIMER_UPDATED") {
-      if (!this.latestRoom) {
-        wsDebug("timer_ignored_no_baseline", {
-          userId: this.userId,
-          socketId: this.socketId ?? undefined,
-          component: "AppWebSocketManager",
-        });
-        return;
-      }
+      if (!this.latestRoom) return;
       this.applyRoomPayload(msg.payload);
       return;
     }
@@ -542,10 +489,6 @@ class AppWebSocketManager {
       return;
     }
 
-    if (msg.type === "PLAYER_CONNECTED" || msg.type === "PLAYER_DISCONNECTED") {
-      return;
-    }
-
     if (msg.type === "ROOM_LEFT") {
       this.joinedRoomCode = null;
       this.pendingJoinCode = null;
@@ -573,14 +516,6 @@ class AppWebSocketManager {
     }
 
     this.reconnectAttempts++;
-    wsDebug("reconnect_scheduled", {
-      userId: this.userId,
-      socketId: this.socketId ?? undefined,
-      roomCode: this.joinedRoomCode ?? this.pendingJoinCode,
-      component: "AppWebSocketManager",
-      detail: `attempt=${this.reconnectAttempts}`,
-    });
-
     const delay = Math.min(1000 * 2 ** (this.reconnectAttempts - 1), 30_000);
     this.reconnectTimer = setTimeout(() => this.openSocket(), delay);
   }
@@ -622,8 +557,3 @@ class AppWebSocketManager {
 }
 
 export const appWebSocket = new AppWebSocketManager();
-
-/** @deprecated Use appWebSocket.leaveRoom() — kept for call-site compatibility during migration. */
-export function disconnectRoomSync(): void {
-  appWebSocket.leaveRoom();
-}
