@@ -95,11 +95,14 @@ function NavLink({
 export function AppHeader() {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [menuPathname, setMenuPathname] = useState(pathname);
   const mdUp = useMdUp();
 
-  useEffect(() => {
-    setMenuOpen(false);
-  }, [pathname]);
+  // Close mobile menu when the route changes (adjust state during render — avoids setState-in-effect)
+  if (pathname !== menuPathname) {
+    setMenuPathname(pathname);
+    if (menuOpen) setMenuOpen(false);
+  }
 
   useEffect(() => {
     document.body.style.overflow = menuOpen ? "hidden" : "";
@@ -116,10 +119,10 @@ export function AppHeader() {
   const authOnLeft = isLandingHome && !mdUp;
 
   return (
-    <header className="relative sticky top-0 z-50 border-b border-white/60 bg-white/70 backdrop-blur-xl">
+    <header className="sticky top-0 z-50 border-b border-white/60 bg-white/70 backdrop-blur-xl">
       <div className="mx-auto flex h-14 w-full max-w-7xl items-center gap-3 px-4 sm:h-16 sm:px-6">
         <SviglLogo
-          className={cn("min-w-0 shrink-0", isLandingHome && "max-md:!hidden")}
+          className={cn("min-w-0 shrink-0", isLandingHome && "max-md:hidden!")}
         />
 
         {authOnLeft ? (
