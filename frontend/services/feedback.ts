@@ -15,20 +15,19 @@ const FEEDBACK_TYPE_LABELS: Record<FeedbackType, string> = {
   feature: "Feature request",
 };
 
+/** Public EmailJS IDs — safe in the client; env vars override when set. */
+const EMAILJS_DEFAULTS = {
+  serviceId: "service_qg6wlnj",
+  templateId: "template_6qt1p4g",
+  publicKey: "njyoVpHP53ybOwPRm",
+} as const;
+
 function getEmailJsConfig() {
-  const serviceId = process.env.NEXT_PUBLIC_EMAILJS_SERVICE_ID || "service_qg6wlnj";
-  const templateId = process.env.NEXT_PUBLIC_EMAILJS_TEMPLATE_ID;
-  const publicKey = process.env.NEXT_PUBLIC_EMAILJS_PUBLIC_KEY;
-
-  if (!templateId || !publicKey) {
-    return null;
-  }
-
-  return { serviceId, templateId, publicKey };
-}
-
-export function isFeedbackEmailConfigured(): boolean {
-  return getEmailJsConfig() !== null;
+  return {
+    serviceId: process.env.NEXT_PUBLIC_EMAILJS_SERVICE_ID || EMAILJS_DEFAULTS.serviceId,
+    templateId: process.env.NEXT_PUBLIC_EMAILJS_TEMPLATE_ID || EMAILJS_DEFAULTS.templateId,
+    publicKey: process.env.NEXT_PUBLIC_EMAILJS_PUBLIC_KEY || EMAILJS_DEFAULTS.publicKey,
+  };
 }
 
 function getEmailJsErrorMessage(error: unknown): string {
@@ -46,12 +45,6 @@ function getEmailJsErrorMessage(error: unknown): string {
 
 export async function sendFeedback(payload: FeedbackPayload): Promise<void> {
   const config = getEmailJsConfig();
-
-  if (!config) {
-    throw new Error(
-      "Feedback email is not configured yet. Add NEXT_PUBLIC_EMAILJS_TEMPLATE_ID and NEXT_PUBLIC_EMAILJS_PUBLIC_KEY to .env.local.",
-    );
-  }
 
   const email = payload.email.trim();
   const templateParams: Record<string, string> = {

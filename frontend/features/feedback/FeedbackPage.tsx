@@ -8,11 +8,7 @@ import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/Textarea";
 import { colors } from "@/lib/colors";
 import { cn } from "@/lib/cn";
-import {
-  isFeedbackEmailConfigured,
-  sendFeedback,
-  type FeedbackType,
-} from "@/services/feedback";
+import { sendFeedback, type FeedbackType } from "@/services/feedback";
 
 const FEEDBACK_TYPES: { value: FeedbackType; label: string }[] = [
   { value: "bug", label: "Bug report" },
@@ -48,7 +44,6 @@ export function FeedbackPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
-  const emailConfigured = isFeedbackEmailConfigured();
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -212,21 +207,6 @@ export function FeedbackPage() {
                       className="min-h-28 resize-none py-3 text-base sm:min-h-32"
                     />
                   </label>
-
-                  {!emailConfigured ? (
-                    <p role="status" className="text-xs leading-relaxed text-plum/75 sm:text-sm">
-                      Email delivery not configured yet — add{" "}
-                      <code className="rounded bg-plum-light/70 px-1.5 py-0.5 text-xs">
-                        NEXT_PUBLIC_EMAILJS_TEMPLATE_ID
-                      </code>{" "}
-                      and{" "}
-                      <code className="rounded bg-plum-light/70 px-1.5 py-0.5 text-xs">
-                        NEXT_PUBLIC_EMAILJS_PUBLIC_KEY
-                      </code>{" "}
-                      to{" "}
-                      <code className="rounded bg-plum-light/70 px-1.5 py-0.5 text-xs">.env.local</code>.
-                    </p>
-                  ) : null}
 
                   {error ? (
                     <p role="alert" className="rounded-xl bg-pink-light px-4 py-2.5 text-sm font-medium text-plum sm:text-base">
