@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Caveat, DM_Sans, Geist_Mono } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { AuroraBackground } from "@/components/layout/AuroraBackground";
@@ -24,6 +25,12 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const galindo = localFont({
+  src: "../public/Galindo-Regular.ttf",
+  variable: "--font-galindo",
+  display: "swap",
+});
+
 export const metadata: Metadata = {
   title: "Svigl - Challenge your Friends",
   description: "SVG drawing gallery built from editable vector primitives.",
@@ -42,7 +49,7 @@ export default function RootLayout({
     <html
       lang="en"
       data-scroll-behavior="smooth"
-      className={`${dmSans.variable} ${caveat.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${dmSans.variable} ${caveat.variable} ${geistMono.variable} ${galindo.variable} h-full antialiased`}
       style={{ backgroundColor: "#FAFAF8" }}
     >
       <body

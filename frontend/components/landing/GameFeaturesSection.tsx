@@ -113,7 +113,7 @@ function MultiplayerVisual() {
   ];
 
   return (
-    <svg viewBox="0 0 240 88" className="h-full w-full max-w-72" aria-hidden>
+    <svg viewBox="0 0 240 88" className="h-full w-full max-w-56" aria-hidden>
       {avatars.map((a, i) => {
         const cx = AVATAR_START + AVATAR_R + i * AVATAR_STEP;
         return (
@@ -167,7 +167,7 @@ function MultiplayerVisual() {
  */
 function HybridVisual() {
   return (
-    <svg viewBox="0 0 240 88" className="h-full w-full max-w-72" aria-hidden>
+    <svg viewBox="0 0 240 88" className="h-full w-full max-w-56" aria-hidden>
       <path
         className="fv-stroke"
         d="M 18 62 C 30 26, 44 22, 52 44 C 60 66, 72 68, 82 48 C 90 32, 100 30, 106 46"
@@ -233,9 +233,9 @@ function ToolbarVisual() {
   const [active, setActive] = useState(0);
 
   return (
-    <div className="fv-toolbar flex w-full max-w-sm flex-col items-center gap-2 px-1">
+    <div className="fv-toolbar flex w-full max-w-xs flex-col items-center gap-1.5 px-1">
       <div
-        className="flex w-full items-center justify-between gap-0.5 rounded-2xl border border-ink/10 bg-white p-1 shadow-sm sm:gap-1 sm:p-1.5"
+        className="flex w-full items-center justify-between gap-0.5 rounded-xl border border-ink/10 bg-white p-0.5 shadow-sm sm:gap-0.5 sm:p-1"
         role="toolbar"
         aria-label="Drawing tools"
       >
@@ -245,7 +245,7 @@ function ToolbarVisual() {
             <button
               key={tool.id}
               type="button"
-              className="fv-tool group relative flex min-h-10 min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-xl px-0.5 py-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-plum/40"
+              className="fv-tool group relative flex min-h-8 min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-lg px-0.5 py-0.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-plum/40"
               style={{
                 background: isActive ? colors.plum : "transparent",
                 color: isActive ? colors.whitePure : colors.ink,
@@ -257,7 +257,7 @@ function ToolbarVisual() {
                 setActive(i);
               }}
             >
-              <svg viewBox="-10 -10 20 20" className="h-5 w-5" aria-hidden>
+              <svg viewBox="-10 -10 20 20" className="h-4 w-4" aria-hidden>
                 <path
                   d={tool.path}
                   fill={tool.stroke ? "none" : "currentColor"}
@@ -269,7 +269,7 @@ function ToolbarVisual() {
                 />
               </svg>
               <span
-                className="font-mono text-[9px] font-bold leading-none sm:text-[10px]"
+                className="font-mono text-[8px] font-bold leading-none"
                 style={{ opacity: isActive ? 0.9 : 0.4 }}
               >
                 {tool.key}
@@ -278,7 +278,7 @@ function ToolbarVisual() {
           );
         })}
       </div>
-      <p className="fv-tool-label text-center text-[11px] font-semibold text-ink-muted">
+      <p className="fv-tool-label text-center text-[10px] font-semibold text-ink-muted">
         {TOOLS[active].label}{" "}
         <span className="font-mono font-bold text-plum">[{TOOLS[active].key}]</span>
       </p>
@@ -289,7 +289,7 @@ function ToolbarVisual() {
 /** A finished drawing framed as a gallery card, with like / pass reactions */
 function GalleryVisual() {
   return (
-    <svg viewBox="0 0 240 88" className="h-full w-full max-w-72" aria-hidden>
+    <svg viewBox="0 0 240 88" className="h-full w-full max-w-56" aria-hidden>
       <g className="fv-frame" style={{ transformOrigin: "78px 44px" }}>
         <rect
           x="26"
@@ -360,10 +360,10 @@ function NoAdsVisual() {
   const [banned, setBanned] = useState(true);
 
   return (
-    <div className="fv-noads flex w-full max-w-xs flex-col items-center gap-2 px-2">
+    <div className="fv-noads flex w-full max-w-[14rem] flex-col items-center gap-1.5 px-1">
       <button
         type="button"
-        className="group relative w-full overflow-visible rounded-2xl border-2 border-dashed border-ink/15 bg-white p-3 text-left transition-colors hover:border-plum/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-plum/40"
+        className="group relative w-full overflow-visible rounded-xl border-2 border-dashed border-ink/15 bg-white p-2.5 text-left transition-colors hover:border-plum/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-plum/40"
         aria-pressed={banned}
         aria-label={banned ? "Ads blocked — click to preview" : "Ads visible — click to block"}
         onClick={(e) => {
@@ -371,16 +371,16 @@ function NoAdsVisual() {
           setBanned((v) => !v);
         }}
       >
-        <div className="fv-ad-banner flex items-center gap-2.5 rounded-xl bg-ink/4 px-2.5 py-2">
+        <div className="fv-ad-banner flex items-center gap-2 rounded-lg bg-ink/4 px-2 py-1.5">
           <div
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[10px] font-extrabold tracking-wide text-white"
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[9px] font-extrabold tracking-wide text-white"
             style={{ background: colors.pink }}
           >
             AD
           </div>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-xs font-bold text-ink">Buy more guesses!</p>
-            <p className="truncate text-[11px] text-ink-muted">Watch a 30s video →</p>
+            <p className="truncate text-[11px] font-bold text-ink">Buy more guesses!</p>
+            <p className="truncate text-[10px] text-ink-muted">Watch a 30s video →</p>
           </div>
         </div>
 
@@ -392,11 +392,11 @@ function NoAdsVisual() {
               aria-hidden
             />
             <span
-              className="fv-ban-badge absolute -right-1.5 -top-1.5 flex h-8 w-8 items-center justify-center rounded-full border-2 border-white shadow-md"
+              className="fv-ban-badge absolute -right-1 -top-1 flex h-7 w-7 items-center justify-center rounded-full border-2 border-white shadow-md"
               style={{ background: colors.chartreuse }}
               aria-hidden
             >
-              <svg viewBox="0 0 24 24" className="h-4 w-4 text-ink" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+              <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 text-ink" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
                 <circle cx="12" cy="12" r="9" />
                 <path d="M7 7l10 10" />
               </svg>
@@ -404,7 +404,7 @@ function NoAdsVisual() {
           </>
         )}
       </button>
-      <p className="text-center text-[11px] font-semibold text-ink-muted">
+      <p className="text-center text-[10px] font-semibold text-ink-muted">
         {banned ? "Blocked. Game stays clean." : "Tap again to block."}
       </p>
     </div>
@@ -664,47 +664,49 @@ export function GameFeaturesSection() {
   );
 
   return (
-    <section ref={sectionRef} className="mx-auto max-w-7xl px-4 py-12 sm:px-6 sm:py-16 lg:py-20">
+    <section ref={sectionRef} className="mx-auto max-w-7xl px-4 py-10 sm:px-6 sm:py-12 lg:py-16">
       <FadeIn>
-        <div className="flex flex-col gap-4 sm:gap-6 lg:flex-row lg:items-end lg:justify-between">
-          <div className="max-w-xl">
-            <p className="text-xs font-bold uppercase tracking-widest text-plum">The Game</p>
-            <h2 className="mt-2 text-[clamp(1.75rem,5.5vw,2.5rem)] font-bold tracking-tight text-ink sm:mt-3 lg:text-5xl">
-              Draw however you think.
+        <div className="flex flex-col gap-3 sm:gap-5 lg:flex-row lg:items-end lg:justify-between">
+          <div className="max-w-lg">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-plum sm:text-xs">The Game</p>
+            <h2 className="mt-1.5 font-display text-[clamp(1.4rem,4.4vw,2rem)] font-bold tracking-tight text-ink sm:mt-2 lg:text-4xl">
+              About Svigl.
             </h2>
           </div>
-          <p className="max-w-sm text-sm leading-relaxed text-ink-muted sm:text-base lg:text-right">
+          <p className="max-w-xs text-xs leading-relaxed text-ink-muted sm:text-sm lg:text-right">
             Sketch freehand when you&apos;re in a hurry, snap perfect shapes when you&apos;re not. Either
             way the canvas stays sharp at any zoom.
           </p>
         </div>
       </FadeIn>
 
-      <FadeInStagger className="mt-8 grid gap-4 sm:mt-12 sm:gap-5 md:grid-cols-2 lg:grid-cols-6">
+      <FadeInStagger className="mt-6 grid gap-3 sm:mt-10 sm:gap-4 md:grid-cols-2 lg:grid-cols-6">
         {FEATURES.map((feature, index) => (
           <FadeInItem
             key={feature.title}
             className={index < 3 ? "lg:col-span-2" : "lg:col-span-3"}
           >
             <motion.article
-              whileHover={{ y: -6, boxShadow: `0 24px 48px -14px ${feature.accent}35` }}
+              whileHover={{ y: -5, boxShadow: `0 20px 40px -12px ${feature.accent}35` }}
               transition={{ type: "spring", stiffness: 380, damping: 28 }}
-              className={`glass-panel flex h-full flex-col rounded-2xl ${
+              className={`glass-panel flex h-full flex-col rounded-xl ${
                 feature.visual === "noads" ? "overflow-visible" : "overflow-hidden"
               }`}
               data-visual={feature.visual}
             >
               <div
-                className="h-[3px] w-full shrink-0 rounded-t-2xl"
+                className="h-0.5 w-full shrink-0 rounded-t-xl"
                 style={{ background: feature.accentGradient ?? feature.accent }}
               />
-              <div className="flex flex-1 flex-col p-5 sm:p-6 lg:p-7">
-                <h3 className="text-base font-bold text-ink sm:text-lg">{feature.title}</h3>
-                <p className="mt-2 flex-1 text-sm leading-relaxed text-ink-muted">{feature.desc}</p>
+              <div className="flex flex-1 flex-col p-4 sm:p-5 lg:p-5">
+                <h3 className="font-display text-sm font-bold text-ink sm:text-base">{feature.title}</h3>
+                <p className="mt-1.5 flex-1 text-xs leading-relaxed text-ink-muted sm:text-[13px]">
+                  {feature.desc}
+                </p>
               </div>
 
               <div
-                className={`feature-visual dot-grid flex h-36 w-full items-center justify-center px-4 py-3 sm:h-44 sm:py-4 ${
+                className={`feature-visual dot-grid flex h-28 w-full items-center justify-center px-3 py-2 sm:h-36 sm:py-3 ${
                   feature.visual === "noads" ? "overflow-visible" : ""
                 }`}
               >

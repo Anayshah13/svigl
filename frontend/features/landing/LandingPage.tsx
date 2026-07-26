@@ -22,7 +22,7 @@ const ROOM_CODE_PLACEHOLDER = "ABCD";
 const HEADLINES = [
   { words: ["Draw", "fast,", "get", "roasted"], accent: "faster." },
   { words: ["Everyone's", "an", "artist", "until", "the", "timer"], accent: "starts." },
-  { words: ["Terrible", "drawings,", "excellent"], accent: "excuses." },
+  { words: ["Terrible\u00A0drawings,", "excellent"], accent: "excuses." },
   { words: ["Where", "friendships", "go", "to"], accent: "die." },
   { words: ["Draw", "with", "confidence,", "guess", "with"], accent: "agony." },
 ] as const;
@@ -86,13 +86,13 @@ export function LandingPage() {
       <LandingBackgroundDoodles />
       <div className="relative z-10">
         <section className="relative flex min-h-[calc(100dvh-3.5rem)] flex-col items-center justify-center px-5 py-16 sm:px-6 sm:py-20 lg:py-24">
-          <div className="relative mx-auto flex w-full max-w-xl flex-col items-center text-center sm:max-w-2xl lg:-translate-y-[3vh]">
+          <div className="relative mx-auto flex w-full max-w-2xl flex-col items-center text-center sm:max-w-3xl lg:-translate-y-[3vh] lg:max-w-4xl">
             <FadeIn className="mb-8 flex w-full justify-center md:hidden">
               <SviglLogo size="hero" className="justify-center text-center" />
             </FadeIn>
 
-            <FadeIn delay={0.08}>
-              <h1 className="text-[clamp(1.75rem,6.5vw,2.5rem)] font-bold leading-[1.08] tracking-tight text-ink sm:text-5xl lg:text-[4rem] lg:leading-[1.04] xl:text-[4.5rem]">
+            <FadeIn delay={0.08} className="w-full">
+              <h1 className="font-display text-[clamp(1.75rem,6.5vw,2.5rem)] font-normal leading-[1.08] tracking-tight text-ink sm:text-5xl lg:text-[4rem] lg:leading-[1.04] xl:text-[4.5rem]">
                 <HeadlineWords words={headline.words} />{" "}
                 <br className="sm:hidden" />
                 <motion.span
@@ -118,7 +118,7 @@ export function LandingPage() {
               </h1>
             </FadeIn>
 
-            <FadeIn delay={0.16} className="mt-10 w-full sm:mt-12">
+            <FadeIn delay={0.16} className="mt-10 w-full max-w-xl sm:mt-12 sm:max-w-2xl">
               <motion.div
                 animate={{
                   y: [0, -3, 0],

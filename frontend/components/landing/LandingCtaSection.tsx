@@ -156,7 +156,7 @@ export function LandingCtaSection() {
           <DoodleCharacterVisual />
 
           <div className="relative max-w-lg">
-            <h2 className="text-[clamp(1.65rem,5vw,2.25rem)] font-bold tracking-tight text-ink sm:text-4xl lg:text-[2.75rem]">
+            <h2 className="font-display text-[clamp(1.65rem,5vw,2.25rem)] font-bold tracking-tight text-ink sm:text-4xl lg:text-[2.75rem]">
               Round up your friends.
             </h2>
             <motion.p

@@ -34,6 +34,7 @@
   --color-blue-light: var(--blue-light);
   --font-sans: var(--font-dm-sans);
   --font-script: var(--font-caveat);
+  --font-display: var(--font-galindo);
   --font-mono: var(--font-geist-mono);
 }
 
