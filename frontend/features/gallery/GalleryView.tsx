@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { motion } from "framer-motion";
 import { FadeIn, FadeInItem, FadeInStagger } from "@/components/motion/FadeIn";
 import { ReactionBar } from "@/components/reactions/ReactionBar";
@@ -14,6 +15,7 @@ import {
   type ReactionValue,
 } from "@/services/gallery";
 import { colors } from "@/lib/colors";
+import { profilePath } from "@/lib/names";
 import { useSessionStore } from "@/stores/session";
 
 type Filter = "recent" | "top" | "mine";
@@ -57,7 +59,15 @@ function GalleryCard({
           </div>
           <div className="min-w-0 flex-1">
             <p className="truncate font-semibold text-ink">{entry.word}</p>
-            <p className="truncate text-sm text-gray-400">by {entry.authorName}</p>
+            <p className="truncate text-sm text-gray-400">
+              by{" "}
+              <Link
+                href={profilePath(entry.authorName)}
+                className="hover:text-plum hover:underline"
+              >
+                {entry.authorName}
+              </Link>
+            </p>
           </div>
           <ReactionBar
             likes={entry.likes}

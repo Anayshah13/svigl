@@ -19,6 +19,21 @@ class UserResponse(BaseModel):
     updated_at: datetime
 
 
+class PublicUserResponse(BaseModel):
+    """Public profile payload — no email."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    provider: str
+    name: str
+    avatar_url: str | None
+    drawings_done: int = 0
+    likes_received: int = 0
+    dislikes_received: int = 0
+    created_at: datetime
+
+
 class GuestAuthRequest(BaseModel):
     guest_device_id: UUID = Field(description="Stable device identifier stored in localStorage")
 

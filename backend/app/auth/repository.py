@@ -1,6 +1,7 @@
 import logging
+from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
@@ -18,6 +19,64 @@ def find_user_by_provider(db: Session, *, provider: str, provider_id: str) -> Us
     return db.scalar(
         select(User).where(User.provider == provider, User.provider_id == provider_id)
     )
+
+
+def normalize_profile_slug(value: str) -> str:
+    """Turn a display name or URL segment into a comparable slug (spaces → hyphens)."""
+    slug = value.strip().replace(" ", "-")
+    while "--" in slug:
+        slug = slug.replace("--", "-")
+    return slug.strip("-")
+
+
+def find_user_by_name(db: Session, name: str) -> User | None:
+    slug = normalize_profile_slug(name).lower()
+    if not slug:
+        return None
+    # "Anay Shah" and URL segment "Anay-Shah" / "anay-shah" all match.
+    name_as_slug = func.lower(func.replace(User.name, " ", "-"))
+    return db.scalar(select(User).where(name_as_slug == slug).limit(1))
+
+
+def is_name_taken(
+    db: Session,
+    name: str,
+    *,
+    exclude_user_id: UUID | None = None,
+) -> bool:
+    """True if another user already uses this name or the same profile slug."""
+    trimmed = name.strip()
+    if not trimmed:
+        return False
+
+    slug = normalize_profile_slug(trimmed).lower()
+    name_as_slug = func.lower(func.replace(User.name, " ", "-"))
+    query = select(User.id).where(
+        (func.lower(User.name) == trimmed.lower()) | (name_as_slug == slug)
+    )
+    if exclude_user_id is not None:
+        query = query.where(User.id != exclude_user_id)
+    return db.scalar(query.limit(1)) is not None
+
+
+def allocate_unique_name(db: Session, desired_name: str) -> str:
+    """Return a unique display name, appending a numeric suffix on collision."""
+    base = format_person_name(desired_name)
+    if not base:
+        base = "Player"
+    if len(base) > 50:
+        base = base[:50]
+    if not is_name_taken(db, base):
+        return base
+
+    for suffix in range(2, 10_000):
+        suffix_str = str(suffix)
+        truncated = base[: max(1, 50 - len(suffix_str))]
+        candidate = f"{truncated}{suffix_str}"
+        if not is_name_taken(db, candidate):
+            return candidate
+
+    raise UserPersistenceError("Could not allocate a unique username.")
 
 
 def upsert_user_from_google(db: Session, profile: GoogleProfile) -> User:
@@ -47,7 +106,7 @@ def upsert_user_from_google(db: Session, profile: GoogleProfile) -> User:
             provider=PROVIDER_GOOGLE,
             provider_id=profile.provider_id,
             email=profile.email,
-            name=format_person_name(profile.name),
+            name=allocate_unique_name(db, profile.name),
             avatar_url=profile.avatar_url,
         )
         db.add(user)
@@ -124,6 +183,8 @@ def update_user_profile(
             formatted = format_person_name(name)
             if len(formatted) < 2 or len(formatted) > 50:
                 raise ValueError("Name must be between 2 and 50 characters.")
+            if is_name_taken(db, formatted, exclude_user_id=user.id):
+                raise ValueError("That username is already taken.")
             user.name = formatted
 
         if avatar_url is not ...:
@@ -132,6 +193,12 @@ def update_user_profile(
         db.commit()
         db.refresh(user)
         return user
+    except ValueError:
+        db.rollback()
+        raise
+    except IntegrityError as exc:
+        db.rollback()
+        raise ValueError("That username is already taken.") from exc
     except SQLAlchemyError as exc:
         db.rollback()
         logger.exception("Failed to update user profile user_id=%s", user.id)

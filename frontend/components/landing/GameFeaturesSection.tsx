@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { FadeIn, FadeInItem, FadeInStagger } from "@/components/motion/FadeIn";
 import { gsap, prefersReducedMotion, useGSAP } from "@/lib/gsap";
 import { colors } from "@/lib/colors";
@@ -11,44 +11,96 @@ const FEATURES: Array<{
   desc: string;
   accent: string;
   accentGradient?: string;
-  visual: "vectors" | "multiplayer" | "toolbar" | "gallery" | "keyboard";
+  visual: "hybrid" | "multiplayer" | "toolbar" | "gallery" | "noads";
 }> = [
   {
-    title: "Vectors, not pixels",
-    desc: "Every game ends with a crisp SVG you can zoom into forever.",
+    title: "Sketch it or snap it",
+    desc: "Scribble a freehand pencil stroke, then drop an exact rectangle right next to it. Both live on the same canvas and export as one crisp SVG.",
     accent: colors.plum,
     accentGradient: `linear-gradient(90deg, ${colors.plum}, ${colors.pink})`,
-    visual: "vectors" as const,
+    visual: "hybrid" as const,
   },
   {
     title: "Cozy multiplayer",
-    desc: "Up to 12 friends. Share a link, pick words, start when ready.",
+    desc: "Rooms hold up to 16 players. Share the link, pick your words, start when everyone's in.",
     accent: colors.green,
     visual: "multiplayer" as const,
   },
   {
-    title: "Familiar toolbar",
-    desc: "Select, Path, Rectangle, Circle — Figma vibes.",
+    title: "Seven tools, no menus",
+    desc: "Pencil, Select, Line, Rect, Ellipse, Fill, Eraser — tap 1–7 to switch, Ctrl+Z to undo. Click a tool below.",
     accent: colors.pink,
     visual: "toolbar" as const,
   },
   {
-    title: "Publish to the gallery",
-    desc: "Earn upvotes and climb the weekly board.",
+    title: "Every round lands in the gallery",
+    desc: "Finished drawings are saved automatically, and anyone browsing can like or pass on them.",
     accent: colors.chartreuse,
     visual: "gallery" as const,
   },
   {
-    title: "Keyboard everything",
-    desc: "P · R · O · V · ⌘Z",
+    title: "No ads, no friction",
+    desc: "No pop-ups mid-round, no paywall to guess. Just a link, a canvas, and your friends.",
     accent: colors.plum,
-    visual: "keyboard" as const,
+    visual: "noads" as const,
   },
 ];
 
-const AVATAR_R = 22;
-const AVATAR_STEP = 30;
+const AVATAR_R = 20;
+const AVATAR_STEP = 28;
 const AVATAR_START = 12;
+
+const TOOLS = [
+  {
+    id: "pencil",
+    label: "Pencil",
+    key: "1",
+    path: "M -5 5 L -5 1 L 3 -7 L 7 -3 L -1 5 Z",
+    stroke: false,
+  },
+  {
+    id: "select",
+    label: "Select",
+    key: "2",
+    path: "M -4 -7 L 5 1 L 0 2 L 3 7 L 0 8 L -2 3 L -5 6 Z",
+    stroke: false,
+  },
+  {
+    id: "line",
+    label: "Line",
+    key: "3",
+    path: "M -7 5 C -3 -7, 3 -7, 7 5",
+    stroke: true,
+  },
+  {
+    id: "rect",
+    label: "Rectangle",
+    key: "4",
+    path: "M -6 -4 L 6 -4 L 6 4 L -6 4 Z",
+    stroke: false,
+  },
+  {
+    id: "ellipse",
+    label: "Ellipse",
+    key: "5",
+    path: "M 6 0 A 6 6 0 1 1 -6 0 A 6 6 0 1 1 6 0",
+    stroke: false,
+  },
+  {
+    id: "fill",
+    label: "Fill",
+    key: "6",
+    path: "M 0 -7 C 5 -1, 7 2, 7 4 A 7 7 0 0 1 -7 4 C -7 2, -5 -1, 0 -7 Z",
+    stroke: false,
+  },
+  {
+    id: "eraser",
+    label: "Eraser",
+    key: "7",
+    path: "M -7 4 L 0 -4 L 6 2 L 0 8 L -4 8 Z",
+    stroke: false,
+  },
+] as const;
 
 /** Overlapping player avatars — reads as "your crew in one room" */
 function MultiplayerVisual() {
@@ -61,7 +113,7 @@ function MultiplayerVisual() {
   ];
 
   return (
-    <svg viewBox="0 0 240 88" className="h-full w-full max-w-[240px]" aria-hidden>
+    <svg viewBox="0 0 240 88" className="h-full w-full max-w-72" aria-hidden>
       {avatars.map((a, i) => {
         const cx = AVATAR_START + AVATAR_R + i * AVATAR_STEP;
         return (
@@ -71,7 +123,7 @@ function MultiplayerVisual() {
               x={cx}
               y="50"
               textAnchor="middle"
-              fontSize="17"
+              fontSize="16"
               fontWeight="800"
               fill={colors.whitePure}
               fontFamily="var(--font-dm-sans), system-ui, sans-serif"
@@ -81,175 +133,310 @@ function MultiplayerVisual() {
           </g>
         );
       })}
-      <text
-        className="fv-avatar-extra"
-        x={AVATAR_START + AVATAR_R + avatars.length * AVATAR_STEP + 10}
-        y="50"
-        fontSize="15"
-        fontWeight="700"
-        fill={colors.ink}
-        fillOpacity={0.45}
-        fontFamily="var(--font-dm-sans), system-ui, sans-serif"
-      >
-        +4
-      </text>
-    </svg>
-  );
-}
-
-/** Nested circles + loupe hint = infinite zoom without blur */
-function VectorsVisual() {
-  return (
-    <svg viewBox="0 0 240 88" className="h-full w-full max-w-[240px]" aria-hidden>
-      <g className="fv-vector-circle" style={{ transformOrigin: "72px 44px" }}>
-        <circle cx="72" cy="44" r="28" fill={colors.pink} fillOpacity={0.85} />
-        <circle cx="72" cy="44" r="18" fill={colors.plum} fillOpacity={0.9} />
-        <circle cx="72" cy="44" r="8" fill={colors.chartreuse} />
-      </g>
-      <circle className="fv-vector-circle" cx="128" cy="38" r="16" fill={colors.green} style={{ transformOrigin: "128px 38px" }} />
-      <circle className="fv-vector-circle" cx="158" cy="52" r="22" fill={colors.plum} style={{ transformOrigin: "158px 52px" }} />
-      <circle className="fv-vector-circle" cx="196" cy="40" r="14" fill={colors.chartreuse} style={{ transformOrigin: "196px 40px" }} />
-      {/* magnifier = zoom forever */}
-      <g className="fv-vector-loupe" style={{ transformOrigin: "196px 40px" }}>
-        <circle cx="196" cy="40" r="10" fill="none" stroke={colors.ink} strokeWidth="2" strokeOpacity={0.35} />
-        <line x1="203" y1="47" x2="212" y2="56" stroke={colors.ink} strokeWidth="2.5" strokeLinecap="round" strokeOpacity={0.35} />
+      <g className="fv-avatar-extra">
+        <circle
+          cx={AVATAR_START + AVATAR_R + avatars.length * AVATAR_STEP}
+          cy="44"
+          r={AVATAR_R}
+          fill={colors.whitePure}
+          stroke={colors.ink}
+          strokeOpacity={0.15}
+          strokeWidth="2"
+          strokeDasharray="4 4"
+        />
+        <text
+          x={AVATAR_START + AVATAR_R + avatars.length * AVATAR_STEP}
+          y="50"
+          textAnchor="middle"
+          fontSize="14"
+          fontWeight="800"
+          fill={colors.ink}
+          fillOpacity={0.45}
+          fontFamily="var(--font-dm-sans), system-ui, sans-serif"
+        >
+          +11
+        </text>
       </g>
     </svg>
   );
 }
 
-function ToolbarVisual() {
-  const tools = [
-    { label: "V", active: false },
-    { label: "P", active: true },
-    { label: "R", active: false },
-    { label: "O", active: false },
-  ];
-
+/**
+ * Left half: a loose freehand pencil stroke. Right half: geometric shapes with
+ * anchor handles. Together they say "messy and precise on one canvas".
+ */
+function HybridVisual() {
   return (
-    <svg viewBox="0 0 240 88" className="h-full w-full max-w-[240px]" aria-hidden>
-      {tools.map((tool, i) => {
-        const x = 48 + i * 44;
-        return (
-          <g
-            key={tool.label}
-            className={tool.active ? "fv-tool fv-tool-active" : "fv-tool"}
-            style={{ transformOrigin: `${x + 18}px 44px` }}
-          >
-            <rect
-              x={x}
-              y="26"
-              width="36"
-              height="36"
-              rx="10"
-              fill={tool.active ? colors.plum : colors.whitePure}
-              stroke={tool.active ? colors.plum : colors.ink}
-              strokeOpacity={tool.active ? 1 : 0.12}
-              strokeWidth="2"
-            />
-            <text
-              x={x + 18}
-              y="49"
-              textAnchor="middle"
-              fontSize="15"
-              fontWeight="800"
-              fill={tool.active ? colors.whitePure : colors.ink}
-              fontFamily="var(--font-dm-sans), system-ui, sans-serif"
-            >
-              {tool.label}
-            </text>
-          </g>
-        );
-      })}
-    </svg>
-  );
-}
+    <svg viewBox="0 0 240 88" className="h-full w-full max-w-72" aria-hidden>
+      <path
+        className="fv-stroke"
+        d="M 18 62 C 30 26, 44 22, 52 44 C 60 66, 72 68, 82 48 C 90 32, 100 30, 106 46"
+        fill="none"
+        stroke={colors.pink}
+        strokeWidth="5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        className="fv-stroke"
+        d="M 24 74 C 46 68, 78 70, 102 66"
+        fill="none"
+        stroke={colors.plum}
+        strokeWidth="3.5"
+        strokeLinecap="round"
+        strokeOpacity={0.55}
+      />
 
-function GalleryVisual() {
-  const bars = [
-    { x: 52, h: 32, fill: colors.chartreuse },
-    { x: 84, h: 48, fill: colors.green },
-    { x: 116, h: 38, fill: colors.plum },
-    { x: 148, h: 56, fill: colors.pink },
-  ];
+      <line
+        x1="120"
+        y1="16"
+        x2="120"
+        y2="72"
+        stroke={colors.ink}
+        strokeOpacity={0.12}
+        strokeWidth="2"
+        strokeDasharray="5 6"
+      />
 
-  return (
-    <svg viewBox="0 0 240 88" className="h-full w-full max-w-[240px]" aria-hidden>
-      <line x1="44" y1="72" x2="168" y2="72" stroke={colors.ink} strokeOpacity={0.1} strokeWidth="2" />
-      {bars.map((bar) => (
+      <g className="fv-shape" style={{ transformOrigin: "162px 48px" }}>
+        <rect x="138" y="30" width="48" height="36" rx="6" fill={colors.green} fillOpacity={0.9} />
+      </g>
+      <g className="fv-shape" style={{ transformOrigin: "204px 40px" }}>
+        <circle cx="204" cy="40" r="18" fill={colors.chartreuse} />
+      </g>
+
+      {[
+        [138, 30],
+        [186, 30],
+        [138, 66],
+        [186, 66],
+      ].map(([x, y]) => (
         <rect
-          key={bar.x}
-          className="fv-bar"
-          x={bar.x}
-          y={72 - bar.h}
-          width="20"
-          height={bar.h}
-          rx="4"
-          fill={bar.fill}
-          style={{ transformOrigin: `${bar.x + 10}px 72px` }}
+          key={`${x}-${y}`}
+          className="fv-node"
+          x={x - 3.5}
+          y={y - 3.5}
+          width="7"
+          height="7"
+          rx="1.5"
+          fill={colors.whitePure}
+          stroke={colors.plum}
+          strokeWidth="2"
         />
       ))}
-      <path
-        className="fv-trophy"
-        d="M 196 28 L 200 36 L 208 36 L 202 42 L 204 50 L 196 46 L 188 50 L 190 42 L 184 36 L 192 36 Z"
-        fill={colors.chartreuse}
-        fillOpacity={0.9}
-        style={{ transformOrigin: "196px 39px" }}
-      />
     </svg>
   );
 }
 
-function KeyboardVisual() {
-  const keys = [
-    { label: "P", x: 28 },
-    { label: "R", x: 62 },
-    { label: "O", x: 96 },
-    { label: "V", x: 130 },
-    { label: "⌘Z", x: 164, wide: true },
-  ];
+/** Clickable seven-tool dock with shortcut numbers under each glyph */
+function ToolbarVisual() {
+  const [active, setActive] = useState(0);
 
   return (
-    <svg viewBox="0 0 240 88" className="h-full w-full max-w-[240px]" aria-hidden>
-      {keys.map((key) => {
-        const w = key.wide ? 44 : 28;
-        return (
-          <g key={key.label} className="fv-key">
-            <rect
-              x={key.x}
-              y="28"
-              width={w}
-              height="32"
-              rx="8"
-              fill={colors.whitePure}
-              stroke={colors.ink}
-              strokeOpacity={0.15}
-              strokeWidth="2"
-            />
-            <text
-              x={key.x + w / 2}
-              y="49"
-              textAnchor="middle"
-              fontSize={key.wide ? "11" : "14"}
-              fontWeight="700"
-              fill={colors.ink}
-              fontFamily="var(--font-dm-sans), system-ui, sans-serif"
+    <div className="fv-toolbar flex w-full max-w-sm flex-col items-center gap-2 px-1">
+      <div
+        className="flex w-full items-center justify-between gap-0.5 rounded-2xl border border-ink/10 bg-white p-1 shadow-sm sm:gap-1 sm:p-1.5"
+        role="toolbar"
+        aria-label="Drawing tools"
+      >
+        {TOOLS.map((tool, i) => {
+          const isActive = active === i;
+          return (
+            <button
+              key={tool.id}
+              type="button"
+              className="fv-tool group relative flex min-h-10 min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-xl px-0.5 py-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-plum/40"
+              style={{
+                background: isActive ? colors.plum : "transparent",
+                color: isActive ? colors.whitePure : colors.ink,
+              }}
+              aria-pressed={isActive}
+              aria-label={`${tool.label}, shortcut ${tool.key}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                setActive(i);
+              }}
             >
-              {key.label}
-            </text>
-          </g>
-        );
-      })}
+              <svg viewBox="-10 -10 20 20" className="h-5 w-5" aria-hidden>
+                <path
+                  d={tool.path}
+                  fill={tool.stroke ? "none" : "currentColor"}
+                  fillOpacity={isActive ? 1 : 0.55}
+                  stroke={tool.stroke ? "currentColor" : "none"}
+                  strokeOpacity={isActive ? 1 : 0.55}
+                  strokeWidth="2.4"
+                  strokeLinecap="round"
+                />
+              </svg>
+              <span
+                className="font-mono text-[9px] font-bold leading-none sm:text-[10px]"
+                style={{ opacity: isActive ? 0.9 : 0.4 }}
+              >
+                {tool.key}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+      <p className="fv-tool-label text-center text-[11px] font-semibold text-ink-muted">
+        {TOOLS[active].label}{" "}
+        <span className="font-mono font-bold text-plum">[{TOOLS[active].key}]</span>
+      </p>
+    </div>
+  );
+}
+
+/** A finished drawing framed as a gallery card, with like / pass reactions */
+function GalleryVisual() {
+  return (
+    <svg viewBox="0 0 240 88" className="h-full w-full max-w-72" aria-hidden>
+      <g className="fv-frame" style={{ transformOrigin: "78px 44px" }}>
+        <rect
+          x="26"
+          y="14"
+          width="104"
+          height="60"
+          rx="10"
+          fill={colors.whitePure}
+          stroke={colors.ink}
+          strokeOpacity={0.1}
+          strokeWidth="2"
+        />
+        <path
+          d="M 40 58 C 50 30, 60 30, 68 48 C 74 60, 82 58, 88 42"
+          fill="none"
+          stroke={colors.pink}
+          strokeWidth="4"
+          strokeLinecap="round"
+        />
+        <circle cx="106" cy="36" r="11" fill={colors.chartreuse} />
+        <rect x="94" y="52" width="24" height="12" rx="3" fill={colors.green} fillOpacity={0.85} />
+      </g>
+
+      <g className="fv-heart" style={{ transformOrigin: "160px 34px" }}>
+        <path
+          d="M 0 8 C -13 -3, -7 -15, 0 -7 C 7 -15, 13 -3, 0 8 Z"
+          transform="translate(160 34)"
+          fill={colors.pink}
+        />
+        <text
+          x="180"
+          y="40"
+          fontSize="15"
+          fontWeight="800"
+          fill={colors.ink}
+          fillOpacity={0.6}
+          fontFamily="var(--font-dm-sans), system-ui, sans-serif"
+        >
+          128
+        </text>
+      </g>
+
+      <g className="fv-heart" style={{ transformOrigin: "160px 66px" }}>
+        <path
+          d="M 0 -8 C 13 3, 7 15, 0 7 C -7 15, -13 3, 0 -8 Z"
+          transform="translate(160 66)"
+          fill={colors.ink}
+          fillOpacity={0.18}
+        />
+        <text
+          x="180"
+          y="72"
+          fontSize="15"
+          fontWeight="800"
+          fill={colors.ink}
+          fillOpacity={0.35}
+          fontFamily="var(--font-dm-sans), system-ui, sans-serif"
+        >
+          4
+        </text>
+      </g>
     </svg>
+  );
+}
+
+/** Crossed-out ad banner + clean play chip — "no ads, no friction" */
+function NoAdsVisual() {
+  const [banned, setBanned] = useState(true);
+
+  return (
+    <div className="fv-noads flex w-full max-w-xs flex-col items-center gap-2 px-2">
+      <button
+        type="button"
+        className="group relative w-full overflow-visible rounded-2xl border-2 border-dashed border-ink/15 bg-white p-3 text-left transition-colors hover:border-plum/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-plum/40"
+        aria-pressed={banned}
+        aria-label={banned ? "Ads blocked — click to preview" : "Ads visible — click to block"}
+        onClick={(e) => {
+          e.stopPropagation();
+          setBanned((v) => !v);
+        }}
+      >
+        <div className="fv-ad-banner flex items-center gap-2.5 rounded-xl bg-ink/4 px-2.5 py-2">
+          <div
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[10px] font-extrabold tracking-wide text-white"
+            style={{ background: colors.pink }}
+          >
+            AD
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-xs font-bold text-ink">Buy more guesses!</p>
+            <p className="truncate text-[11px] text-ink-muted">Watch a 30s video →</p>
+          </div>
+        </div>
+
+        {banned && (
+          <>
+            <span
+              className="fv-slash pointer-events-none absolute top-1/2 left-[-18%] right-[-18%] h-0.5 -translate-y-1/2 -rotate-12 rounded-full"
+              style={{ background: colors.plum }}
+              aria-hidden
+            />
+            <span
+              className="fv-ban-badge absolute -right-1.5 -top-1.5 flex h-8 w-8 items-center justify-center rounded-full border-2 border-white shadow-md"
+              style={{ background: colors.chartreuse }}
+              aria-hidden
+            >
+              <svg viewBox="0 0 24 24" className="h-4 w-4 text-ink" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                <circle cx="12" cy="12" r="9" />
+                <path d="M7 7l10 10" />
+              </svg>
+            </span>
+          </>
+        )}
+      </button>
+      <p className="text-center text-[11px] font-semibold text-ink-muted">
+        {banned ? "Blocked. Game stays clean." : "Tap again to block."}
+      </p>
+    </div>
   );
 }
 
 function FeatureVisual({ type }: { type: (typeof FEATURES)[number]["visual"] }) {
-  if (type === "vectors") return <VectorsVisual />;
+  if (type === "hybrid") return <HybridVisual />;
   if (type === "multiplayer") return <MultiplayerVisual />;
   if (type === "toolbar") return <ToolbarVisual />;
   if (type === "gallery") return <GalleryVisual />;
-  return <KeyboardVisual />;
+  return <NoAdsVisual />;
+}
+
+/** Dash-offset draw-on for a freehand path, restored to solid when finished. */
+function drawStroke(path: SVGPathElement, duration: number, delay: number, trigger?: object) {
+  const len = path.getTotalLength();
+  return gsap.fromTo(
+    path,
+    { strokeDasharray: len, strokeDashoffset: len },
+    {
+      strokeDashoffset: 0,
+      duration,
+      delay,
+      ease: "power2.out",
+      ...(trigger ? { scrollTrigger: trigger } : {}),
+      onComplete: () => {
+        path.style.strokeDasharray = "";
+        path.style.strokeDashoffset = "";
+      },
+    },
+  );
 }
 
 export function GameFeaturesSection() {
@@ -263,26 +450,36 @@ export function GameFeaturesSection() {
       gsap.utils.toArray<HTMLElement>(".feature-visual").forEach((visual) => {
         const trigger = { trigger: visual, start: "top 82%", once: true };
 
-        const circles = visual.querySelectorAll(".fv-vector-circle");
-        if (circles.length) {
-          gsap.from(circles, {
+        const strokes = visual.querySelectorAll<SVGPathElement>(".fv-stroke");
+        strokes.forEach((path, i) => {
+          if (reduced) return;
+          drawStroke(path, 0.9, i * 0.25, trigger);
+        });
+
+        const shapes = visual.querySelectorAll(".fv-shape");
+        if (shapes.length) {
+          gsap.from(shapes, {
             scale: 0,
-            duration: reduced ? 0 : 0.85,
-            ease: "back.out(2.8)",
-            stagger: 0.11,
+            duration: reduced ? 0 : 0.7,
+            ease: "back.out(2.6)",
+            stagger: 0.12,
             scrollTrigger: trigger,
+            delay: 0.35,
           });
-          const loupe = visual.querySelector(".fv-vector-loupe");
-          if (loupe && !reduced) {
-            gsap.from(loupe, {
-              scale: 0,
-              rotation: -30,
-              duration: 0.6,
-              ease: "back.out(2)",
-              scrollTrigger: trigger,
-              delay: 0.45,
-            });
-          }
+        }
+
+        const nodes = visual.querySelectorAll(".fv-node");
+        if (nodes.length) {
+          gsap.from(nodes, {
+            scale: 0,
+            opacity: 0,
+            transformOrigin: "center center",
+            duration: reduced ? 0 : 0.35,
+            ease: "back.out(3)",
+            stagger: 0.05,
+            scrollTrigger: trigger,
+            delay: 0.75,
+          });
         }
 
         const avatars = visual.querySelectorAll(".fv-avatar");
@@ -312,77 +509,88 @@ export function GameFeaturesSection() {
         const tools = visual.querySelectorAll(".fv-tool");
         if (tools.length) {
           gsap.from(tools, {
-            y: 22,
+            y: 18,
             opacity: 0,
             scale: 0.85,
-            duration: reduced ? 0 : 0.55,
+            duration: reduced ? 0 : 0.45,
             ease: "back.out(2)",
-            stagger: 0.1,
+            stagger: 0.07,
             scrollTrigger: trigger,
           });
-        }
-
-        const bars = visual.querySelectorAll(".fv-bar");
-        if (bars.length) {
-          gsap.from(bars, {
-            scaleY: 0,
-            duration: reduced ? 0 : 0.85,
-            ease: "expo.out",
-            stagger: 0.12,
-            scrollTrigger: trigger,
-          });
-          const trophy = visual.querySelector(".fv-trophy");
-          if (trophy) {
-            gsap.from(trophy, {
-              scale: 0,
-              rotation: -20,
-              duration: reduced ? 0 : 0.6,
-              ease: "back.out(2.5)",
+          const label = visual.querySelector(".fv-tool-label");
+          if (label) {
+            gsap.from(label, {
+              opacity: 0,
+              y: 6,
+              duration: reduced ? 0 : 0.4,
+              ease: "power2.out",
               scrollTrigger: trigger,
-              delay: 0.4,
+              delay: 0.45,
             });
           }
         }
 
-        const keyCaps = visual.querySelectorAll(".fv-key");
-        if (keyCaps.length) {
-          gsap.from(keyCaps, {
-            y: -18,
+        const frame = visual.querySelector(".fv-frame");
+        if (frame) {
+          gsap.from(frame, {
+            scale: 0.82,
+            opacity: 0,
+            duration: reduced ? 0 : 0.65,
+            ease: "back.out(1.8)",
+            scrollTrigger: trigger,
+          });
+          gsap.from(visual.querySelectorAll(".fv-heart"), {
+            scale: 0,
             opacity: 0,
             duration: reduced ? 0 : 0.5,
-            ease: "back.out(1.8)",
-            stagger: 0.08,
+            ease: "back.out(2.6)",
+            stagger: 0.14,
             scrollTrigger: trigger,
+            delay: 0.4,
+          });
+        }
+
+        const noads = visual.querySelector(".fv-noads");
+        if (noads) {
+          gsap.from(noads.querySelector(".fv-ad-banner"), {
+            scale: 0.9,
+            opacity: 0,
+            duration: reduced ? 0 : 0.55,
+            ease: "back.out(1.6)",
+            scrollTrigger: trigger,
+          });
+          gsap.from(noads.querySelectorAll(".fv-slash, .fv-ban-badge"), {
+            scale: 0,
+            opacity: 0,
+            duration: reduced ? 0 : 0.5,
+            ease: "back.out(2.8)",
+            stagger: 0.12,
+            scrollTrigger: trigger,
+            delay: 0.35,
           });
         }
       });
 
       if (reduced) return;
 
-      gsap.to(".fv-tool-active", {
-        scale: 1.14,
-        duration: 1.2,
-        ease: "sine.inOut",
-        repeat: -1,
-        yoyo: true,
-        delay: 1.5,
-      });
-
-      // Hover: vector circles pulse outward
-      const vectorCard = sectionRef.current?.querySelector("[data-visual='vectors']");
-      if (vectorCard) {
+      // Hover: redraw the freehand stroke, pop the geometry
+      const hybridCard = sectionRef.current?.querySelector("[data-visual='hybrid']");
+      if (hybridCard) {
         const onEnter = () => {
-          gsap.to(vectorCard.querySelectorAll(".fv-vector-circle"), {
-            scale: 1.12,
-            duration: 0.35,
+          hybridCard
+            .querySelectorAll<SVGPathElement>(".fv-stroke")
+            .forEach((path, i) => drawStroke(path, 0.7, i * 0.15));
+          gsap.to(hybridCard.querySelectorAll(".fv-shape"), {
+            scale: 1.08,
+            duration: 0.3,
             ease: "power2.out",
-            stagger: 0.06,
+            stagger: 0.07,
             yoyo: true,
             repeat: 1,
           });
         };
-        vectorCard.addEventListener("mouseenter", onEnter);
-        cleanups.push(() => vectorCard.removeEventListener("mouseenter", onEnter));
+        hybridCard.addEventListener("mouseenter", onEnter);
+        cleanups.push(() => hybridCard.removeEventListener("mouseenter", onEnter));
       }
 
       // Hover: avatars bounce in sequence
@@ -402,23 +610,21 @@ export function GameFeaturesSection() {
         cleanups.push(() => mpCard.removeEventListener("mouseenter", onEnter));
       }
 
-      // Hover: gallery bars re-grow taller
+      // Hover: the like reaction pops
       const galleryCard = sectionRef.current?.querySelector("[data-visual='gallery']");
       if (galleryCard) {
         const onEnter = () => {
-          gsap.to(galleryCard.querySelectorAll(".fv-bar"), {
-            scaleY: 1.25,
-            duration: 0.4,
-            ease: "power2.out",
-            stagger: 0.08,
-            transformOrigin: "bottom center",
+          gsap.to(galleryCard.querySelectorAll(".fv-heart"), {
+            scale: 1.22,
+            duration: 0.3,
+            ease: "back.out(3)",
+            stagger: 0.1,
             yoyo: true,
             repeat: 1,
           });
-          gsap.to(galleryCard.querySelector(".fv-trophy"), {
-            y: -4,
-            rotation: 8,
-            duration: 0.35,
+          gsap.to(galleryCard.querySelector(".fv-frame"), {
+            rotate: -2,
+            duration: 0.32,
             ease: "power2.out",
             yoyo: true,
             repeat: 1,
@@ -428,21 +634,28 @@ export function GameFeaturesSection() {
         cleanups.push(() => galleryCard.removeEventListener("mouseenter", onEnter));
       }
 
-      const keyboardCard = sectionRef.current?.querySelector("[data-visual='keyboard']");
-      if (keyboardCard) {
-        const keyCaps = keyboardCard.querySelectorAll(".fv-key");
-        const press = () =>
-          gsap.to(keyCaps, {
-            y: 5,
-            duration: 0.14,
-            ease: "power2.in",
-            stagger: 0.04,
+      // Hover: ban badge / slash pulse on the ad card
+      const noAdsCard = sectionRef.current?.querySelector("[data-visual='noads']");
+      if (noAdsCard) {
+        const onEnter = () => {
+          gsap.to(noAdsCard.querySelector(".fv-ban-badge"), {
+            scale: 1.15,
+            rotation: 12,
+            duration: 0.3,
+            ease: "back.out(3)",
             yoyo: true,
             repeat: 1,
-            overwrite: "auto",
           });
-        keyboardCard.addEventListener("mouseenter", press);
-        cleanups.push(() => keyboardCard.removeEventListener("mouseenter", press));
+          gsap.to(noAdsCard.querySelector(".fv-slash"), {
+            scaleX: 1.08,
+            duration: 0.25,
+            ease: "power2.out",
+            yoyo: true,
+            repeat: 1,
+          });
+        };
+        noAdsCard.addEventListener("mouseenter", onEnter);
+        cleanups.push(() => noAdsCard.removeEventListener("mouseenter", onEnter));
       }
 
       return () => cleanups.forEach((fn) => fn());
@@ -457,11 +670,12 @@ export function GameFeaturesSection() {
           <div className="max-w-xl">
             <p className="text-xs font-bold uppercase tracking-widest text-plum">The Game</p>
             <h2 className="mt-2 text-[clamp(1.75rem,5.5vw,2.5rem)] font-bold tracking-tight text-ink sm:mt-3 lg:text-5xl">
-              Made for thinkers who can&apos;t draw.
+              Draw however you think.
             </h2>
           </div>
           <p className="max-w-sm text-sm leading-relaxed text-ink-muted sm:text-base lg:text-right">
-            Precise vector tools instead of messy brushes. Gorgeous output, zero talent required.
+            Sketch freehand when you&apos;re in a hurry, snap perfect shapes when you&apos;re not. Either
+            way the canvas stays sharp at any zoom.
           </p>
         </div>
       </FadeIn>
@@ -475,11 +689,13 @@ export function GameFeaturesSection() {
             <motion.article
               whileHover={{ y: -6, boxShadow: `0 24px 48px -14px ${feature.accent}35` }}
               transition={{ type: "spring", stiffness: 380, damping: 28 }}
-              className="glass-panel flex h-full flex-col overflow-hidden rounded-2xl"
+              className={`glass-panel flex h-full flex-col rounded-2xl ${
+                feature.visual === "noads" ? "overflow-visible" : "overflow-hidden"
+              }`}
               data-visual={feature.visual}
             >
               <div
-                className="h-[3px] w-full shrink-0"
+                className="h-[3px] w-full shrink-0 rounded-t-2xl"
                 style={{ background: feature.accentGradient ?? feature.accent }}
               />
               <div className="flex flex-1 flex-col p-5 sm:p-6 lg:p-7">
@@ -487,7 +703,11 @@ export function GameFeaturesSection() {
                 <p className="mt-2 flex-1 text-sm leading-relaxed text-ink-muted">{feature.desc}</p>
               </div>
 
-              <div className="feature-visual dot-grid flex h-36 w-full items-center justify-center px-4 py-3 sm:h-44 sm:py-4">
+              <div
+                className={`feature-visual dot-grid flex h-36 w-full items-center justify-center px-4 py-3 sm:h-44 sm:py-4 ${
+                  feature.visual === "noads" ? "overflow-visible" : ""
+                }`}
+              >
                 <FeatureVisual type={feature.visual} />
               </div>
             </motion.article>

@@ -11,7 +11,7 @@ import { UserAvatar } from "@/components/ui/UserAvatar";
 import { useRoom } from "@/hooks/useRoom";
 import { colors } from "@/lib/colors";
 import { cn } from "@/lib/cn";
-import { formatDisplayName } from "@/lib/names";
+import { formatDisplayName, profilePath } from "@/lib/names";
 import { getHostName } from "@/services/room";
 import { ROOM_STATUS_LABELS, type Room } from "@/types/room";
 import { LetterBounce, LoaderScreen } from "@/features/loaders";
@@ -207,7 +207,12 @@ function PlayerList({
               />
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold text-ink">
-                  {formatDisplayName(player.name)}
+                  <Link
+                    href={profilePath(player.name)}
+                    className="hover:text-plum hover:underline"
+                  >
+                    {formatDisplayName(player.name)}
+                  </Link>
                   {isPlayerHost ? (
                     <span className="ml-2 text-xs font-medium text-plum">Host</span>
                   ) : null}

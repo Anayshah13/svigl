@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { GameFeaturesSection } from "@/components/landing/GameFeaturesSection";
 import { LandingBackgroundDoodles } from "@/components/landing/LandingBackgroundDoodles";
 import { LandingCtaSection } from "@/components/landing/LandingCtaSection";
@@ -19,25 +19,43 @@ import { useSessionStore } from "@/stores/session";
 
 const ROOM_CODE_PLACEHOLDER = "ABCD";
 
-const HEADLINE_WORDS = ["Drawing,", "made", "with"];
+const HEADLINES = [
+  { words: ["Draw", "fast,", "get", "roasted"], accent: "faster." },
+  { words: ["Everyone's", "an", "artist", "until", "the", "timer"], accent: "starts." },
+  { words: ["Terrible", "drawings,", "excellent"], accent: "excuses." },
+  { words: ["Where", "friendships", "go", "to"], accent: "die." },
+  { words: ["Draw", "with", "confidence,", "guess", "with"], accent: "agony." },
+] as const;
 
-function HeadlineWords() {
+function HeadlineWords({ words }: { words: readonly string[] }) {
   return (
     <>
-      {HEADLINE_WORDS.map((word, i) => (
+      {words.map((word, i) => (
         <motion.span
-          key={word}
+          key={`${i}-${word}`}
           className="inline-block"
           initial={{ opacity: 0, y: 18, rotate: 2 }}
           animate={{ opacity: 1, y: 0, rotate: 0 }}
           transition={{ delay: 0.15 + i * 0.09, duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
         >
           {word}
-          {i < HEADLINE_WORDS.length - 1 ? "\u00A0" : ""}
+          {i < words.length - 1 ? "\u00A0" : ""}
         </motion.span>
       ))}
     </>
   );
+}
+
+// Picked after mount so the server and client markup match; the hero fades in
+// from opacity 0, so the swap happens before anything is visible.
+function useRandomHeadline() {
+  const [index, setIndex] = useState(0);
+
+  useEffect(() => {
+    setIndex(Math.floor(Math.random() * HEADLINES.length));
+  }, []);
+
+  return HEADLINES[index];
 }
 
 export function LandingPage() {
@@ -45,6 +63,7 @@ export function LandingPage() {
   const displayName = useSessionStore((s) => s.displayName);
   const setDisplayName = useSessionStore((s) => s.setDisplayName);
   const [code, setCode] = useState("");
+  const headline = useRandomHeadline();
 
   const { createRoom, joinRoom, creating, joining, busy, error, clearError } = useRoomActions();
 
@@ -72,27 +91,22 @@ export function LandingPage() {
               <SviglLogo size="hero" className="justify-center text-center" />
             </FadeIn>
 
-            <FadeIn>
-              <motion.span
-                className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-wider sm:text-xs"
-                style={{ background: colors.pinkLight, color: colors.plum }}
-                whileHover={{ scale: 1.04 }}
-              >
-                ✨ Open beta · v1.0
-              </motion.span>
-            </FadeIn>
-
             <FadeIn delay={0.08}>
-              <h1 className="mt-6 text-[clamp(2.25rem,8vw,3.25rem)] font-bold leading-[1.05] tracking-tight text-ink sm:mt-8 sm:text-6xl lg:text-[5.25rem] lg:leading-[1.02] xl:text-[5.75rem]">
-                <HeadlineWords />{" "}
+              <h1 className="text-[clamp(1.75rem,6.5vw,2.5rem)] font-bold leading-[1.08] tracking-tight text-ink sm:text-5xl lg:text-[4rem] lg:leading-[1.04] xl:text-[4.5rem]">
+                <HeadlineWords words={headline.words} />{" "}
                 <br className="sm:hidden" />
                 <motion.span
-                  className="script-accent relative inline-block text-[clamp(2.5rem,9vw,3.5rem)] sm:text-7xl lg:text-[5.75rem] xl:text-[6.25rem]"
+                  key={headline.accent}
+                  className="script-accent relative inline-block text-[clamp(1.95rem,7.25vw,2.75rem)] sm:text-6xl lg:text-[4.5rem] xl:text-[5rem]"
                   initial={{ opacity: 0, y: 20, scale: 0.96 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
-                  transition={{ delay: 0.45, duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+                  transition={{
+                    delay: 0.15 + headline.words.length * 0.09,
+                    duration: 0.6,
+                    ease: [0.22, 1, 0.36, 1],
+                  }}
                 >
-                  vectors!
+                  {headline.accent}
                   <motion.span
                     className="absolute -bottom-1 left-0 h-1 w-full rounded-full sm:h-1.5 sm:-bottom-1.5"
                     style={{ background: `linear-gradient(90deg, ${colors.plum}, ${colors.chartreuse})` }}

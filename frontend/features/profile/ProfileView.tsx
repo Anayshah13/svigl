@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { FadeIn, FadeInItem, FadeInStagger } from "@/components/motion/FadeIn";
 import { ReactionBar } from "@/components/reactions/ReactionBar";
@@ -10,9 +11,15 @@ import { Card } from "@/components/ui/Card";
 import { UserAvatar } from "@/components/ui/UserAvatar";
 import { LoaderScreen } from "@/features/loaders";
 import { ProfileEditor } from "@/features/profile/ProfileEditor";
-import { formatDisplayName, profileHandle } from "@/lib/names";
+import { profilePath, profileSlug } from "@/lib/names";
 import { fetchAuthSession } from "@/services/auth";
-import { fetchGalleryEntries, type GalleryEntry } from "@/services/gallery";
+import {
+  fetchGalleryEntries,
+  setGalleryReaction,
+  type GalleryEntry,
+  type ReactionValue,
+} from "@/services/gallery";
+import { fetchPublicProfile, type PublicProfile } from "@/services/profile";
 import { useSessionStore } from "@/stores/session";
 
 function StatCard({
@@ -41,72 +48,151 @@ function StatCard({
 function providerLabel(provider: string | undefined): string {
   if (provider === "google") return "Google account";
   if (provider === "guest") return "Guest account";
-  return "Preview profile";
+  return "Player";
 }
 
-export function ProfileView() {
+export function ProfileView({ username }: { username: string }) {
+  const router = useRouter();
   const authUser = useSessionStore((s) => s.authUser);
-  const displayName = useSessionStore((s) => s.displayName);
   const authReady = useSessionStore((s) => s.authReady);
   const setAuth = useSessionStore((s) => s.setAuth);
+
   const [loading, setLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
+  const [profile, setProfile] = useState<PublicProfile | null>(null);
   const [drawings, setDrawings] = useState<GalleryEntry[]>([]);
   const [profileVersion, setProfileVersion] = useState(0);
 
-  const rawName = authUser?.username ?? (displayName || "Guest");
-  const displayUsername = formatDisplayName(rawName);
-  const avatarUrl = authUser?.avatarUrl ?? null;
-  const handle = profileHandle(displayUsername);
-  const drawingsDone = authUser?.drawingsDone ?? 0;
-  const likesReceived = authUser?.likesReceived ?? 0;
-  const dislikesReceived = authUser?.dislikesReceived ?? 0;
+  const routeSlug = profileSlug(username);
+  const isOwnProfile =
+    Boolean(authUser) &&
+    Boolean(profile) &&
+    (authUser!.id === profile!.id ||
+      authUser!.username.toLowerCase() === profile!.username.toLowerCase());
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
+    setNotFound(false);
+
     void (async () => {
       try {
-        const user = await fetchAuthSession();
-        if (cancelled || !user) return;
-        setAuth(user);
+        // Refresh own session in the background so editor/reactions stay current.
+        const me = await fetchAuthSession().catch(() => null);
+        if (!cancelled && me) setAuth(me);
+
+        const publicProfile = await fetchPublicProfile(routeSlug);
+        if (cancelled) return;
+
+        // Canonicalize URL to hyphenated slug (e.g. Anay%20Shah / Anay Shah → Anay-Shah).
+        const canonicalSlug = profileSlug(publicProfile.username);
+        if (username !== canonicalSlug) {
+          router.replace(profilePath(publicProfile.username));
+        }
+
+        setProfile(publicProfile);
         const published = await fetchGalleryEntries({
           sort: "recent",
-          authorId: user.id,
+          authorId: publicProfile.id,
         });
         if (!cancelled) setDrawings(published);
-      } catch {
-        if (!cancelled) setDrawings([]);
+      } catch (err) {
+        if (cancelled) return;
+        setProfile(null);
+        setDrawings([]);
+        const message = err instanceof Error ? err.message : "";
+        setNotFound(message === "Profile not found.");
       } finally {
         if (!cancelled) setLoading(false);
       }
     })();
+
     return () => {
       cancelled = true;
     };
-  }, [profileVersion, setAuth]);
+  }, [profileVersion, routeSlug, router, setAuth, username]);
 
-  if (!authReady) {
+  const onReact = useCallback(
+    async (id: string, reaction: ReactionValue) => {
+      if (!authUser || isOwnProfile) return;
+      const previous = drawings.find((entry) => entry.id === id);
+      if (!previous) return;
+
+      setDrawings((list) =>
+        list.map((entry) => {
+          if (entry.id !== id) return entry;
+          let likes = entry.likes;
+          let dislikes = entry.dislikes;
+          if (entry.myReaction === "like") likes = Math.max(0, likes - 1);
+          if (entry.myReaction === "dislike") dislikes = Math.max(0, dislikes - 1);
+          if (reaction === "like") likes += 1;
+          if (reaction === "dislike") dislikes += 1;
+          return { ...entry, likes, dislikes, myReaction: reaction };
+        }),
+      );
+
+      try {
+        const result = await setGalleryReaction(id, reaction);
+        setDrawings((list) =>
+          list.map((entry) =>
+            entry.id === id
+              ? {
+                  ...entry,
+                  likes: result.likes,
+                  dislikes: result.dislikes,
+                  myReaction: result.myReaction,
+                }
+              : entry,
+          ),
+        );
+      } catch {
+        setDrawings((list) =>
+          list.map((entry) => (entry.id === id ? previous : entry)),
+        );
+      }
+    },
+    [authUser, drawings, isOwnProfile],
+  );
+
+  if (!authReady || loading) {
     return <LoaderScreen kind="dots" label="Loading profile…" />;
   }
 
-  if (!authUser && !displayName.trim()) {
+  if (notFound || !profile) {
     return (
       <div className="page-shell page-shell-narrow flex flex-col items-center justify-center gap-5 text-center sm:gap-6">
         <FadeIn>
-          <h1 className="text-2xl font-bold text-ink">Your profile</h1>
+          <h1 className="text-2xl font-bold text-ink">Profile not found</h1>
           <p className="mt-2 text-ink-muted">
-            Sign in or set a display name on the home page to preview your profile.
+            No player matches <span className="font-semibold text-ink">{routeSlug}</span>.
           </p>
-          <Link href="/sign-in" className="mt-4 inline-block text-sm text-plum hover:underline">
-            Sign in
+          <Link href="/gallery" className="mt-4 inline-block text-sm text-plum hover:underline">
+            Browse gallery
           </Link>
-          <Link href="/" className="mt-2 inline-block text-sm text-plum hover:underline">
-            Back to home
-          </Link>
+          {authUser ? (
+            <Link
+              href={profilePath(authUser.username)}
+              className="mt-2 inline-block text-sm text-plum hover:underline"
+            >
+              Go to your profile
+            </Link>
+          ) : (
+            <Link href="/sign-in" className="mt-2 inline-block text-sm text-plum hover:underline">
+              Sign in
+            </Link>
+          )}
         </FadeIn>
       </div>
     );
   }
+
+  const displayUsername = profile.username;
+  const handle = profile.handle;
+  const avatarUrl = profile.avatarUrl;
+  const drawingsDone = profile.drawingsDone;
+  const likesReceived = profile.likesReceived;
+  const dislikesReceived = profile.dislikesReceived;
+  const canReact = Boolean(authUser) && !isOwnProfile;
 
   return (
     <div className="page-shell max-w-6xl gap-8 sm:gap-10">
@@ -132,7 +218,7 @@ export function ProfileView() {
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="rounded-full bg-plum-light px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-plum sm:text-[11px]">
-                    {providerLabel(authUser?.provider)}
+                    {isOwnProfile ? providerLabel(profile.provider) : "Player profile"}
                   </span>
                   <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 sm:text-xs">
                     {handle}
@@ -143,15 +229,25 @@ export function ProfileView() {
                   {displayUsername}
                 </h1>
                 <p className="mt-2 max-w-lg text-sm leading-relaxed text-ink-muted">
-                  Published drawings and the likes or dislikes they earn after each round.
+                  {isOwnProfile
+                    ? "Published drawings and the likes or dislikes they earn after each round."
+                    : "Browse their published drawings and leave a like or dislike."}
                 </p>
 
-                {authUser ? (
+                {isOwnProfile ? (
                   <div className="mt-5">
                     <ProfileEditor
                       name={displayUsername}
                       avatarUrl={avatarUrl}
-                      onSaved={() => setProfileVersion((value) => value + 1)}
+                      onSaved={(nextUsername) => {
+                        setProfileVersion((value) => value + 1);
+                        if (
+                          nextUsername &&
+                          nextUsername.toLowerCase() !== displayUsername.toLowerCase()
+                        ) {
+                          router.replace(profilePath(nextUsername));
+                        }
+                      }}
                     />
                   </div>
                 ) : null}
@@ -172,7 +268,9 @@ export function ProfileView() {
           <div className="mb-5 flex flex-col gap-3 sm:mb-6 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
             <div className="min-w-0">
               <p className="text-xs font-bold uppercase tracking-widest text-gray-400">Published</p>
-              <h2 className="text-xl font-bold text-ink sm:text-2xl">Drawings by {displayUsername}</h2>
+              <h2 className="text-xl font-bold text-ink sm:text-2xl">
+                Drawings by {displayUsername}
+              </h2>
             </div>
             <span className="self-start rounded-full bg-gray-100 px-3 py-1 text-sm text-gray-500 sm:self-auto">
               {drawings.length} total
@@ -180,18 +278,14 @@ export function ProfileView() {
           </div>
         </FadeIn>
 
-        {loading ? (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {Array.from({ length: 3 }, (_, i) => (
-              <div key={i} className="aspect-4/3 animate-pulse rounded-2xl bg-gray-100" />
-            ))}
-          </div>
-        ) : drawings.length === 0 ? (
+        {drawings.length === 0 ? (
           <Card className="border-dashed bg-white/80 py-12 text-center">
             <p className="text-3xl">🎨</p>
             <p className="mt-3 font-medium text-gray-700">No published drawings yet</p>
             <p className="mt-2 text-sm text-ink-muted">
-              Finish a drawing round in a game and it will show up here with its reactions.
+              {isOwnProfile
+                ? "Finish a drawing round in a game and it will show up here with its reactions."
+                : "This player hasn’t published any drawings yet."}
             </p>
           </Card>
         ) : (
@@ -208,7 +302,8 @@ export function ProfileView() {
                       likes={entry.likes}
                       dislikes={entry.dislikes}
                       myReaction={entry.myReaction}
-                      disabled
+                      disabled={!canReact}
+                      onReact={canReact ? (next) => void onReact(entry.id, next) : undefined}
                       size="sm"
                     />
                   </div>

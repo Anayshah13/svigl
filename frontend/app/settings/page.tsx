@@ -6,6 +6,7 @@ import { AuthControls } from "@/components/auth/AuthControls";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
+import { profilePath } from "@/lib/names";
 import { useSessionStore } from "@/stores/session";
 
 export default function SettingsPage() {
@@ -70,7 +71,10 @@ export default function SettingsPage() {
                 Open gallery
               </Button>
             </Link>
-            <Link href="/profile" className="w-full sm:w-auto">
+            <Link
+              href={authUser ? profilePath(authUser.username) : "/profile"}
+              className="w-full sm:w-auto"
+            >
               <Button variant="outline" size="sm" className="w-full sm:w-auto">
                 View profile
               </Button>

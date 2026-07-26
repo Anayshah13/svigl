@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/Button";
 import { UserAvatar } from "@/components/ui/UserAvatar";
 import { SignOutConfirmOverlay } from "@/components/auth/SignOutConfirmOverlay";
-import { formatDisplayName } from "@/lib/names";
+import { formatDisplayName, profilePath } from "@/lib/names";
 import { leaveActiveRoomIfAny, disconnectAppWebSocket } from "@/lib/leave-active-room";
 import { signOut } from "@/services/auth";
 import { useSessionStore } from "@/stores/session";
@@ -49,7 +49,7 @@ export function AuthControls() {
     <>
       <div className="flex items-center gap-1.5 sm:gap-2">
         <Link
-          href="/profile"
+          href={profilePath(authUser.username)}
           className="flex items-center gap-2 rounded-full py-1 pl-1 pr-3 transition-colors hover:bg-gray-100"
         >
           <UserAvatar

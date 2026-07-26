@@ -11,3 +11,19 @@ export function profileHandle(name: string): string {
   const compact = name.replace(/\s+/g, "").slice(0, 4).toUpperCase();
   return `@${compact || "USER"}`;
 }
+
+/** URL segment for a profile — spaces become hyphens (e.g. "Anay Shah" → "Anay-Shah"). */
+export function profileSlug(username: string): string {
+  return username
+    .trim()
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+/** Canonical profile URL for a display name / username. */
+export function profilePath(username: string): string {
+  const slug = profileSlug(username);
+  if (!slug) return "/profile";
+  return `/profile/${encodeURIComponent(slug)}`;
+}

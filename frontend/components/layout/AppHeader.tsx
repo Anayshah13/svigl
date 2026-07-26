@@ -7,10 +7,17 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 import { AuthControls } from "@/components/auth/AuthControls";
 import { SviglLogo } from "@/components/layout/SviglLogo";
 import { cn } from "@/lib/cn";
+import { profilePath } from "@/lib/names";
+import { useSessionStore } from "@/stores/session";
 
-const NAV = [
+type NavItem = {
+  href: string;
+  label: string;
+  activePrefix?: string;
+};
+
+const STATIC_NAV: NavItem[] = [
   { href: "/gallery", label: "Gallery" },
-  { href: "/profile", label: "Profile" },
   { href: "/settings", label: "Settings" },
   { href: "/feedback", label: "Feedback" },
 ];
@@ -94,9 +101,20 @@ function NavLink({
 
 export function AppHeader() {
   const pathname = usePathname();
+  const authUser = useSessionStore((s) => s.authUser);
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuPathname, setMenuPathname] = useState(pathname);
   const mdUp = useMdUp();
+
+  const nav: NavItem[] = [
+    STATIC_NAV[0],
+    {
+      href: authUser ? profilePath(authUser.username) : "/profile",
+      label: "Profile",
+      activePrefix: "/profile",
+    },
+    ...STATIC_NAV.slice(1),
+  ];
 
   // Close mobile menu when the route changes (adjust state during render — avoids setState-in-effect)
   if (pathname !== menuPathname) {
@@ -139,9 +157,10 @@ export function AppHeader() {
         ) : null}
 
         <nav className="absolute left-1/2 hidden -translate-x-1/2 items-center gap-1 md:flex">
-          {NAV.map(({ href, label }) => {
-            const active = pathname === href || pathname.startsWith(`${href}/`);
-            return <NavLink key={href} href={href} label={label} active={active} />;
+          {nav.map(({ href, label, activePrefix }) => {
+            const prefix = activePrefix ?? href;
+            const active = pathname === prefix || pathname.startsWith(`${prefix}/`);
+            return <NavLink key={label} href={href} label={label} active={active} />;
           })}
         </nav>
 
@@ -194,11 +213,12 @@ export function AppHeader() {
                 }}
               >
                 <nav className="flex flex-col gap-0.5 p-1.5">
-                  {NAV.map(({ href, label }, i) => {
-                    const active = pathname === href || pathname.startsWith(`${href}/`);
+                  {nav.map(({ href, label, activePrefix }, i) => {
+                    const prefix = activePrefix ?? href;
+                    const active = pathname === prefix || pathname.startsWith(`${prefix}/`);
                     return (
                       <motion.div
-                        key={href}
+                        key={label}
                         initial={{ opacity: 0, x: 6 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{

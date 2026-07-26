@@ -6,14 +6,14 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { UserAvatar } from "@/components/ui/UserAvatar";
 import { compressAvatarFile } from "@/lib/avatar-upload";
-import { formatDisplayName } from "@/lib/names";
+import { formatDisplayName, profileSlug } from "@/lib/names";
 import { updateProfile } from "@/services/auth";
 import { useSessionStore } from "@/stores/session";
 
 interface ProfileEditorProps {
   name: string;
   avatarUrl: string | null;
-  onSaved?: () => void;
+  onSaved?: (nextUsername: string) => void;
 }
 
 export function ProfileEditor({ name, avatarUrl, onSaved }: ProfileEditorProps) {
@@ -62,7 +62,7 @@ export function ProfileEditor({ name, avatarUrl, onSaved }: ProfileEditorProps) 
       const user = await updateProfile(updates);
       setAuth(user);
       setOpen(false);
-      onSaved?.();
+      onSaved?.(user.username);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save profile.");
     } finally {
@@ -181,14 +181,18 @@ export function ProfileEditor({ name, avatarUrl, onSaved }: ProfileEditorProps) 
 
               <label className="mt-5 block">
                 <span className="mb-2 block text-xs font-bold uppercase tracking-wider text-gray-400">
-                  Display name
+                  Username
                 </span>
                 <Input
                   value={draftName}
                   onChange={(event) => setDraftName(event.target.value)}
-                  placeholder="Your name"
+                  placeholder="Your username"
                   disabled={busy}
                 />
+                <p className="mt-2 text-xs text-ink-muted">
+                  Used in your profile link: /profile/
+                  {profileSlug(draftName) || "username"}
+                </p>
               </label>
 
               {error ? (

@@ -3,19 +3,14 @@
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { colors } from "@/lib/colors";
+import { profilePath } from "@/lib/names";
+import { useSessionStore } from "@/stores/session";
 
 type FooterLink = {
   label: string;
   href: string;
   external?: boolean;
 };
-
-const EXPLORE_LINKS: FooterLink[] = [
-  { label: "Home", href: "/" },
-  { label: "Gallery", href: "/gallery" },
-  { label: "Profile", href: "/profile" },
-  { label: "Feedback", href: "/feedback" },
-];
 
 const CONNECT_LINKS: FooterLink[] = [
   { label: "GitHub", href: "https://github.com/Anayshah13/svigl", external: true },
@@ -151,6 +146,14 @@ function WavyDottedDivider() {
 }
 
 export function LandingFooter() {
+  const authUser = useSessionStore((s) => s.authUser);
+  const exploreLinks: FooterLink[] = [
+    { label: "Home", href: "/" },
+    { label: "Gallery", href: "/gallery" },
+    { label: "Profile", href: authUser ? profilePath(authUser.username) : "/profile" },
+    { label: "Feedback", href: "/feedback" },
+  ];
+
   return (
     <footer className="relative mt-8">
       {/* fade-to-white veil — hides the landing doodles behind the footer */}
@@ -238,18 +241,6 @@ export function LandingFooter() {
             <p className="mt-4 max-w-sm text-base leading-relaxed text-ink-muted">
               A multiplayer drawing game where every stroke is a real SVG primitive — circles, rects, curves, and all.
             </p>
-            <div className="mt-5 flex items-center gap-2">
-              <span
-                className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider"
-                style={{ background: colors.pinkLight, color: colors.plum }}
-              >
-                <span
-                  className="inline-block h-1.5 w-1.5 rounded-full"
-                  style={{ background: colors.green }}
-                />
-                Open beta · v1.0
-              </span>
-            </div>
           </motion.div>
 
           {/* Explore column */}
@@ -261,7 +252,7 @@ export function LandingFooter() {
           >
             <h3 className="text-xs font-bold uppercase tracking-[0.18em] text-ink">Explore</h3>
             <ul className="mt-4 space-y-2.5">
-              {EXPLORE_LINKS.map((link) => (
+              {exploreLinks.map((link) => (
                 <li key={link.label}>
                   <LinkItem link={link} />
                 </li>
