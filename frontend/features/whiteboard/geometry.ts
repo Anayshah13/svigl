@@ -4,6 +4,10 @@ import {
   type Point,
   type WhiteboardShape,
 } from "./types";
+import {
+  mapPencilPathPoints,
+  pencilPathAnchors,
+} from "./pencilStroke";
 
 export function createId(prefix = "wb"): string {
   return `${prefix}-${Math.random().toString(36).slice(2, 10)}${Date.now().toString(36).slice(-4)}`;
@@ -337,6 +341,15 @@ export function hitTestShape(
       if (!b) return false;
       return pointInRect(p, b.x, b.y, b.width, b.height, pad);
     }
+    case "pencil": {
+      const pts = pencilPathAnchors(shape.geometry.d);
+      if (pts.length === 0) return false;
+      if (pts.length === 1) return dist(p, pts[0]!) <= pad;
+      for (let i = 1; i < pts.length; i++) {
+        if (distToSegment(p, pts[i - 1]!, pts[i]!) <= pad) return true;
+      }
+      return false;
+    }
     default:
       return false;
   }
@@ -499,6 +512,18 @@ export function translateShape(
         transform: composeTransforms(`translate(${dx} ${dy})`, existing),
       };
     }
+    case "pencil":
+      // Rewrite path coordinates so `d` stays in absolute board space —
+      // this keeps hit-testing precise without threading translate parsing
+      // through every stage the way `fill` has to.
+      return {
+        ...shape,
+        transform,
+        geometry: {
+          ...g,
+          d: mapPencilPathPoints(g.d, (p) => ({ x: p.x + dx, y: p.y + dy })),
+        },
+      };
     default:
       return shape;
   }
@@ -725,6 +750,11 @@ export function shapeBounds(shape: WhiteboardShape): Bounds {
       const b = fillPathBounds(g.d);
       return b ?? { x: 0, y: 0, width: 0, height: 0 };
     }
+    case "pencil": {
+      const pts = pencilPathAnchors(g.d);
+      if (pts.length === 0) return { x: 0, y: 0, width: 0, height: 0 };
+      return boundsFromPoints(pts);
+    }
     default:
       return { x: 0, y: 0, width: 0, height: 0 };
   }
@@ -762,6 +792,9 @@ export function shapeVisualBounds(shape: WhiteboardShape): Bounds {
     } else if (g.kind === "bezier") {
       // A cubic lies inside the convex hull of its endpoints/control points.
       points = [g.start, g.cp1, g.cp2, g.end];
+    } else if (g.kind === "pencil") {
+      const anchors = pencilPathAnchors(g.d);
+      points = anchors.length ? anchors : [{ x: 0, y: 0 }];
     } else {
       const size = arrowHeadSize(shape.strokeWidth);
       const angle = Math.atan2(g.end.y - g.start.y, g.end.x - g.start.x);
@@ -1155,6 +1188,13 @@ export function scaleShapeToBox(
           ry: Math.max(0.5, newBox.height / 2),
         },
       };
+    case "pencil": {
+      const nextD = mapPencilPathPoints(g.d, (p) => ({
+        x: newBox.x + (p.x - oldBox.x) * sx,
+        y: newBox.y + (p.y - oldBox.y) * sy,
+      }));
+      return { ...shape, geometry: { ...g, d: nextD } };
+    }
     case "fill": {
       const sx = newBox.width / ow;
       const sy = newBox.height / oh;

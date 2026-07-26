@@ -9,12 +9,9 @@ export const PRESET_COLORS = [
   "#FFFFFF",
   "#C1C1C1",
   "#EF4444",
-  "#F97316",
   "#FCEE09",
   "#22C55E",
   "#3B82F6",
-  "#A855F7",
-  "#EC4899",
 ] as const;
 
 export const STROKE_WIDTHS = [2, 5, 10] as const;
@@ -28,17 +25,21 @@ export type ColorTarget = "stroke" | "fill";
 
 /** Drawing / editing tools. Interaction-only tools are never stored on shapes. */
 export type WhiteboardTool =
+  | "pencil"
   | "select"
-  | "hand"
   | "bezier"
   | "rectangle"
   | "ellipse"
-  | "arrow"
   | "fill"
   | "eraser";
 
-/** Tools that may appear on persisted shapes. */
-export type DrawingTool = Exclude<WhiteboardTool, "select" | "hand" | "eraser">;
+/**
+ * Tools that may appear on persisted shapes.
+ * Includes legacy `arrow` so existing boards still render/edit.
+ */
+export type DrawingTool =
+  | Exclude<WhiteboardTool, "select" | "eraser">
+  | "arrow";
 
 export interface Point {
   x: number;
@@ -81,12 +82,26 @@ export interface FillGeometry {
   d: string;
 }
 
+/**
+ * Freehand pencil stroke, stored as a smoothed SVG path `d` string.
+ *
+ * The path is produced by simplifying raw pointer samples with RDP and
+ * connecting them via quadratic beziers through midpoints — so a full stroke
+ * is a compact vector object (10s of on-curve points) rather than a raster
+ * blob or a thousand-point polyline.
+ */
+export interface PencilGeometry {
+  kind: "pencil";
+  d: string;
+}
+
 export type ShapeGeometry =
   | BezierGeometry
   | RectGeometry
   | EllipseGeometry
   | ArrowGeometry
-  | FillGeometry;
+  | FillGeometry
+  | PencilGeometry;
 
 export interface WhiteboardShape {
   id: string;

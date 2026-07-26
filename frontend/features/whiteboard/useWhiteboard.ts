@@ -106,8 +106,8 @@ export interface WhiteboardController {
   setStrokeWidth: (w: StrokeWidth) => void;
   fillTolerance: number;
   setFillTolerance: (n: number) => void;
-  snapToGrid: boolean;
-  setSnapToGrid: (enabled: boolean) => void;
+  /** Always on — grid snap is permanent. */
+  snapToGrid: true;
   gridSize: number;
   draft: DraftStroke | null;
   bezierDraft: DraftBezier | null;
@@ -207,7 +207,7 @@ export function useWhiteboard(options: UseWhiteboardOptions = {}): WhiteboardCon
   const [shapes, setShapes] = React.useState<WhiteboardShape[]>(() =>
     cloneShapes(initialShapes).map((shape) => constrainShapeToBoard(shape)),
   );
-  const [tool, setToolState] = React.useState<WhiteboardTool>("bezier");
+  const [tool, setToolState] = React.useState<WhiteboardTool>("pencil");
   const [strokeColor, setStrokeColorState] = React.useState<string>(
     preferDraw ? "#000000" : PRESET_COLORS[0],
   );
@@ -215,7 +215,6 @@ export function useWhiteboard(options: UseWhiteboardOptions = {}): WhiteboardCon
   const [colorTarget, setColorTarget] = React.useState<ColorTarget>("stroke");
   const [strokeWidth, setStrokeWidthState] = React.useState<StrokeWidth>(STROKE_WIDTHS[1]);
   const [fillTolerance, setFillTolerance] = React.useState(initialTolerance);
-  const [snapToGrid, setSnapToGrid] = React.useState(false);
   const [draft, setDraft] = React.useState<DraftStroke | null>(null);
   const [bezierDraft, setBezierDraft] = React.useState<DraftBezier | null>(null);
   const [selectedIds, setSelectedIds] = React.useState<string[]>([]);
@@ -393,8 +392,7 @@ export function useWhiteboard(options: UseWhiteboardOptions = {}): WhiteboardCon
       setBezierDraft(null);
       setDraft(null);
       // Drawing tools clear selection so the next pointer starts a stroke.
-      // Hand keeps selection so pan doesn't wipe the edit target.
-      if (t !== "select" && t !== "hand") {
+      if (t !== "select") {
         setSelectedIds([]);
       }
       if (t === "fill") {
@@ -974,8 +972,7 @@ export function useWhiteboard(options: UseWhiteboardOptions = {}): WhiteboardCon
     setStrokeWidth,
     fillTolerance,
     setFillTolerance,
-    snapToGrid,
-    setSnapToGrid,
+    snapToGrid: true,
     gridSize: GRID_SIZE,
     draft,
     bezierDraft,

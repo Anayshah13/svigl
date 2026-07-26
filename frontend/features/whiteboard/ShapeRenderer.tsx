@@ -80,15 +80,35 @@ function ShapeNode({ shape }: { shape: WhiteboardShape }) {
         </g>
       );
     }
-    case "fill":
+    case "fill": {
+      const d = shape.geometry.d;
+      if (typeof d !== "string" || !/^[Mm]/.test(d.trim())) return null;
       return (
         <path
-          d={shape.geometry.d}
+          d={d}
           fill={shape.fill === "none" ? shape.stroke : shape.fill}
           stroke="none"
           transform={shape.transform || undefined}
         />
       );
+    }
+    case "pencil": {
+      const d = shape.geometry.d;
+      // Guard: React/DOM coerces undefined → attribute "undefined", which
+      // throws "Expected moveto path command ('M' or 'm')".
+      if (typeof d !== "string" || !/^[Mm]/.test(d.trim())) return null;
+      return (
+        <path
+          d={d}
+          stroke={shape.stroke}
+          strokeWidth={shape.strokeWidth}
+          fill="none"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          transform={shape.transform || undefined}
+        />
+      );
+    }
     default:
       return null;
   }

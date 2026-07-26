@@ -455,7 +455,6 @@ async def broadcast_timer_async(
     await _broadcast(
         room_code,
         EventType.TIMER_UPDATED,
-        room_code=room_code,
         remaining_seconds=remaining_seconds,
         phase=phase,
         revision=revision,

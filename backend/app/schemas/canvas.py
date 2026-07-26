@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Annotated, Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
 
 
 class PointModel(BaseModel):
@@ -14,8 +14,46 @@ class PointModel(BaseModel):
 
 
 class PencilGeometry(BaseModel):
+    """Freehand stroke stored as a smoothed SVG path `d` string."""
+
     kind: Literal["pencil"]
-    points: list[PointModel]
+    d: str = Field(min_length=1, max_length=100_000)
+
+    @model_validator(mode="before")
+    @classmethod
+    def coerce_legacy_points(cls, data: Any) -> Any:
+        """Accept legacy `{points:[{x,y},…]}` and convert to SVG `d`."""
+        if not isinstance(data, dict):
+            return data
+        existing = data.get("d")
+        if isinstance(existing, str) and existing.strip().startswith(("M", "m")):
+            return data
+        points = data.get("points")
+        if not isinstance(points, list) or not points:
+            return data
+        parts: list[str] = []
+        for raw in points:
+            if not isinstance(raw, dict):
+                continue
+            x, y = raw.get("x"), raw.get("y")
+            if not isinstance(x, (int, float)) or not isinstance(y, (int, float)):
+                continue
+            cmd = "M" if not parts else "L"
+            parts.append(f"{cmd} {float(x):g} {float(y):g}")
+        if not parts:
+            return data
+        next_data = dict(data)
+        next_data["d"] = " ".join(parts)
+        next_data.pop("points", None)
+        return next_data
+
+    @field_validator("d")
+    @classmethod
+    def d_must_be_path(cls, value: str) -> str:
+        trimmed = value.strip()
+        if not trimmed.startswith(("M", "m")):
+            raise ValueError("pencil path d must start with moveto (M/m)")
+        return trimmed
 
 
 class BezierGeometry(BaseModel):
@@ -168,13 +206,24 @@ def shapes_to_dicts(shapes: list[WhiteboardShape]) -> list[dict[str, Any]]:
 
 
 def parse_shape(raw: Any) -> WhiteboardShape:
-    return WhiteboardShape.model_validate(raw)
+    try:
+        return WhiteboardShape.model_validate(raw)
+    except ValidationError as exc:
+        # Surface a concise reason to the WS layer (CanvasError wraps this).
+        raise ValueError(f"Invalid whiteboard shape: {exc.errors()[0]['msg']}") from exc
 
 
 def parse_shapes(raw: Any) -> list[WhiteboardShape]:
     if not isinstance(raw, list):
         raise ValueError("shapes must be a list")
-    return [parse_shape(item) for item in raw]
+    out: list[WhiteboardShape] = []
+    for item in raw:
+        try:
+            out.append(parse_shape(item))
+        except (ValidationError, ValueError):
+            # Skip corrupt/legacy entries so one bad stroke cannot poison the board.
+            continue
+    return out
 
 
 def parse_history_op(raw: Any) -> HistoryAddOp | HistoryRemoveOp | HistoryUpdateOp | HistoryClearOp | HistoryReplaceOp:

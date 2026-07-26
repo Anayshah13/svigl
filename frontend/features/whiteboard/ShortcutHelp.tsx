@@ -108,12 +108,12 @@ export function ShortcutHelp({
                 <span className="font-medium text-ink">{t.label}</span>
                 <kbd className="shrink-0 rounded bg-white px-1.5 py-0.5 font-mono text-[10px] text-ink-muted shadow-sm">
                   {t.shortcut}
-                  {t.id === "select"
-                    ? " / V"
-                    : t.id === "eraser"
-                      ? " / E / X"
-                      : t.id === "hand"
-                        ? " / H"
+                  {t.id === "pencil"
+                    ? " / B / P"
+                    : t.id === "select"
+                      ? " / V"
+                      : t.id === "eraser"
+                        ? " / E / X"
                         : ""}
                 </kbd>
               </li>

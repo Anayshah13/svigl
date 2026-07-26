@@ -11,6 +11,8 @@ export {
   useGuesserOnboarding,
 } from "./GuesserOnboarding";
 export { MobileChatSheet } from "./MobileChatSheet";
+export { MobileGameMenu } from "./MobileGameMenu";
+export { MobileGameHeader } from "./MobileGameHeader";
 export { Scoreboard } from "./Scoreboard";
 export { WordDisplay } from "./WordDisplay";
 export { WordSelectPanel } from "./WordSelectPanel";

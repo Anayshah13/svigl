@@ -12,23 +12,45 @@ export function ToolDock({
   className,
   /** Demo-only: label/icon bezier as "Line" (logic unchanged). */
   bezierAsLine = false,
+  /**
+   * Slim mobile mode — icon-only buttons, no per-tool labels or shortcut
+   * badges. Keeps the toolbar compact so it can share a row with the
+   * color-picker button below the canvas.
+   */
+  iconOnly = false,
+  /**
+   * Wrap tools onto multiple rows instead of horizontal scrolling.
+   * Used by the mobile drawer toolbar so every tool stays visible.
+   */
+  wrap = false,
 }: {
   tool: WhiteboardTool;
   onToolChange: (tool: WhiteboardTool) => void;
   orientation?: "vertical" | "horizontal";
   className?: string;
   bezierAsLine?: boolean;
+  iconOnly?: boolean;
+  wrap?: boolean;
 }) {
   const vertical = orientation === "vertical";
+  const useContents = iconOnly && wrap;
 
   return (
     <div
-      role="toolbar"
-      aria-label="Drawing tools"
+      role={useContents ? undefined : "toolbar"}
+      aria-label={useContents ? undefined : "Drawing tools"}
       className={cn(
-        "flex gap-1 rounded-2xl border border-plum/15 bg-white/95 p-1.5 shadow-sm backdrop-blur-sm",
-        vertical ? "flex-col" : "flex-row overflow-x-auto overscroll-x-contain touch-pan-x",
-        className,
+        !iconOnly &&
+          "flex gap-1 rounded-2xl border border-plum/15 bg-white/95 p-1.5 shadow-sm backdrop-blur-sm",
+        iconOnly && !useContents && "flex gap-1",
+        useContents
+          ? "contents"
+          : vertical
+            ? "flex-col"
+            : wrap
+              ? "flex-row flex-wrap"
+              : "flex-row overflow-x-auto overscroll-x-contain touch-pan-x",
+        !useContents && className,
       )}
     >
       {TOOL_META.map((t) => {
@@ -45,11 +67,13 @@ export function ToolDock({
             aria-keyshortcuts={t.shortcut}
             onClick={() => onToolChange(t.id)}
             className={cn(
-              "group flex shrink-0 touch-manipulation items-center gap-2 rounded-xl px-2.5 transition-all duration-150",
+              "group flex shrink-0 touch-manipulation items-center justify-center rounded-xl transition-all duration-150",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-plum/40",
-              vertical
-                ? "min-h-11 w-full min-w-[7.5rem] py-2"
-                : "min-h-11 min-w-[4.75rem] flex-col justify-center gap-0.5 px-2.5 py-1.5",
+              iconOnly
+                ? "h-11 w-11 min-w-11"
+                : vertical
+                  ? "min-h-11 w-full min-w-[7.5rem] gap-2 px-2.5 py-2"
+                  : "min-h-11 min-w-[4.75rem] flex-col justify-center gap-0.5 px-2.5 py-1.5",
               active
                 ? "bg-plum text-white shadow-sm"
                 : "bg-transparent text-ink hover:bg-plum-light/80",
@@ -60,24 +84,26 @@ export function ToolDock({
               className="h-5 w-5 shrink-0"
               bezierAsLine={bezierAsLine}
             />
-            <span
-              className={cn(
-                "flex min-w-0 flex-col text-left",
-                !vertical && "items-center text-center",
-              )}
-            >
-              <span className="truncate text-xs font-semibold leading-tight">
-                {label}
-              </span>
+            {!iconOnly ? (
               <span
                 className={cn(
-                  "font-mono text-[10px] leading-tight",
-                  active ? "text-white/75" : "text-ink-muted",
+                  "flex min-w-0 flex-col text-left",
+                  !vertical && "items-center text-center",
                 )}
               >
-                {t.shortcut}
+                <span className="truncate text-xs font-semibold leading-tight">
+                  {label}
+                </span>
+                <span
+                  className={cn(
+                    "font-mono text-[10px] leading-tight",
+                    active ? "text-white/75" : "text-ink-muted",
+                  )}
+                >
+                  {t.shortcut}
+                </span>
               </span>
-            </span>
+            ) : null}
           </button>
         );
       })}

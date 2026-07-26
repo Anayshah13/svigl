@@ -51,6 +51,8 @@ export function ChatPanel({
   onSend,
   className,
   placeholder = "Type your guess here...",
+  hideInput = false,
+  hideHeader = false,
 }: {
   messages: ChatMessage[];
   canSendChat: boolean;
@@ -60,6 +62,10 @@ export function ChatPanel({
   onSend: (text: string) => void;
   className?: string;
   placeholder?: string;
+  /** Suppress the guess/chat input entirely (used by drawer mobile view). */
+  hideInput?: boolean;
+  /** Suppress the "Chat" header row (compact contexts). */
+  hideHeader?: boolean;
 }) {
   const [draft, setDraft] = React.useState("");
   const [inputFocused, setInputFocused] = React.useState(false);
@@ -92,11 +98,13 @@ export function ChatPanel({
           : undefined
       }
     >
-      <div className="shrink-0 border-b border-plum/10 px-3 py-2 sm:px-4 sm:py-3">
-        <h2 className="text-[10px] font-bold uppercase tracking-wider text-ink-muted sm:text-xs">
-          Chat
-        </h2>
-      </div>
+      {!hideHeader ? (
+        <div className="shrink-0 border-b border-plum/10 px-3 py-2 sm:px-4 sm:py-3">
+          <h2 className="text-[10px] font-bold uppercase tracking-wider text-ink-muted sm:text-xs">
+            Chat
+          </h2>
+        </div>
+      ) : null}
 
       {/* Fixed flex child: messages scroll internally, never grow the page */}
       <div
@@ -147,59 +155,61 @@ export function ChatPanel({
         )}
       </div>
 
-      <form
-        onSubmit={submit}
-        className="shrink-0 border-t border-plum/10 p-2 pb-[max(0.5rem,env(safe-area-inset-bottom,0px))] sm:p-3 sm:pb-3"
-      >
-        <div className="flex gap-1.5 sm:gap-2">
-          <Input
-            value={draft}
-            onChange={(event) => setDraft(event.currentTarget.value)}
-            onFocus={() => setInputFocused(true)}
-            onBlur={() => setInputFocused(false)}
-            placeholder={
-              canSendChat ? placeholder : disabledReason ?? "Chat disabled"
-            }
-            disabled={!canSendChat}
-            maxLength={200}
-            autoComplete="off"
-            enterKeyHint="send"
-            aria-label="Guess or chat message"
-            aria-describedby={
-              !canSendChat && disabledReason
-                ? "chat-disabled-reason"
-                : canSendChat && inputHint
-                  ? "chat-input-hint"
-                  : undefined
-            }
-            className="min-h-10 text-sm"
-          />
-          <Button
-            type="submit"
-            size="sm"
-            disabled={!canSendChat || !draft.trim()}
-            className="min-h-10 shrink-0 touch-manipulation px-3"
-          >
-            Send
-          </Button>
-        </div>
-        {!canSendChat && disabledReason ? (
-          <p
-            id="chat-disabled-reason"
-            className="mt-1.5 hidden text-xs text-ink-muted sm:mt-2 sm:block"
-          >
-            {disabledReason}
-          </p>
-        ) : null}
-        {canSendChat && inputHint ? (
-          <p
-            id="chat-input-hint"
-            className="mt-1.5 hidden text-xs text-ink-muted sm:mt-2 sm:block"
-          >
-            {inputHint}
-          </p>
-        ) : null}
-      </form>
+      {hideInput ? null : (
+        <form
+          onSubmit={submit}
+          className="shrink-0 border-t border-plum/10 p-2 pb-[max(0.5rem,env(safe-area-inset-bottom,0px))] sm:p-3 sm:pb-3"
+        >
+          <div className="flex gap-1.5 sm:gap-2">
+            <Input
+              value={draft}
+              onChange={(event) => setDraft(event.currentTarget.value)}
+              onFocus={() => setInputFocused(true)}
+              onBlur={() => setInputFocused(false)}
+              placeholder={
+                canSendChat ? placeholder : disabledReason ?? "Chat disabled"
+              }
+              disabled={!canSendChat}
+              maxLength={200}
+              autoComplete="off"
+              enterKeyHint="send"
+              aria-label="Guess or chat message"
+              aria-describedby={
+                !canSendChat && disabledReason
+                  ? "chat-disabled-reason"
+                  : canSendChat && inputHint
+                    ? "chat-input-hint"
+                    : undefined
+              }
+              className="min-h-10 text-sm"
+            />
+            <Button
+              type="submit"
+              size="sm"
+              disabled={!canSendChat || !draft.trim()}
+              className="min-h-10 shrink-0 touch-manipulation px-3"
+            >
+              Send
+            </Button>
+          </div>
+          {!canSendChat && disabledReason ? (
+            <p
+              id="chat-disabled-reason"
+              className="mt-1.5 hidden text-xs text-ink-muted sm:mt-2 sm:block"
+            >
+              {disabledReason}
+            </p>
+          ) : null}
+          {canSendChat && inputHint ? (
+            <p
+              id="chat-input-hint"
+              className="mt-1.5 hidden text-xs text-ink-muted sm:mt-2 sm:block"
+            >
+              {inputHint}
+            </p>
+          ) : null}
+        </form>
+      )}
     </div>
   );
 }

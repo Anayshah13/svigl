@@ -67,7 +67,7 @@ export function LandingPage() {
       <LandingBackgroundDoodles />
       <div className="relative z-10">
         <section className="relative flex min-h-[calc(100dvh-3.5rem)] flex-col items-center justify-center px-5 py-16 sm:px-6 sm:py-20 lg:py-24">
-          <div className="relative mx-auto flex w-full max-w-xl flex-col items-center text-center sm:max-w-2xl">
+          <div className="relative mx-auto flex w-full max-w-xl flex-col items-center text-center sm:max-w-2xl lg:-translate-y-[3vh]">
             <FadeIn className="mb-8 flex w-full justify-center md:hidden">
               <SviglLogo size="hero" className="justify-center text-center" />
             </FadeIn>

@@ -453,6 +453,37 @@ describe("geometry", () => {
     expect(snapCoord(13, 10)).toBe(10);
   });
 
+  it("hit-tests, translates, and scales a pencil stroke", () => {
+    const stroke: WhiteboardShape = {
+      id: "pencil-1",
+      tool: "pencil",
+      stroke: "#000",
+      fill: "none",
+      strokeWidth: 4,
+      transform: "",
+      geometry: {
+        kind: "pencil",
+        d: "M 100 100 Q 110 100 120 100 L 200 100",
+      },
+      createdBy: "p1",
+      createdAt: 1,
+    };
+
+    expect(hitTestShape(stroke, { x: 150, y: 100 })).toBe(true);
+    expect(hitTestShape(stroke, { x: 150, y: 400 })).toBe(false);
+
+    const moved = translateShape(stroke, 30, -20);
+    expect(moved.geometry.kind).toBe("pencil");
+    if (moved.geometry.kind !== "pencil") return;
+    // Translation rewrites the path coords (no transform prefix needed).
+    expect(moved.transform).toBe("");
+    expect(hitTestShape(moved, { x: 150, y: 80 })).toBe(true);
+
+    const bounds = shapeBounds(stroke);
+    expect(bounds.x).toBe(100);
+    expect(bounds.width).toBe(100);
+  });
+
   it("magnetically snaps only within the threshold", () => {
     // Default half-grid threshold always snaps to nearest cell.
     expect(maybeSnapCoord(7, true)).toBe(0);

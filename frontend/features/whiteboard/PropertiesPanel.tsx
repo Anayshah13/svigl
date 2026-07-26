@@ -17,6 +17,8 @@ function shapeTypeLabel(shape: WhiteboardShape): string {
       return "Arrow";
     case "fill":
       return "Fill";
+    case "pencil":
+      return "Pencil stroke";
     default:
       return "Shape";
   }
@@ -35,6 +37,12 @@ function geometrySummary(shape: WhiteboardShape): string {
       return `From (${Math.round(g.start.x)}, ${Math.round(g.start.y)}) → (${Math.round(g.end.x)}, ${Math.round(g.end.y)})`;
     case "fill":
       return "Flood-fill region";
+    case "pencil": {
+      // Rough length via character count of the compact `d` string is fine
+      // for a property summary — geometry.ts owns the exact bounds.
+      const compact = g.d.length > 40 ? `${g.d.slice(0, 37)}…` : g.d;
+      return `Freehand path (${compact})`;
+    }
     default:
       return "—";
   }

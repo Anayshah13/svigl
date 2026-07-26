@@ -7,23 +7,25 @@ import {
 } from "../toolMeta";
 
 describe("toolMeta", () => {
-  it("includes select as a first-class tool with shortcut 1", () => {
-    expect(TOOL_META.some((t) => t.id === "select")).toBe(true);
-    expect(TOOL_SHORTCUT_MAP["1"]).toBe("select");
-    expect(TOOL_SHORTCUT_MAP["2"]).toBe("bezier");
-    expect(TOOL_SHORTCUT_MAP["3"]).toBe("rectangle");
-    expect(TOOL_SHORTCUT_MAP["4"]).toBe("ellipse");
-    expect(TOOL_SHORTCUT_MAP["5"]).toBe("arrow");
+  it("registers pencil as the primary tool with shortcut 1", () => {
+    expect(TOOL_META[0]?.id).toBe("pencil");
+    expect(TOOL_SHORTCUT_MAP["1"]).toBe("pencil");
+    expect(TOOL_SHORTCUT_MAP["2"]).toBe("select");
+    expect(TOOL_SHORTCUT_MAP["3"]).toBe("bezier");
+    expect(TOOL_SHORTCUT_MAP["4"]).toBe("rectangle");
+    expect(TOOL_SHORTCUT_MAP["5"]).toBe("ellipse");
     expect(TOOL_SHORTCUT_MAP["6"]).toBe("fill");
     expect(TOOL_SHORTCUT_MAP["7"]).toBe("eraser");
-    expect(TOOL_SHORTCUT_MAP["8"]).toBe("hand");
+    expect(TOOL_SHORTCUT_MAP["8"]).toBeUndefined();
   });
 
-  it("maps letter shortcuts for select, eraser, and hand", () => {
+  it("maps letter shortcuts for pencil, select, and eraser", () => {
+    expect(TOOL_SHORTCUT_MAP.b).toBe("pencil");
+    expect(TOOL_SHORTCUT_MAP.p).toBe("pencil");
     expect(TOOL_SHORTCUT_MAP.v).toBe("select");
     expect(TOOL_SHORTCUT_MAP.e).toBe("eraser");
     expect(TOOL_SHORTCUT_MAP.x).toBe("eraser");
-    expect(TOOL_SHORTCUT_MAP.h).toBe("hand");
+    expect(TOOL_SHORTCUT_MAP.h).toBeUndefined();
   });
 
   it("labels bezier as Line (id stays bezier)", () => {
@@ -31,20 +33,20 @@ describe("toolMeta", () => {
     expect(bezier?.label).toBe("Line");
   });
 
-  it("lists eraser and hand in TOOL_META", () => {
+  it("lists tools in TOOL_META with pencil first", () => {
     expect(TOOL_META.map((t) => t.id)).toEqual([
+      "pencil",
       "select",
       "bezier",
       "rectangle",
       "ellipse",
-      "arrow",
       "fill",
       "eraser",
-      "hand",
     ]);
   });
 
-  it('labels bezier tool as "Line" (curve under the hood)', () => {
+  it("exposes pencil via TOOL_BY_ID", () => {
+    expect(TOOL_BY_ID.pencil.label).toBe("Pencil");
     expect(TOOL_BY_ID.bezier.label).toBe("Line");
   });
 

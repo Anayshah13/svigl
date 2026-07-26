@@ -117,9 +117,16 @@ export function AppHeader() {
 
   const isLandingHome = pathname === "/";
   const authOnLeft = isLandingHome && !mdUp;
+  // In-room pages own the full viewport on mobile (game UI has its own chrome).
+  const inRoom = pathname.startsWith("/room/");
 
   return (
-    <header className="sticky top-0 z-50 border-b border-white/60 bg-white/70 backdrop-blur-xl">
+    <header
+      className={cn(
+        "sticky top-0 z-50 border-b border-white/60 bg-white/70 backdrop-blur-xl",
+        inRoom && "hidden md:block",
+      )}
+    >
       <div className="mx-auto flex h-14 w-full max-w-7xl items-center gap-3 px-4 sm:h-16 sm:px-6">
         <SviglLogo
           className={cn("min-w-0 shrink-0", isLandingHome && "max-md:hidden!")}

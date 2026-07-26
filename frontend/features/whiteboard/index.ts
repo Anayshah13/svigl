@@ -46,6 +46,9 @@ export {
   importShapesJson,
   mergeShapesById,
   isValidShape,
+  normalizeShape,
+  coercePencilGeometry,
+  isSvgPathD,
 } from "./serialize";
 
 export {

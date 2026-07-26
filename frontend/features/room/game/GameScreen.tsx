@@ -19,6 +19,7 @@ import {
   useGuesserOnboarding,
 } from "./GuesserOnboarding";
 import { MobileChatSheet } from "./MobileChatSheet";
+import { MobileGameHeader } from "./MobileGameHeader";
 import { RoundEndPanel } from "./RoundEndPanel";
 import { Scoreboard } from "./Scoreboard";
 import { WordSelectPanel } from "./WordSelectPanel";
@@ -44,8 +45,10 @@ function CanvasStage({
 
 function OverlayScrim({ children }: { children: ReactNode }) {
   return (
-    <div className="absolute inset-0 z-20 flex items-center justify-center bg-ink/35 p-4 backdrop-blur-[2px]">
-      <div className="max-h-full w-full max-w-lg overflow-y-auto">{children}</div>
+    <div className="absolute inset-0 z-20 flex items-center justify-center bg-ink/35 p-3 backdrop-blur-[2px] sm:p-4">
+      <div className="max-h-full w-full max-w-lg overflow-y-auto overscroll-contain">
+        {children}
+      </div>
     </div>
   );
 }
@@ -57,6 +60,8 @@ export function GameScreen({
   onSendChat,
   voteTallies,
   onVoteKick,
+  onLeaveRoom,
+  leaving,
 }: {
   room: Room;
   currentPlayer: RoomPlayer | null;
@@ -64,6 +69,10 @@ export function GameScreen({
   onSendChat: (text: string) => void;
   voteTallies?: Record<string, VoteKickTally>;
   onVoteKick?: (targetId: string) => void;
+  /** Leaves the current room; wired from useRoom. */
+  onLeaveRoom?: () => Promise<void> | void;
+  /** True while a leave request is in flight (disables the menu item). */
+  leaving?: boolean;
 }) {
   const { game } = room;
   const selfId = currentPlayer?.id;
@@ -102,6 +111,33 @@ export function GameScreen({
 
   const canDraw = game.phase === "ROUND_ACTIVE" && isDrawer;
 
+  const mobileMenuActions = React.useMemo(
+    () => {
+      const actions: Array<{
+        id: string;
+        label: string;
+        onSelect: () => void;
+        tone?: "default" | "danger";
+      }> = [
+        {
+          id: "activity",
+          label: "Scores & chat",
+          onSelect: () => setMobileChatOpen(true),
+        },
+      ];
+      if (onLeaveRoom) {
+        actions.push({
+          id: "leave",
+          label: leaving ? "Leaving…" : "Leave game",
+          tone: "danger",
+          onSelect: () => void onLeaveRoom(),
+        });
+      }
+      return actions;
+    },
+    [leaving, onLeaveRoom],
+  );
+
   if (!showBoard) {
     return null;
   }
@@ -115,6 +151,19 @@ export function GameScreen({
       onSend={onSendChat}
       className="h-full min-h-0"
       placeholder={chatPolicy.placeholder}
+    />
+  );
+
+  // Mobile drawer chat (input hidden — drawer can't chat during round).
+  const drawerMobileChatPanel = (
+    <ChatPanel
+      messages={messages}
+      canSendChat={false}
+      disabledReason={chatPolicy.disabledReason}
+      onSend={onSendChat}
+      className="h-full min-h-0"
+      hideInput
+      hideHeader
     />
   );
 
@@ -167,13 +216,26 @@ export function GameScreen({
     </>
   );
 
+  const mobileHeader = (
+    <MobileGameHeader
+      room={room}
+      isDrawer={isDrawer}
+      hasGuessed={hasGuessed}
+      remaining={remaining}
+      drawerName={drawerName}
+      menuActions={mobileMenuActions}
+    />
+  );
+
   // ── Drawer shell: canvas hero + tool docks; no disabled-control guesser UI ──
   if (canDraw) {
     return (
       <div
         className={cn(
           "grid min-h-0 w-full flex-1 gap-2 overflow-hidden sm:gap-3",
-          "grid-rows-1",
+          // Mobile: board on top, scores+chat strip below (same as guesser).
+          "grid-rows-[minmax(0,1fr)_minmax(10rem,30%)]",
+          "lg:grid-rows-1",
           "lg:grid-cols-[12.5rem_minmax(0,1fr)]",
           "xl:grid-cols-[13.5rem_minmax(0,1fr)]",
         )}
@@ -186,7 +248,10 @@ export function GameScreen({
           onVoteKick={onVoteKick}
         />
 
-        <section className="relative order-1 flex min-h-0 min-w-0 flex-col lg:order-2">
+        <section className="relative order-1 flex min-h-0 min-w-0 flex-col gap-1.5 lg:order-2 lg:gap-0">
+          {/* Mobile-only compact header: timer · word · settings menu */}
+          <div className="lg:hidden">{mobileHeader}</div>
+
           {game.phase === "GAME_FINISHED" ? (
             <CanvasStage className="flex items-center justify-center bg-white/95 p-4">
               <GameFinishedPanel room={room} />
@@ -209,18 +274,12 @@ export function GameScreen({
                     drawerName={drawerName}
                     compact
                   />
-                  <button
-                    type="button"
-                    className="min-h-11 rounded-xl border border-plum/15 bg-white px-3 text-xs font-semibold text-plum lg:hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-plum/40"
-                    onClick={() => setMobileChatOpen(true)}
-                  >
-                    Activity
-                  </button>
                 </div>
               }
               aside={chatPanel}
             />
           )}
+
           {overlays}
           <MobileChatSheet
             open={mobileChatOpen}
@@ -238,6 +297,21 @@ export function GameScreen({
             </div>
           </MobileChatSheet>
         </section>
+
+        {/*
+          Mobile bottom strip: scores + chat side-by-side (mirrors guesser).
+          Drawer chat stays read-only (no input).
+        */}
+        <div className="order-2 grid min-h-0 grid-cols-[minmax(0,7.25rem)_minmax(0,1fr)] gap-2 overflow-hidden pb-[max(0.35rem,env(safe-area-inset-bottom,0px))] sm:grid-cols-[minmax(0,9rem)_minmax(0,1fr)] lg:hidden lg:pb-0">
+          <Scoreboard
+            room={room}
+            currentPlayerId={selfId}
+            className="min-h-0"
+            voteTallies={voteTallies}
+            onVoteKick={onVoteKick}
+          />
+          <div className="min-h-0">{drawerMobileChatPanel}</div>
+        </div>
       </div>
     );
   }
@@ -247,20 +321,24 @@ export function GameScreen({
     <div
       className={cn(
         "grid min-h-0 w-full flex-1 gap-2 overflow-hidden sm:gap-3",
-        "grid-rows-[minmax(0,1fr)_11.5rem]",
+        "grid-rows-[auto_minmax(0,1fr)_auto]",
         "lg:grid-rows-1",
         "lg:grid-cols-[13.5rem_minmax(0,1fr)_17.5rem]",
         "xl:grid-cols-[14.5rem_minmax(0,1fr)_19rem]",
       )}
     >
       <section className="order-1 flex min-h-0 min-w-0 flex-col gap-2 lg:order-2">
-        <GameTopBar
-          room={room}
-          isDrawer={isDrawer}
-          hasGuessed={hasGuessed}
-          remaining={remaining}
-          drawerName={drawerName}
-        />
+        {/* Desktop keeps the roomy top bar; mobile uses the compact header */}
+        <div className="hidden lg:block">
+          <GameTopBar
+            room={room}
+            isDrawer={isDrawer}
+            hasGuessed={hasGuessed}
+            remaining={remaining}
+            drawerName={drawerName}
+          />
+        </div>
+        <div className="lg:hidden">{mobileHeader}</div>
 
         <div className="relative flex min-h-0 flex-1 flex-col">
           {game.phase === "GAME_FINISHED" ? (
@@ -284,6 +362,10 @@ export function GameScreen({
         </div>
       </section>
 
+      {/*
+        Mobile bottom strip: scoreboard + chat side-by-side.
+        Chat input stays visible for guessers — that's the whole point.
+      */}
       <div className="order-2 grid min-h-0 grid-cols-[minmax(0,7.25rem)_minmax(0,1fr)] gap-2 overflow-hidden pb-[max(0.35rem,env(safe-area-inset-bottom,0px))] sm:grid-cols-[minmax(0,9rem)_minmax(0,1fr)] lg:contents lg:pb-0">
         <Scoreboard
           room={room}

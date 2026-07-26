@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  coercePencilGeometry,
   exportShapes,
   importShapes,
   importShapesJson,
   mergeShapesById,
+  normalizeShape,
 } from "../serialize";
 import type { WhiteboardShape } from "../types";
 
@@ -31,7 +33,7 @@ describe("serialize", () => {
     expect(importShapes([sample])[0].id).toBe("s1");
   });
 
-  it("rejects malformed payloads", () => {
+  it("rejects completely malformed payloads", () => {
     expect(() => importShapes({ shapes: [{ id: 1 }] })).toThrow();
     expect(() => importShapesJson("{}")).toThrow();
   });
@@ -46,5 +48,62 @@ describe("serialize", () => {
     const merged = mergeShapesById(local, [remote]);
     expect(merged).toHaveLength(1);
     expect(merged[0].stroke).toBe("#EF4444");
+  });
+
+  it("coerces legacy pencil points into an SVG path d", () => {
+    const coerced = coercePencilGeometry({
+      kind: "pencil",
+      points: [
+        { x: 0, y: 0 },
+        { x: 10, y: 5 },
+        { x: 20, y: 0 },
+      ],
+    });
+    expect(coerced).not.toBeNull();
+    expect(coerced!.d.startsWith("M")).toBe(true);
+  });
+
+  it("normalizes a pencil wire shape with points", () => {
+    const shape = normalizeShape({
+      id: "p1",
+      tool: "pencil",
+      stroke: "#000",
+      fill: "none",
+      strokeWidth: 4,
+      transform: "",
+      geometry: {
+        kind: "pencil",
+        points: [
+          { x: 1, y: 2 },
+          { x: 3, y: 4 },
+        ],
+      },
+      createdBy: "u1",
+      createdAt: 1,
+    });
+    expect(shape).not.toBeNull();
+    expect(shape!.geometry.kind).toBe("pencil");
+    if (shape!.geometry.kind === "pencil") {
+      expect(shape!.geometry.d.startsWith("M")).toBe(true);
+    }
+  });
+
+  it("keeps valid shapes when one pencil entry is corrupt", () => {
+    const shapes = importShapes([
+      sample,
+      {
+        id: "bad",
+        tool: "pencil",
+        stroke: "#000",
+        fill: "none",
+        strokeWidth: 2,
+        transform: "",
+        geometry: { kind: "pencil" },
+        createdBy: "u",
+        createdAt: 1,
+      },
+    ]);
+    expect(shapes).toHaveLength(1);
+    expect(shapes[0].id).toBe("s1");
   });
 });

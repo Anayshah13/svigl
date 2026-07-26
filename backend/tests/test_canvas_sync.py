@@ -250,6 +250,62 @@ def test_fill_shape_accepts_zero_stroke_width() -> None:
     assert parse_shape(shape).strokeWidth == 0
 
 
+def test_pencil_shape_accepts_path_d() -> None:
+    """Pencil strokes sync as smoothed SVG path `d`, not raw point lists."""
+    shape = _rect_shape(shape_id="pencil-1", created_by=str(uuid.uuid4()))
+    shape.update(
+        {
+            "tool": "pencil",
+            "fill": "none",
+            "strokeWidth": 4,
+            "geometry": {"kind": "pencil", "d": "M10 10 Q20 20 30 10"},
+        }
+    )
+    parsed = parse_shape(shape)
+    assert parsed.geometry.kind == "pencil"
+    assert parsed.geometry.d == "M10 10 Q20 20 30 10"
+
+
+def test_pencil_shape_coerces_legacy_points() -> None:
+    """Older clients sent `points`; server rewrites them to a path `d`."""
+    shape = _rect_shape(shape_id="pencil-2", created_by=str(uuid.uuid4()))
+    shape.update(
+        {
+            "tool": "pencil",
+            "fill": "none",
+            "strokeWidth": 3,
+            "geometry": {
+                "kind": "pencil",
+                "points": [{"x": 1, "y": 2}, {"x": 3, "y": 4}],
+            },
+        }
+    )
+    parsed = parse_shape(shape)
+    assert parsed.geometry.kind == "pencil"
+    assert parsed.geometry.d.startswith("M")
+    assert "1" in parsed.geometry.d and "4" in parsed.geometry.d
+
+
+def test_parse_shapes_skips_corrupt_entries() -> None:
+    good = _rect_shape(shape_id="ok", created_by=str(uuid.uuid4()))
+    bad = {
+        "id": "bad",
+        "tool": "pencil",
+        "stroke": "#000",
+        "fill": "none",
+        "strokeWidth": 2,
+        "transform": "",
+        "geometry": {"kind": "pencil"},  # missing d/points
+        "createdBy": str(uuid.uuid4()),
+        "createdAt": 1,
+    }
+    from app.schemas.canvas import parse_shapes
+
+    parsed = parse_shapes([good, bad])
+    assert len(parsed) == 1
+    assert parsed[0].id == "ok"
+
+
 def test_clear_on_round_start_wipes_shapes(db: Session) -> None:
     host = _user(db, "Host")
     guest = _user(db, "Guest")

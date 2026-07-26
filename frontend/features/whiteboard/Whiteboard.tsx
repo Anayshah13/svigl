@@ -121,8 +121,6 @@ export function Whiteboard({
     strokeColor: controller.strokeColor,
     strokeWidth: controller.strokeWidth,
     onStrokeWidthChange: controller.setStrokeWidth,
-    snapToGrid: controller.snapToGrid,
-    onSnapToGridChange: controller.setSnapToGrid,
     colors,
     colorSheets,
     showColorPicker,
@@ -182,9 +180,14 @@ export function Whiteboard({
         className,
       )}
     >
-      {/* Top bar: game info + optional actions */}
+      {/*
+        Top bar: game info + optional actions.
+        Mobile hides this row entirely — GameScreen owns the mobile top chrome
+        (timer + settings menu) so the undo/redo/copy/paste/delete/clear buttons
+        do not steal precious canvas space.
+      */}
       {(headerInfo || showActionBar) && (
-        <div className="flex shrink-0 flex-wrap items-center gap-2 rounded-2xl border border-plum/15 bg-white/95 px-2 py-1.5 shadow-sm sm:px-3">
+        <div className="hidden shrink-0 flex-wrap items-center gap-2 rounded-2xl border border-plum/15 bg-white/95 px-2 py-1.5 shadow-sm sm:px-3 lg:flex">
           {headerInfo ? (
             <div className="min-w-0 flex-1">{headerInfo}</div>
           ) : null}
@@ -242,9 +245,9 @@ export function Whiteboard({
         ) : null}
       </div>
 
-      {/* Mobile drawer workspace */}
-      <div className="relative flex min-h-0 flex-1 flex-col gap-1.5 lg:hidden">
-        <SquareBoard className="min-h-0 flex-1">
+      {/* Mobile drawer workspace — canvas + slim inline tool row */}
+      <div className="relative flex min-h-0 flex-1 flex-col gap-1.5 overflow-visible lg:hidden">
+        <SquareBoard>
           <WhiteboardCanvas
             controller={controller}
             className="h-full w-full"
@@ -254,21 +257,26 @@ export function Whiteboard({
           />
         </SquareBoard>
 
-        {/* Floating color palette — sits above the tool strip */}
-        <div className="pointer-events-none absolute bottom-[5.75rem] left-2 right-2 z-10 flex justify-center sm:bottom-[6.25rem]">
-          <div className="pointer-events-auto max-w-full overflow-x-auto">
-            <StyleDock {...styleDockProps} floating />
-          </div>
+        {/*
+          Two-row mobile toolbar (4×2): color + all tools visible, no
+          horizontal scroll. ToolDock uses `contents` so its buttons join
+          this grid.
+        */}
+        <div
+          role="toolbar"
+          aria-label="Drawing tools and colors"
+          className="relative z-20 grid shrink-0 grid-cols-4 justify-items-center gap-1 rounded-2xl border border-plum/15 bg-white/95 p-1.5 shadow-sm"
+        >
+          <StyleDock {...styleDockProps} compact />
+          <ToolDock
+            tool={controller.tool}
+            onToolChange={controller.setTool}
+            orientation="horizontal"
+            iconOnly
+            wrap
+            bezierAsLine={bezierAsLine}
+          />
         </div>
-
-        {/* Swipeable tool strip */}
-        <ToolDock
-          tool={controller.tool}
-          onToolChange={controller.setTool}
-          orientation="horizontal"
-          className="shrink-0 pb-[max(0.25rem,env(safe-area-inset-bottom,0px))]"
-          bezierAsLine={bezierAsLine}
-        />
 
         {/* Properties bottom sheet */}
         {showProperties ? (
@@ -287,15 +295,7 @@ export function Whiteboard({
                 className="relative shadow-lg"
               />
             </div>
-          ) : (
-            <button
-              type="button"
-              onClick={() => setPropsOpen(true)}
-              className="absolute right-2 top-2 z-10 min-h-11 rounded-full border border-plum/20 bg-white/95 px-3 text-xs font-semibold text-plum shadow-sm backdrop-blur-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-plum/40"
-            >
-              Props
-            </button>
-          )
+          ) : null
         ) : null}
       </div>
 

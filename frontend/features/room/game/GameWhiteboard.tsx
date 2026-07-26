@@ -5,10 +5,9 @@ import {
   DRAWER_WHITEBOARD_UI,
   Whiteboard,
   type WhiteboardController,
-  type WhiteboardShape,
 } from "@/features/whiteboard";
 import { createCanvasSyncClient, type CanvasSyncClient } from "@/features/whiteboard/sync";
-import { isValidShape } from "@/features/whiteboard/serialize";
+import { normalizeShape } from "@/features/whiteboard/serialize";
 
 /**
  * Bridges the SVG whiteboard to collaborative canvas sync.
@@ -70,9 +69,9 @@ export function GameWhiteboard({
         }
 
         if (type === "SHAPE_CREATED" || type === "SHAPE_UPDATED") {
-          const shape = payload.shape;
-          if (isValidShape(shape)) {
-            ctrl.applyRemoteShape(shape as WhiteboardShape);
+          const shape = normalizeShape(payload.shape);
+          if (shape) {
+            ctrl.applyRemoteShape(shape);
           }
           return;
         }

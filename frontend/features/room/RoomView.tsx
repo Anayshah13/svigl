@@ -598,6 +598,8 @@ export function RoomView() {
           onSendChat={sendChat}
           voteTallies={tallies}
           onVoteKick={handleVoteKick}
+          onLeaveRoom={leaveRoom}
+          leaving={leaving}
         />
       )}
       </div>

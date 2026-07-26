@@ -8,8 +8,8 @@
 
 import {
   importShapes,
-  isValidShape,
   mergeShapesById,
+  normalizeShape,
 } from "@/features/whiteboard/serialize";
 import type { HistoryOp, WhiteboardShape } from "@/features/whiteboard/types";
 import { appWebSocket } from "@/services/app-websocket";
@@ -80,8 +80,8 @@ function applyRemoteOp(
       return [];
     case "SHAPE_CREATED":
     case "SHAPE_UPDATED": {
-      const shape = payload.shape;
-      if (!isValidShape(shape)) return shapes;
+      const shape = normalizeShape(payload.shape);
+      if (!shape) return shapes;
       return mergeShapesById(shapes, [shape]);
     }
     case "SHAPE_DELETED": {
@@ -251,8 +251,13 @@ export function createCanvasSyncClient() {
 
   const drainPreview = (shapeId: string) => {
     clearPreviewTimer(shapeId);
-    const shape = pendingPreviews.get(shapeId);
-    if (!shape) return;
+    const pending = pendingPreviews.get(shapeId);
+    if (!pending) return;
+    const shape = normalizeShape(pending);
+    if (!shape) {
+      pendingPreviews.delete(shapeId);
+      return;
+    }
     if (appWebSocket.bufferedAmount > MAX_PREVIEW_BUFFERED_BYTES) {
       previewTimers.set(
         shapeId,
@@ -262,7 +267,7 @@ export function createCanvasSyncClient() {
     }
     pendingPreviews.delete(shapeId);
     lastPreviewSentAt.set(shapeId, Date.now());
-    send("SHAPE_UPDATED", { shape, ephemeral: true });
+    send("SHAPE_UPDATED", { shape: structuredClone(shape), ephemeral: true });
   };
 
   const schedulePreview = (shape: WhiteboardShape) => {
@@ -380,16 +385,20 @@ export function createCanvasSyncClient() {
     },
 
     publishShapeCreated(shape: WhiteboardShape): void {
-      cancelPendingPreviews(shape.id);
-      shapes = mergeShapesById(shapes, [shape]);
+      const normalized = normalizeShape(shape);
+      if (!normalized) return;
+      cancelPendingPreviews(normalized.id);
+      shapes = mergeShapesById(shapes, [normalized]);
       emit();
-      send("SHAPE_CREATED", { shape });
+      send("SHAPE_CREATED", { shape: structuredClone(normalized) });
     },
 
     /** Coalesced ~30fps per shape; broadcasts without persistence. */
     publishShapePreview(shape: WhiteboardShape): void {
-      shapes = mergeShapesById(shapes, [shape]);
-      schedulePreview(shape);
+      const normalized = normalizeShape(shape);
+      if (!normalized) return;
+      shapes = mergeShapesById(shapes, [normalized]);
+      schedulePreview(normalized);
     },
 
     cancelShapePreview(shapeId: string): void {
@@ -400,10 +409,12 @@ export function createCanvasSyncClient() {
 
     /** Persist a completed edit immediately. */
     publishShapeUpdated(shape: WhiteboardShape): void {
-      cancelPendingPreviews(shape.id);
-      shapes = mergeShapesById(shapes, [shape]);
+      const normalized = normalizeShape(shape);
+      if (!normalized) return;
+      cancelPendingPreviews(normalized.id);
+      shapes = mergeShapesById(shapes, [normalized]);
       emit();
-      send("SHAPE_UPDATED", { shape });
+      send("SHAPE_UPDATED", { shape: structuredClone(normalized) });
     },
 
     flushShapeUpdated(): void {

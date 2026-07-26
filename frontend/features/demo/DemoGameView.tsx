@@ -107,7 +107,8 @@ export function DemoGameView() {
       <div
         className={cn(
           "grid min-h-0 w-full flex-1 gap-2 overflow-hidden sm:gap-3",
-          "grid-rows-1",
+          "grid-rows-[minmax(0,1fr)_minmax(10rem,30%)]",
+          "lg:grid-rows-1",
           "lg:grid-cols-[12.5rem_minmax(0,1fr)]",
           "xl:grid-cols-[13.5rem_minmax(0,1fr)]",
         )}
@@ -118,7 +119,7 @@ export function DemoGameView() {
           className="hidden min-h-0 lg:flex lg:order-1"
         />
 
-        <section className="relative order-1 flex min-h-0 min-w-0 flex-col lg:order-2">
+        <section className="relative order-1 flex min-h-0 min-w-0 flex-col overflow-hidden lg:order-2">
           <Whiteboard
             isDrawer
             playerId={DEMO_SELF_ID}
@@ -162,6 +163,25 @@ export function DemoGameView() {
             </div>
           </MobileChatSheet>
         </section>
+
+        <div className="order-2 grid min-h-0 grid-cols-[minmax(0,7.25rem)_minmax(0,1fr)] gap-2 overflow-hidden pb-[max(0.35rem,env(safe-area-inset-bottom,0px))] sm:grid-cols-[minmax(0,9rem)_minmax(0,1fr)] lg:hidden lg:pb-0">
+          <Scoreboard
+            room={room}
+            currentPlayerId={DEMO_SELF_ID}
+            className="min-h-0"
+          />
+          <div className="min-h-0">
+            <ChatPanel
+              messages={messages}
+              canSendChat={false}
+              disabledReason="You're drawing — chat is disabled."
+              onSend={() => {}}
+              className="h-full min-h-0"
+              hideInput
+              hideHeader
+            />
+          </div>
+        </div>
       </div>
     </div>
   );

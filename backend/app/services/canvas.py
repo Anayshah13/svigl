@@ -229,7 +229,10 @@ def apply_shape_created(
     room = _room(db, room_code)
     session = _session(room)
     _assert_drawer(session, user_id)
-    shape = parse_shape(shape_raw)
+    try:
+        shape = parse_shape(shape_raw)
+    except ValueError as exc:
+        raise CanvasError("INVALID_SHAPE", str(exc)) from exc
     if shape.createdBy != str(user_id):
         shape = shape.model_copy(update={"createdBy": str(user_id)})
 
@@ -274,7 +277,10 @@ def apply_shape_updated(
     room = _room(db, room_code)
     session = _session(room)
     _assert_drawer(session, user_id)
-    after = parse_shape(shape_raw)
+    try:
+        after = parse_shape(shape_raw)
+    except ValueError as exc:
+        raise CanvasError("INVALID_SHAPE", str(exc)) from exc
     if after.createdBy != str(user_id):
         after = after.model_copy(update={"createdBy": str(user_id)})
 
@@ -316,7 +322,10 @@ def apply_shape_preview(
     room = _room(db, room_code)
     session = _session(room)
     _assert_drawer(session, user_id)
-    shape = parse_shape(shape_raw)
+    try:
+        shape = parse_shape(shape_raw)
+    except ValueError as exc:
+        raise CanvasError("INVALID_SHAPE", str(exc)) from exc
     if shape.createdBy != str(user_id):
         shape = shape.model_copy(update={"createdBy": str(user_id)})
     return CanvasBroadcast(

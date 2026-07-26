@@ -100,7 +100,7 @@ def _shape(drawer_id: object, shape_id: str = "s1") -> dict:
         "fill": "none",
         "strokeWidth": 5,
         "transform": "",
-        "geometry": {"kind": "pencil", "points": [{"x": 1, "y": 2}, {"x": 3, "y": 4}]},
+        "geometry": {"kind": "pencil", "d": "M1 2 Q2 3 3 4"},
         "createdBy": str(drawer_id),
         "createdAt": 1,
     }

@@ -45,6 +45,13 @@ import {
 } from "./geometry";
 import { floodFillToPath } from "./floodFill";
 import {
+  buildPencilPathD,
+  finalizePencilPath,
+  pencilPointsLength,
+  PENCIL_MIN_STROKE_LENGTH,
+  pushPencilSample,
+} from "./pencilStroke";
+import {
   BezierDraftOverlay,
   GroupSelectionOverlay,
   SelectionOverlay,
@@ -133,8 +140,16 @@ function shapesToSvgMarkup(shapes: WhiteboardShape[]): string {
           const head = arrowHeadPoints(g.start, g.end, headSize);
           return `<g${t}><line x1="${g.start.x}" y1="${g.start.y}" x2="${shaft.x}" y2="${shaft.y}" stroke="${s.stroke}" stroke-width="${s.strokeWidth}" stroke-linecap="round"/><polyline points="${head}" fill="none" stroke="${s.stroke}" stroke-width="${s.strokeWidth}" stroke-linecap="round" stroke-linejoin="round"/></g>`;
         }
-        case "fill":
-          return `<path d="${s.geometry.d}" fill="${s.fill === "none" ? s.stroke : s.fill}" stroke="none"${t}/>`;
+        case "fill": {
+          const d = s.geometry.d;
+          if (typeof d !== "string" || !/^[Mm]/.test(d.trim())) return "";
+          return `<path d="${d}" fill="${s.fill === "none" ? s.stroke : s.fill}" stroke="none"${t}/>`;
+        }
+        case "pencil": {
+          const d = s.geometry.d;
+          if (typeof d !== "string" || !/^[Mm]/.test(d.trim())) return "";
+          return `<path d="${d}" stroke="${s.stroke}" stroke-width="${s.strokeWidth}" fill="none" stroke-linecap="round" stroke-linejoin="round"${t}/>`;
+        }
         default:
           return "";
       }
@@ -156,17 +171,15 @@ function cursorForTool(
   switch (tool) {
     case "select":
       return "cursor-default";
-    case "hand":
-      return "cursor-grab";
     case "fill":
       return "cursor-cell";
     case "eraser":
       // Custom overlay uses cursor-none when active; fallback otherwise.
       return "cursor-default";
+    case "pencil":
     case "bezier":
     case "rectangle":
     case "ellipse":
-    case "arrow":
       return "cursor-crosshair";
     default:
       return "cursor-crosshair";
@@ -549,6 +562,19 @@ export function WhiteboardCanvas({
           geometry: { kind: "arrow", start: d.start, end: d.end },
         };
       }
+      if (d.tool === "pencil" && d.points && d.points.length > 0) {
+        // Live-preview uses the raw sample buffer as-is so the visible path
+        // updates smoothly per sample; the committed shape is simplified
+        // via `finalizePencilPath` before it enters the document.
+        const path = buildPencilPathD(d.points);
+        return {
+          ...base,
+          tool: "pencil",
+          fill: "none",
+          transform: "",
+          geometry: { kind: "pencil", d: path },
+        };
+      }
       return null;
     },
     [fillColor, playerId, strokeColor, strokeWidth],
@@ -654,8 +680,42 @@ export function WhiteboardCanvas({
       return;
     }
 
+    if (d.tool === "pencil" && d.points && d.points.length > 0) {
+      const length = pencilPointsLength(d.points);
+      if (length < PENCIL_MIN_STROKE_LENGTH && d.points.length < 2) {
+        cancelShapeCreationPreview(d.id);
+        setDraft(null);
+        return;
+      }
+      // Final simplification pass: mid-drag we render every sample so motion
+      // stays fluid, but the persisted shape uses RDP-simplified coords.
+      const finalD = finalizePencilPath(d.points, strokeWidth);
+      const shape: WhiteboardShape = {
+        id: d.id,
+        tool: "pencil",
+        stroke: strokeColor,
+        fill: "none",
+        strokeWidth,
+        transform: "",
+        geometry: { kind: "pencil", d: finalD },
+        createdBy: playerId,
+        createdAt: d.createdAt,
+      };
+      setDraft(null);
+      commitShape(shape);
+      return;
+    }
+
     setDraft(null);
-  }, [cancelShapeCreationPreview, commitShape, setDraft, shapeFromDraft]);
+  }, [
+    cancelShapeCreationPreview,
+    commitShape,
+    playerId,
+    setDraft,
+    shapeFromDraft,
+    strokeColor,
+    strokeWidth,
+  ]);
 
   const runFill = React.useCallback(
     async (point: Point) => {
@@ -784,7 +844,8 @@ export function WhiteboardCanvas({
   };
 
   const beginDrawAt = (rawPoint: Point) => {
-    const snapped = snapPointIfNeeded(rawPoint);
+    // Pencil is freehand — never snap samples to the grid.
+    const snapped = tool === "pencil" ? rawPoint : snapPointIfNeeded(rawPoint);
     const p = boardPoint(snapped, tool === "fill" ? 0 : strokeWidth / 2);
     selectShape(null);
     drawingRef.current = true;
@@ -850,15 +911,19 @@ export function WhiteboardCanvas({
       return;
     }
 
-    if (tool === "arrow") {
+    if (tool === "pencil") {
       setDraft({
-        id: createId("arrow"),
+        id: createId("pencil"),
         createdAt: Date.now(),
-        tool: "arrow",
+        tool: "pencil",
+        points: [p],
         start: p,
         end: p,
+        transform: "",
       });
+      return;
     }
+
   };
 
   const selectAndDrag = (shape: WhiteboardShape, p: Point) => {
@@ -916,8 +981,7 @@ export function WhiteboardCanvas({
       return;
     }
 
-    const wantsPan =
-      allowPanZoom && (tool === "hand" || spaceHeldRef.current);
+    const wantsPan = allowPanZoom && spaceHeldRef.current;
     if (wantsPan) {
       capturePointer(svg, e.pointerId);
       panGestureRef.current = {
@@ -947,7 +1011,7 @@ export function WhiteboardCanvas({
       drawingRef.current = false;
       if (bezierDraft) {
         setBezierDraft(null);
-        if (!(preferDraw && tool !== "select" && tool !== "hand")) return;
+        if (!(preferDraw && tool !== "select")) return;
         // preferDraw: cancel unfinished draft and start a fresh stroke below
       } else {
         const hit = hitTestShapes(shapesRef.current, p, 14);
@@ -1058,7 +1122,6 @@ export function WhiteboardCanvas({
       isCoarsePointer &&
       tool !== "fill" &&
       tool !== "eraser" &&
-      tool !== "hand" &&
       !preferDraw
     ) {
       longPressFiredRef.current = false;
@@ -1354,7 +1417,8 @@ export function WhiteboardCanvas({
     }
 
     const drawPoint = boardPoint(
-      snapPointIfNeeded(rawP),
+      // Pencil samples stay continuous; other tools keep grid snap.
+      tool === "pencil" ? rawP : snapPointIfNeeded(rawP),
       strokeWidth / 2,
     );
 
@@ -1440,6 +1504,26 @@ export function WhiteboardCanvas({
 
     if (draft.tool === "arrow") {
       const next = constrainStrokeDraft({ ...draft, end: drawPoint });
+      setDraft(next);
+      const shape = shapeFromDraft(next);
+      if (shape) previewShapeCreation(shape);
+      return;
+    }
+
+    if (draft.tool === "pencil") {
+      // Board-clamp each sample instead of running the whole shape through
+      // `constrainShapeToBoard` mid-drag — the latter would translate/scale
+      // the entire in-progress path away from the pointer, which reads as
+      // "the stroke slid out from under my hand".
+      const clamped = boardPoint(drawPoint, strokeWidth / 2);
+      const nextPoints = draft.points ? draft.points.slice() : [];
+      const changed = pushPencilSample(nextPoints, clamped);
+      if (!changed) return;
+      const next: DraftStroke = {
+        ...draft,
+        points: nextPoints,
+        end: clamped,
+      };
       setDraft(next);
       const shape = shapeFromDraft(next);
       if (shape) previewShapeCreation(shape);
@@ -1650,7 +1734,7 @@ export function WhiteboardCanvas({
 
   const interactive = isDrawer && !isFilling;
   const editing = Boolean(editModeRef.current || (bezierDraft && !bezierDraft.editing));
-  const panning = isPanning || (spaceHeld && allowPanZoom) || tool === "hand";
+  const panning = isPanning || (spaceHeld && allowPanZoom);
   const eraserCursorActive =
     interactive &&
     tool === "eraser" &&
@@ -1810,6 +1894,18 @@ export function WhiteboardCanvas({
               strokeLinejoin="round"
             />
           </g>
+        ) : null}
+
+        {draft?.tool === "pencil" && draft.points && draft.points.length > 0 ? (
+          <path
+            d={buildPencilPathD(draft.points)}
+            stroke={color}
+            strokeWidth={strokeWidth}
+            fill="none"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            opacity={0.95}
+          />
         ) : null}
 
         {bezierDraft ? (
