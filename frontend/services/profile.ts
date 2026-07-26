@@ -5,6 +5,7 @@ export interface ProfileStats {
   handle: string;
   drawingsDone: number;
   likesReceived: number;
+  dislikesReceived: number;
 }
 
 export interface ProfileData {
@@ -14,7 +15,11 @@ export interface ProfileData {
 
 export async function fetchProfile(
   username?: string,
-  opts?: { drawingsDone?: number; likesReceived?: number },
+  opts?: {
+    drawingsDone?: number;
+    likesReceived?: number;
+    dislikesReceived?: number;
+  },
 ): Promise<ProfileData> {
   const name = username?.trim() || "Player";
   return {
@@ -23,8 +28,8 @@ export async function fetchProfile(
       handle: profileHandle(name),
       drawingsDone: opts?.drawingsDone ?? 0,
       likesReceived: opts?.likesReceived ?? 0,
+      dislikesReceived: opts?.dislikesReceived ?? 0,
     },
-    // Published gallery is not wired yet.
     drawings: [],
   };
 }

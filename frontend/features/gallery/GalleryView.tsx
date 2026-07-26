@@ -1,16 +1,20 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { FadeIn, FadeInItem, FadeInStagger } from "@/components/motion/FadeIn";
-import { Card } from "@/components/ui/Card";
+import { ReactionBar } from "@/components/reactions/ReactionBar";
+import { WhiteboardPreview } from "@/components/reactions/WhiteboardPreview";
 import { Input } from "@/components/ui/Input";
-import { SvgRenderer } from "@/features/drawing/SvgRenderer";
 import { DotPulseGrid } from "@/features/loaders";
-import { fetchGalleryEntries } from "@/services/gallery";
+import {
+  fetchGalleryEntries,
+  setGalleryReaction,
+  type GalleryEntry,
+  type ReactionValue,
+} from "@/services/gallery";
 import { colors } from "@/lib/colors";
 import { useSessionStore } from "@/stores/session";
-import type { GalleryEntry } from "@/types/domain";
 
 type Filter = "recent" | "top" | "mine";
 
@@ -22,7 +26,15 @@ function avatarColor(name: string): string {
   return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
 }
 
-function GalleryCard({ entry }: { entry: GalleryEntry }) {
+function GalleryCard({
+  entry,
+  canReact,
+  onReact,
+}: {
+  entry: GalleryEntry;
+  canReact: boolean;
+  onReact: (id: string, reaction: ReactionValue) => void;
+}) {
   const initial = entry.authorName.charAt(0).toUpperCase();
   const color = avatarColor(entry.authorName);
 
@@ -34,7 +46,7 @@ function GalleryCard({ entry }: { entry: GalleryEntry }) {
         className="overflow-hidden rounded-2xl border border-gray-200/80 bg-white shadow-(--shadow-soft)"
       >
         <div className="dot-grid aspect-square overflow-hidden bg-white">
-          <SvgRenderer document={entry.replay} className="h-full w-full" />
+          <WhiteboardPreview document={entry.document} className="h-full w-full" />
         </div>
         <div className="flex items-center gap-3 p-4">
           <div
@@ -47,14 +59,14 @@ function GalleryCard({ entry }: { entry: GalleryEntry }) {
             <p className="truncate font-semibold text-ink">{entry.word}</p>
             <p className="truncate text-sm text-gray-400">by {entry.authorName}</p>
           </div>
-          <motion.button
-            whileTap={{ scale: 0.9 }}
-            className="flex items-center gap-1 rounded-full px-2 py-1 text-sm text-gray-400 transition-colors hover:bg-red-50 hover:text-red-500"
-            aria-label={`${entry.upvotes} upvotes`}
-          >
-            <span>♥</span>
-            <span className="font-medium">{entry.upvotes}</span>
-          </motion.button>
+          <ReactionBar
+            likes={entry.likes}
+            dislikes={entry.dislikes}
+            myReaction={entry.myReaction}
+            disabled={!canReact}
+            onReact={canReact ? (next) => onReact(entry.id, next) : undefined}
+            size="sm"
+          />
         </div>
       </motion.article>
     </FadeInItem>
@@ -81,51 +93,85 @@ const FILTERS: { id: Filter; label: string }[] = [
 
 export function GalleryView() {
   const authUser = useSessionStore((s) => s.authUser);
-  const displayName = useSessionStore((s) => s.displayName);
   const [entries, setEntries] = useState<GalleryEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>("recent");
   const [search, setSearch] = useState("");
 
-  useEffect(() => {
-    let cancelled = false;
-    fetchGalleryEntries()
-      .then((data) => {
-        if (!cancelled) setEntries(data);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await fetchGalleryEntries({
+        sort: filter === "top" ? "top" : "recent",
+        authorId: filter === "mine" ? authUser?.id : undefined,
+        q: search.trim() || undefined,
       });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+      setEntries(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load gallery.");
+      setEntries([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [authUser?.id, filter, search]);
+
+  useEffect(() => {
+    const handle = window.setTimeout(() => {
+      void load();
+    }, search ? 200 : 0);
+    return () => window.clearTimeout(handle);
+  }, [load, search]);
+
+  const onReact = useCallback(
+    async (id: string, reaction: ReactionValue) => {
+      if (!authUser) return;
+      const previous = entries.find((e) => e.id === id);
+      if (!previous) return;
+      // Optimistic
+      setEntries((list) =>
+        list.map((entry) => {
+          if (entry.id !== id) return entry;
+          let likes = entry.likes;
+          let dislikes = entry.dislikes;
+          if (entry.myReaction === "like") likes = Math.max(0, likes - 1);
+          if (entry.myReaction === "dislike") dislikes = Math.max(0, dislikes - 1);
+          if (reaction === "like") likes += 1;
+          if (reaction === "dislike") dislikes += 1;
+          return { ...entry, likes, dislikes, myReaction: reaction };
+        }),
+      );
+      try {
+        const result = await setGalleryReaction(id, reaction);
+        setEntries((list) =>
+          list.map((entry) =>
+            entry.id === id
+              ? {
+                  ...entry,
+                  likes: result.likes,
+                  dislikes: result.dislikes,
+                  myReaction: result.myReaction,
+                }
+              : entry,
+          ),
+        );
+      } catch {
+        setEntries((list) =>
+          list.map((entry) => (entry.id === id ? previous : entry)),
+        );
+      }
+    },
+    [authUser, entries],
+  );
 
   const filtered = useMemo(() => {
-    let list = [...entries];
+    // Server already filters mine/top/search; keep client sort stable for "recent".
     if (filter === "top") {
-      list.sort((a, b) => b.upvotes - a.upvotes);
-    } else {
-      list.sort((a, b) => b.publishedAt - a.publishedAt);
+      return [...entries].sort((a, b) => b.likes - a.likes);
     }
-    if (filter === "mine") {
-      const me = authUser?.username ?? displayName;
-      list = list.filter(
-        (e) =>
-          e.authorId === authUser?.id ||
-          e.authorName.toLowerCase() === me.toLowerCase(),
-      );
-    }
-    if (search.trim()) {
-      const q = search.trim().toLowerCase();
-      list = list.filter(
-        (e) =>
-          e.word.toLowerCase().includes(q) ||
-          e.authorName.toLowerCase().includes(q),
-      );
-    }
-    return list;
-  }, [entries, filter, search, authUser, displayName]);
+    return entries;
+  }, [entries, filter]);
 
   return (
     <div className="page-shell gap-6 sm:gap-8">
@@ -137,7 +183,7 @@ export function GalleryView() {
               Gallery
             </h1>
             <p className="mt-1 text-sm text-ink-muted sm:mt-2 sm:text-base">
-              Vector sketches from artists around the community.
+              Vector sketches from live games — reactions carry over from the round.
             </p>
           </div>
           <div className="relative w-full lg:max-w-sm">
@@ -200,26 +246,32 @@ export function GalleryView() {
         </div>
       )}
 
-      {!loading && filtered.length === 0 && (
-        <Card className="border-dashed px-4 py-8 text-center sm:px-6 sm:py-10">
-          <p className="font-medium text-gray-700">
-            {filter === "mine" ? "No published drawings yet" : "No drawings found"}
-          </p>
-          <p className="mt-2 text-sm text-ink-muted">
-            {filter === "mine"
-              ? "Publish drawings to see them here."
-              : "Try a different search, or check back once players start publishing."}
-          </p>
-        </Card>
-      )}
+      {!loading && error ? (
+        <p className="rounded-2xl border border-dashed border-pink/30 bg-pink/5 px-4 py-8 text-center text-sm text-ink-muted">
+          {error}
+        </p>
+      ) : null}
 
-      {!loading && filtered.length > 0 && (
+      {!loading && !error && filtered.length === 0 ? (
+        <p className="rounded-2xl border border-dashed border-plum/20 bg-white/80 px-4 py-12 text-center text-sm text-ink-muted">
+          {filter === "mine"
+            ? "You haven’t published any drawings yet. Finish a drawing round to appear here."
+            : "No drawings yet — play a round and the gallery will fill up."}
+        </p>
+      ) : null}
+
+      {!loading && filtered.length > 0 ? (
         <FadeInStagger className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {filtered.map((entry) => (
-            <GalleryCard key={entry.id} entry={entry} />
+            <GalleryCard
+              key={entry.id}
+              entry={entry}
+              canReact={Boolean(authUser) && authUser?.id !== entry.authorId}
+              onReact={onReact}
+            />
           ))}
         </FadeInStagger>
-      )}
+      ) : null}
     </div>
   );
 }

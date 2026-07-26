@@ -67,28 +67,36 @@ export function ToolDock({
             aria-keyshortcuts={t.shortcut}
             onClick={() => onToolChange(t.id)}
             className={cn(
-              "group flex shrink-0 touch-manipulation items-center justify-center rounded-xl transition-all duration-150",
+              "group flex shrink-0 touch-manipulation rounded-xl transition-all duration-150",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-plum/40",
               iconOnly
-                ? "h-11 w-11 min-w-11"
+                ? "h-11 w-11 min-w-11 items-center justify-center"
                 : vertical
-                  ? "min-h-11 w-full min-w-[7.5rem] gap-2 px-2.5 py-2"
-                  : "min-h-11 min-w-[4.75rem] flex-col justify-center gap-0.5 px-2.5 py-1.5",
+                  ? "min-h-11 w-full min-w-[7.5rem] items-center justify-start gap-2.5 px-2.5 py-2"
+                  : "min-h-11 min-w-[4.75rem] flex-col items-center justify-center gap-0.5 px-2.5 py-1.5",
               active
                 ? "bg-plum text-white shadow-sm"
                 : "bg-transparent text-ink hover:bg-plum-light/80",
             )}
           >
-            <ToolIcon
-              tool={t.id}
-              className="h-5 w-5 shrink-0"
-              bezierAsLine={bezierAsLine}
-            />
+            <span
+              className={cn(
+                "inline-flex shrink-0 items-center justify-center",
+                iconOnly || !vertical ? "h-5 w-5" : "h-5 w-5",
+              )}
+              aria-hidden
+            >
+              <ToolIcon
+                tool={t.id}
+                className="h-5 w-5"
+                bezierAsLine={bezierAsLine}
+              />
+            </span>
             {!iconOnly ? (
               <span
                 className={cn(
-                  "flex min-w-0 flex-col text-left",
-                  !vertical && "items-center text-center",
+                  "flex min-w-0 flex-col",
+                  vertical ? "items-start text-left" : "items-center text-center",
                 )}
               >
                 <span className="truncate text-xs font-semibold leading-tight">

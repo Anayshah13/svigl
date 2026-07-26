@@ -14,6 +14,7 @@ class UserResponse(BaseModel):
     avatar_url: str | None
     drawings_done: int = 0
     likes_received: int = 0
+    dislikes_received: int = 0
     created_at: datetime
     updated_at: datetime
 

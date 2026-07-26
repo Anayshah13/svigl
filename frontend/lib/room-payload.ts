@@ -125,6 +125,12 @@ function mapRoundSummary(
     // Prefer explicit guessed arrays (including empty) over stale previous data.
     guessed: hasAny(source, ["guessed"]) ? guessed : previous?.guessed ?? [],
     scores: scores ?? previous?.scores ?? [],
+    drawingId:
+      stringValue(source.drawingId, source.drawing_id) ??
+      previous?.drawingId ??
+      null,
+    likes: numberValue(source.likes) ?? previous?.likes ?? 0,
+    dislikes: numberValue(source.dislikes) ?? previous?.dislikes ?? 0,
   };
 }
 
@@ -436,6 +442,42 @@ export function mapRoomPayload(value: unknown, previous?: Room | null): Room | n
       phase === "ROUND_END" || phase === "GAME_FINISHED"
         ? roundSummary
         : null,
+    drawingId:
+      stringValue(
+        gameSource.drawing_id,
+        gameSource.drawingId,
+        envelope.drawing_id,
+        roundSummary?.drawingId,
+      ) ??
+      (phase === "ROUND_ACTIVE" || phase === "ROUND_END"
+        ? previous?.game.drawingId ?? null
+        : null),
+    likes:
+      numberValue(gameSource.likes, envelope.likes, roundSummary?.likes) ??
+      (phase === "ROUND_ACTIVE" || phase === "ROUND_END"
+        ? previous?.game.likes ?? 0
+        : 0),
+    dislikes:
+      numberValue(
+        gameSource.dislikes,
+        envelope.dislikes,
+        roundSummary?.dislikes,
+      ) ??
+      (phase === "ROUND_ACTIVE" || phase === "ROUND_END"
+        ? previous?.game.dislikes ?? 0
+        : 0),
+    myReaction: (() => {
+      const raw =
+        gameSource.my_reaction ??
+        gameSource.myReaction ??
+        envelope.my_reaction ??
+        envelope.myReaction;
+      if (raw === "like" || raw === "dislike") return raw;
+      if (raw === null) return null;
+      return phase === "ROUND_ACTIVE" || phase === "ROUND_END"
+        ? previous?.game.myReaction ?? null
+        : null;
+    })(),
   };
 
   // Merge player scores from scoreboard when player.score omitted.

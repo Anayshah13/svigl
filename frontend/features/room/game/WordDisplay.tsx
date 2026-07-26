@@ -5,6 +5,25 @@ import { cn } from "@/lib/cn";
 import { parseHintSlots } from "@/lib/word-display";
 import type { RoomGameState } from "@/types/room";
 
+function letterSize(count: number) {
+  if (count >= 14) {
+    return {
+      box: "h-6 min-w-[1rem] px-0.5 text-sm sm:h-7 sm:min-w-[1.15rem] sm:text-base",
+      gap: "gap-1",
+    };
+  }
+  if (count >= 10) {
+    return {
+      box: "h-7 min-w-[1.15rem] px-0.5 text-base sm:h-8 sm:min-w-[1.35rem] sm:text-lg",
+      gap: "gap-1 sm:gap-1.5",
+    };
+  }
+  return {
+    box: "h-8 min-w-[1.35rem] px-1 text-lg sm:h-9 sm:min-w-[1.5rem] sm:text-xl",
+    gap: "gap-1.5",
+  };
+}
+
 export function WordDisplay({
   game,
   isDrawer,
@@ -20,12 +39,17 @@ export function WordDisplay({
 }) {
   if (isDrawer && game.secretWord) {
     return (
-      <div className={cn("flex flex-col items-center gap-1 sm:items-end", className)}>
+      <div
+        className={cn(
+          "flex w-full max-w-full flex-col items-center gap-1 sm:items-end",
+          className,
+        )}
+      >
         <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-plum">
           Draw this
         </p>
         <p
-          className="font-mono text-xl font-bold tracking-[0.35em] text-ink sm:text-2xl"
+          className="max-w-full break-words text-center font-mono text-lg font-bold uppercase tracking-[0.12em] text-ink sm:text-right sm:text-2xl sm:tracking-[0.28em]"
           aria-label={`Your word: ${game.secretWord}`}
         >
           {game.secretWord.toUpperCase()}
@@ -47,9 +71,14 @@ export function WordDisplay({
   // Correct guessers see the full word filled in (server sends secret / filled hint).
   if (hasGuessed && game.secretWord) {
     const slots = game.secretWord.split("").map((ch) => (ch === " " ? " " : ch));
+    const size = letterSize(slots.filter((s) => s !== " ").length);
     return (
       <div
-        className={cn("flex flex-wrap items-center justify-center gap-1.5", className)}
+        className={cn(
+          "flex max-w-full flex-wrap items-center justify-center",
+          size.gap,
+          className,
+        )}
         aria-label={`Word: ${game.secretWord}`}
       >
         {slots.map((slot, index) =>
@@ -58,7 +87,10 @@ export function WordDisplay({
           ) : (
             <span
               key={`${index}-${slot}`}
-              className="inline-flex h-8 min-w-[1.35rem] items-center justify-center border-b-2 border-green px-1 font-mono text-lg font-bold uppercase text-green sm:h-9 sm:min-w-[1.5rem] sm:text-xl"
+              className={cn(
+                "inline-flex items-center justify-center border-b-2 border-green font-mono font-bold uppercase text-green",
+                size.box,
+              )}
             >
               {slot}
             </span>
@@ -83,9 +115,15 @@ export function WordDisplay({
     );
   }
 
+  const size = letterSize(slots.length);
+
   return (
     <div
-      className={cn("flex flex-wrap items-center justify-center gap-1.5", className)}
+      className={cn(
+        "flex max-w-full flex-wrap items-center justify-center",
+        size.gap,
+        className,
+      )}
       aria-label={`Word hint: ${slots.join(" ")}`}
     >
       {slots.map((slot, index) => {
@@ -94,7 +132,8 @@ export function WordDisplay({
           <span
             key={`${index}-${slot}`}
             className={cn(
-              "inline-flex h-8 min-w-[1.35rem] items-center justify-center border-b-2 px-1 font-mono text-lg font-bold uppercase sm:h-9 sm:min-w-[1.5rem] sm:text-xl",
+              "inline-flex items-center justify-center border-b-2 font-mono font-bold uppercase",
+              size.box,
               revealed ? "border-green text-green" : "border-ink/70 text-ink",
             )}
           >

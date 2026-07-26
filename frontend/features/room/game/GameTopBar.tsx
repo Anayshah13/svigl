@@ -73,7 +73,7 @@ export function GameTopBar({
         <p className="text-[10px] font-bold uppercase tracking-wider text-ink-muted sm:text-[11px]">
           Round {Math.max(1, game.roundNumber)} of {game.totalRounds}
         </p>
-        <p className="truncate text-xs font-semibold text-ink sm:text-sm">
+        <p className="text-xs font-semibold leading-snug text-ink sm:text-sm">
           {game.phase === "WORD_SELECTION"
             ? isDrawer
               ? "Choose a word"

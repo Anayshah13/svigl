@@ -392,6 +392,8 @@ async def _handle_vote_kick(client: ConnectedClient, message: WSMessage) -> None
         voter_ids=[str(v) for v in tally.voter_ids],
         kicked=result.kicked,
         retracted=result.retracted,
+        voter_name=client.user_name,
+        target_name=result.target_name,
     )
 
     if not result.kicked or result.membership_change is None:
@@ -411,6 +413,99 @@ async def _handle_vote_kick(client: ConnectedClient, message: WSMessage) -> None
         from app.websocket.notify import notify_player_left
 
         notify_player_left(room_code, target_id, target_name, room=None)
+
+
+async def _handle_set_reaction(client: ConnectedClient, message: WSMessage) -> None:
+    """Like / dislike / clear reaction for the current round's drawing."""
+    from fastapi import HTTPException
+
+    from app.services.drawings import set_live_reaction
+    from app.websocket.notify import notify_reaction_updated
+
+    if client.room_code is None:
+        await _send_error(
+            client.websocket,
+            "Join a room before sending reactions.",
+            code="NOT_IN_ROOM",
+        )
+        return
+
+    raw = message.payload.get("reaction", "__missing__")
+    if raw is None:
+        reaction = None
+    elif raw in ("like", "dislike"):
+        reaction = raw
+    elif raw == "__missing__":
+        await _send_error(
+            client.websocket,
+            "reaction is required (like, dislike, or null).",
+            code="UNKNOWN",
+        )
+        return
+    else:
+        await _send_error(
+            client.websocket,
+            "reaction must be like, dislike, or null.",
+            code="UNKNOWN",
+        )
+        return
+
+    raw_drawing = message.payload.get("drawing_id")
+    drawing_id = None
+    if raw_drawing:
+        try:
+            drawing_id = UUID(str(raw_drawing))
+        except ValueError:
+            await _send_error(
+                client.websocket, "drawing_id is invalid.", code="UNKNOWN"
+            )
+            return
+
+    room_code = client.room_code
+
+    def _run():
+        db = SessionLocal()
+        try:
+            return set_live_reaction(
+                db,
+                room_code,
+                client.user_id,
+                reaction=reaction,
+                drawing_id=drawing_id,
+            )
+        finally:
+            db.close()
+
+    try:
+        state = await game_runtime.run_serialized(room_code, _run)
+    except HTTPException as exc:
+        detail = exc.detail if isinstance(exc.detail, str) else "Reaction failed."
+        code = "FORBIDDEN" if exc.status_code == 403 else "UNKNOWN"
+        if exc.status_code == 409:
+            code = "CONFLICT"
+        elif exc.status_code == 410:
+            code = "GONE"
+        elif exc.status_code == 404:
+            code = "NOT_FOUND"
+        await _send_error(client.websocket, detail, code=code)
+        return
+    except Exception:
+        logger.exception(
+            "set-reaction failed user=%s room=%s", client.user_id, room_code
+        )
+        await _send_error(client.websocket, "Internal server error.", code="UNKNOWN")
+        return
+
+    notify_reaction_updated(
+        room_code,
+        drawing_id=state.drawing_id,
+        likes=state.likes,
+        dislikes=state.dislikes,
+        user_id=client.user_id,
+        reaction=state.reaction,
+        player_name=client.user_name,
+        previous_reaction=state.previous_reaction,
+    )
 
 
 async def _broadcast_canvas(result: CanvasBroadcast) -> None:
@@ -557,6 +652,7 @@ _HANDLERS: dict[EventType, object] = {
     EventType.SELECT_WORD: _handle_select_word,
     EventType.CHAT_MESSAGE: _handle_chat_message,
     EventType.VOTE_KICK: _handle_vote_kick,
+    EventType.SET_REACTION: _handle_set_reaction,
     EventType.SHAPE_CREATED: _handle_shape_created,
     EventType.SHAPE_UPDATED: _handle_shape_updated,
     EventType.SHAPE_DELETED: _handle_shape_deleted,

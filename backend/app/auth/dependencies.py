@@ -67,3 +67,19 @@ def get_current_user(
         email=user.email,
     )
     return user
+
+
+def get_current_user_optional(
+    request: Request,
+    db: Session = Depends(get_db),
+) -> User | None:
+    """Return the authenticated user, or None when anonymous."""
+    token = get_token_from_request(request)
+    if token is None:
+        return None
+    try:
+        payload = verify_access_token(token, path=str(request.url.path))
+        user_id = UUID(str(payload["user_id"]))
+    except (JWTVerificationError, KeyError, TypeError, ValueError):
+        return None
+    return db.get(User, user_id)

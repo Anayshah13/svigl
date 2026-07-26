@@ -190,6 +190,13 @@ class GameSession(Base):
     winner_user_id: Mapped[UUID | None] = mapped_column(
         Uuid, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
+    # In-progress / just-ended drawing for the current turn (gallery pipeline).
+    current_drawing_id: Mapped[UUID | None] = mapped_column(
+        Uuid,
+        ForeignKey("drawings.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

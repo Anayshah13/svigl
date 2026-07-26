@@ -1781,7 +1781,7 @@ export function WhiteboardCanvas({
         onContextMenu={onContextMenu}
       >
         <defs>
-          {snapToGrid && isDrawer ? (
+          {snapToGrid ? (
             <pattern
               id={gridPatternId}
               width={gridSize}
@@ -1798,7 +1798,7 @@ export function WhiteboardCanvas({
           ) : null}
         </defs>
         <rect x={0} y={0} width={width} height={height} fill="#ffffff" />
-        {snapToGrid && isDrawer ? (
+        {snapToGrid ? (
           <rect
             x={0}
             y={0}

@@ -320,6 +320,31 @@ def test_normal_chat_does_not_reveal_word(db: Session) -> None:
     assert mutation.chat_events[0].message == "not the word"
 
 
+def test_discussion_chat_open_after_round_end(db: Session) -> None:
+    """After ROUND_END, everyone (including the drawer) can send public chat."""
+    host = _user(db, "Host")
+    guest = _user(db, "Guest")
+    room = create_room(db, host_id=host.id, max_players=8)
+    join_room(db, code=room.code, user_id=guest.id)
+    _ready_and_start(db, room.code, host.id, [host, guest])
+    db.refresh(room)
+    session, word, drawer_id = _enter_round_with_word(db, room)
+    guesser_id = guest.id if drawer_id == host.id else host.id
+
+    ended = submit_chat(db, room.code, guesser_id, text=word)
+    assert ended.phase == GAME_PHASE_ROUND_END
+
+    from_guesser = submit_chat(db, room.code, guesser_id, text="nice draw")
+    assert from_guesser.chat_events[0].kind == "chat"
+    assert from_guesser.chat_events[0].recipient_ids is None
+    assert from_guesser.chat_events[0].message == "nice draw"
+
+    from_drawer = submit_chat(db, room.code, drawer_id, text="thanks!")
+    assert from_drawer.chat_events[0].kind == "chat"
+    assert from_drawer.chat_events[0].recipient_ids is None
+    assert from_drawer.chat_events[0].message == "thanks!"
+
+
 def test_round_end_summary_lists_correct_guessers(db: Session) -> None:
     host = _user(db, "Host")
     guest = _user(db, "Guest")

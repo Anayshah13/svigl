@@ -2,7 +2,9 @@
 
 import * as React from "react";
 import type { ReactNode } from "react";
+import { ReactionBar } from "@/components/reactions/ReactionBar";
 import { DotPulseGrid } from "@/features/loaders";
+import { useDrawingReactions } from "@/hooks/useDrawingReactions";
 import { usePhaseCountdown } from "@/hooks/usePhaseCountdown";
 import { useGameChat } from "@/hooks/useGameChat";
 import { cn } from "@/lib/cn";
@@ -91,6 +93,28 @@ export function GameScreen({
     game.phase === "ROUND_ACTIVE" && !isDrawer,
   );
 
+  const reactions = useDrawingReactions(room.code, game.phase, {
+    drawingId: game.drawingId,
+    likes: game.likes,
+    dislikes: game.dislikes,
+    myReaction: game.myReaction,
+  });
+
+  const showReactions =
+    !isDrawer &&
+    Boolean(reactions.drawingId) &&
+    (game.phase === "ROUND_ACTIVE" || game.phase === "ROUND_END");
+
+  const reactionControls = showReactions ? (
+    <ReactionBar
+      likes={reactions.likes}
+      dislikes={reactions.dislikes}
+      myReaction={reactions.myReaction}
+      onReact={reactions.setReaction}
+      size="sm"
+    />
+  ) : null;
+
   const chatPolicy = getChatInputPolicy({
     phase: game.phase,
     hasSelf: Boolean(selfId),
@@ -154,7 +178,7 @@ export function GameScreen({
     />
   );
 
-  // Mobile drawer chat (input hidden — drawer can't chat during round).
+  // Mobile drawer strip during ROUND_ACTIVE: read-only (drawer can't type while drawing).
   const drawerMobileChatPanel = (
     <ChatPanel
       messages={messages}
@@ -257,27 +281,29 @@ export function GameScreen({
               <GameFinishedPanel room={room} />
             </CanvasStage>
           ) : (
-            <GameWhiteboard
-              playerId={selfId ?? "spectator"}
-              isDrawer
-              sessionId={game.sessionId}
-              currentTurn={game.currentTurn}
-              className="min-h-0 flex-1"
-              fill
-              headerInfo={
-                <div className="flex min-w-0 flex-wrap items-center gap-2">
-                  <GameTopBar
-                    room={room}
-                    isDrawer
-                    hasGuessed={hasGuessed}
-                    remaining={remaining}
-                    drawerName={drawerName}
-                    compact
-                  />
-                </div>
-              }
-              aside={chatPanel}
-            />
+            <div className="relative min-h-0 flex-1">
+              <GameWhiteboard
+                playerId={selfId ?? "spectator"}
+                isDrawer
+                sessionId={game.sessionId}
+                currentTurn={game.currentTurn}
+                className="min-h-0 h-full flex-1"
+                fill
+                headerInfo={
+                  <div className="flex min-w-0 flex-wrap items-center gap-2">
+                    <GameTopBar
+                      room={room}
+                      isDrawer
+                      hasGuessed={hasGuessed}
+                      remaining={remaining}
+                      drawerName={drawerName}
+                      compact
+                    />
+                  </div>
+                }
+                aside={chatPanel}
+              />
+            </div>
           )}
 
           {overlays}
@@ -300,7 +326,7 @@ export function GameScreen({
 
         {/*
           Mobile bottom strip: scores + chat side-by-side (mirrors guesser).
-          Drawer chat stays read-only (no input).
+          Read-only while drawing; after the round the guesser shell is used instead.
         */}
         <div className="order-2 grid min-h-0 grid-cols-[minmax(0,7.25rem)_minmax(0,1fr)] gap-2 overflow-hidden pb-[max(0.35rem,env(safe-area-inset-bottom,0px))] sm:grid-cols-[minmax(0,9rem)_minmax(0,1fr)] lg:hidden lg:pb-0">
           <Scoreboard
@@ -329,16 +355,26 @@ export function GameScreen({
     >
       <section className="order-1 flex min-h-0 min-w-0 flex-col gap-2 lg:order-2">
         {/* Desktop keeps the roomy top bar; mobile uses the compact header */}
-        <div className="hidden lg:block">
-          <GameTopBar
-            room={room}
-            isDrawer={isDrawer}
-            hasGuessed={hasGuessed}
-            remaining={remaining}
-            drawerName={drawerName}
-          />
+        <div className="hidden min-w-0 lg:flex lg:items-center lg:gap-3">
+          <div className="min-w-0 flex-1">
+            <GameTopBar
+              room={room}
+              isDrawer={isDrawer}
+              hasGuessed={hasGuessed}
+              remaining={remaining}
+              drawerName={drawerName}
+            />
+          </div>
+          {reactionControls ? (
+            <div className="shrink-0">{reactionControls}</div>
+          ) : null}
         </div>
-        <div className="lg:hidden">{mobileHeader}</div>
+        <div className="flex flex-col gap-1.5 lg:hidden">
+          {mobileHeader}
+          {reactionControls ? (
+            <div className="flex justify-center">{reactionControls}</div>
+          ) : null}
+        </div>
 
         <div className="relative flex min-h-0 flex-1 flex-col">
           {game.phase === "GAME_FINISHED" ? (

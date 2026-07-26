@@ -172,25 +172,41 @@ def notify_room_updated(room: Room) -> None:
     fire_and_forget(_broadcast(code, EventType.ROOM_UPDATED, room=snapshot))
 
 
+async def _broadcast_system_chat(room_code: str, message: str) -> None:
+    """Room-wide activity feed line (join/leave/kick/lifecycle)."""
+    await _broadcast(
+        room_code,
+        EventType.CHAT_MESSAGE,
+        kind="system",
+        message=message,
+        player_id=None,
+        player_name=None,
+    )
+
+
 def notify_player_joined(room: Room, player_id: UUID, player_name: str) -> None:
     code = room.code
     snapshot = _snapshot(room)
-    fire_and_forget(
-        _broadcast(
+
+    async def _run() -> None:
+        await _broadcast(
             code,
             EventType.PLAYER_JOINED,
             player_id=str(player_id),
             player_name=player_name,
             room=snapshot,
         )
-    )
+        await _broadcast_system_chat(code, f"{player_name} joined the game")
+
+    fire_and_forget(_run())
 
 
 def notify_player_waiting(room: Room, player_id: UUID, player_name: str) -> None:
     code = room.code
     snapshot = _snapshot(room)
-    fire_and_forget(
-        _broadcast(
+
+    async def _run() -> None:
+        await _broadcast(
             code,
             EventType.PLAYER_WAITING,
             player_id=str(player_id),
@@ -198,14 +214,27 @@ def notify_player_waiting(room: Room, player_id: UUID, player_name: str) -> None
             room=snapshot,
             revision=snapshot.get("revision"),
         )
-    )
+        await _broadcast_system_chat(
+            code, f"{player_name} joined and will play next round"
+        )
+
+    fire_and_forget(_run())
 
 
 def notify_host_changed(room: Room, previous_host_id: UUID) -> None:
     code = room.code
     snapshot = _snapshot(room)
-    fire_and_forget(
-        _broadcast(
+    host_name = next(
+        (
+            membership.user.name
+            for membership in room.players
+            if membership.user_id == room.host_id and membership.user is not None
+        ),
+        "Someone",
+    )
+
+    async def _run() -> None:
+        await _broadcast(
             code,
             EventType.HOST_CHANGED,
             host_id=str(room.host_id),
@@ -213,7 +242,9 @@ def notify_host_changed(room: Room, previous_host_id: UUID) -> None:
             room=snapshot,
             revision=snapshot.get("revision"),
         )
-    )
+        await _broadcast_system_chat(code, f"{host_name} is now the host")
+
+    fire_and_forget(_run())
 
 
 def notify_player_left(
@@ -221,8 +252,9 @@ def notify_player_left(
 ) -> None:
     if room is not None:
         snapshot = _snapshot(room)
-        fire_and_forget(
-            _broadcast(
+
+        async def _run_with_room() -> None:
+            await _broadcast(
                 room_code,
                 EventType.PLAYER_LEFT,
                 player_id=str(player_id),
@@ -230,18 +262,22 @@ def notify_player_left(
                 room=snapshot,
                 room_deleted=False,
             )
-        )
+            await _broadcast_system_chat(room_code, f"{player_name} left the game")
+
+        fire_and_forget(_run_with_room())
         return
 
-    fire_and_forget(
-        _broadcast(
+    async def _run_deleted() -> None:
+        await _broadcast(
             room_code,
             EventType.PLAYER_LEFT,
             player_id=str(player_id),
             player_name=player_name,
             room_deleted=True,
         )
-    )
+        await _broadcast_system_chat(room_code, f"{player_name} left the game")
+
+    fire_and_forget(_run_deleted())
 
 
 def notify_game_mutation(mutation: GameMutation | None, room: Room | None) -> None:
@@ -476,6 +512,7 @@ async def _notify_player_kicked_async(
         player_name=kicked_name,
         room=snapshot,
     )
+    await _broadcast_system_chat(room_code, f"{kicked_name} was kicked from the room")
 
     kicked_client = connection_manager.get(kicked_id)
     if kicked_client is not None:
@@ -519,10 +556,13 @@ def notify_vote_kick_update(
     kicked: bool = False,
     retracted: bool = False,
     cleared: bool = False,
+    voter_name: str | None = None,
+    target_name: str | None = None,
 ) -> None:
     """Broadcast vote-kick tally (or a clear) to everyone in the room channel."""
-    fire_and_forget(
-        _broadcast(
+
+    async def _run() -> None:
+        await _broadcast(
             room_code,
             EventType.VOTE_KICK_UPDATE,
             target_id=str(target_id),
@@ -534,7 +574,18 @@ def notify_vote_kick_update(
             retracted=retracted,
             cleared=cleared,
         )
-    )
+        if (
+            not cleared
+            and not retracted
+            and voter_name
+            and target_name
+        ):
+            await _broadcast_system_chat(
+                room_code,
+                f"{voter_name} voted to kick out {target_name} (drawer)",
+            )
+
+    fire_and_forget(_run())
 
 
 def notify_vote_kick_room_cleared(room_code: str) -> None:
@@ -550,6 +601,42 @@ def notify_vote_kick_room_cleared(room_code: str) -> None:
             voter_ids=[],
         )
     )
+
+
+def notify_reaction_updated(
+    room_code: str,
+    *,
+    drawing_id: UUID,
+    likes: int,
+    dislikes: int,
+    user_id: UUID,
+    reaction: str | None,
+    player_name: str | None = None,
+    previous_reaction: str | None = None,
+) -> None:
+    """Broadcast live reaction tallies — lightweight, never touches canvas sync."""
+
+    async def _run() -> None:
+        await _broadcast(
+            room_code,
+            EventType.REACTION_UPDATED,
+            drawing_id=str(drawing_id),
+            likes=likes,
+            dislikes=dislikes,
+            user_id=str(user_id),
+            reaction=reaction,
+        )
+        if not player_name or previous_reaction == reaction:
+            return
+        if reaction == "like":
+            message = f"{player_name} liked the drawing"
+        elif reaction == "dislike":
+            message = f"{player_name} disliked the drawing"
+        else:
+            return
+        await _broadcast_system_chat(room_code, message)
+
+    fire_and_forget(_run())
 
 
 async def broadcast_host_changed_async(

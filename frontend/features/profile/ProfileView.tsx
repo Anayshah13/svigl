@@ -4,12 +4,15 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { FadeIn, FadeInItem, FadeInStagger } from "@/components/motion/FadeIn";
+import { ReactionBar } from "@/components/reactions/ReactionBar";
+import { WhiteboardPreview } from "@/components/reactions/WhiteboardPreview";
 import { Card } from "@/components/ui/Card";
 import { UserAvatar } from "@/components/ui/UserAvatar";
 import { LoaderScreen } from "@/features/loaders";
 import { ProfileEditor } from "@/features/profile/ProfileEditor";
 import { formatDisplayName, profileHandle } from "@/lib/names";
 import { fetchAuthSession } from "@/services/auth";
+import { fetchGalleryEntries, type GalleryEntry } from "@/services/gallery";
 import { useSessionStore } from "@/stores/session";
 
 function StatCard({
@@ -47,6 +50,7 @@ export function ProfileView() {
   const authReady = useSessionStore((s) => s.authReady);
   const setAuth = useSessionStore((s) => s.setAuth);
   const [loading, setLoading] = useState(true);
+  const [drawings, setDrawings] = useState<GalleryEntry[]>([]);
   const [profileVersion, setProfileVersion] = useState(0);
 
   const rawName = authUser?.username ?? (displayName || "Guest");
@@ -55,18 +59,27 @@ export function ProfileView() {
   const handle = profileHandle(displayUsername);
   const drawingsDone = authUser?.drawingsDone ?? 0;
   const likesReceived = authUser?.likesReceived ?? 0;
+  const dislikesReceived = authUser?.dislikesReceived ?? 0;
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    void fetchAuthSession()
-      .then((user) => {
+    void (async () => {
+      try {
+        const user = await fetchAuthSession();
         if (cancelled || !user) return;
         setAuth(user);
-      })
-      .finally(() => {
+        const published = await fetchGalleryEntries({
+          sort: "recent",
+          authorId: user.id,
+        });
+        if (!cancelled) setDrawings(published);
+      } catch {
+        if (!cancelled) setDrawings([]);
+      } finally {
         if (!cancelled) setLoading(false);
-      });
+      }
+    })();
     return () => {
       cancelled = true;
     };
@@ -130,7 +143,7 @@ export function ProfileView() {
                   {displayUsername}
                 </h1>
                 <p className="mt-2 max-w-lg text-sm leading-relaxed text-ink-muted">
-                  Your drawings from games and the likes they earn show up here.
+                  Published drawings and the likes or dislikes they earn after each round.
                 </p>
 
                 {authUser ? (
@@ -146,9 +159,10 @@ export function ProfileView() {
             </div>
           </motion.div>
 
-          <FadeInStagger className="grid grid-cols-2 gap-3 sm:gap-4">
+          <FadeInStagger className="grid grid-cols-3 gap-3 sm:gap-4">
             <StatCard icon="✏️" value={drawingsDone} label="Drawings" />
-            <StatCard icon="♥" value={likesReceived} label="Likes" />
+            <StatCard icon="▲" value={likesReceived} label="Likes" />
+            <StatCard icon="▼" value={dislikesReceived} label="Dislikes" />
           </FadeInStagger>
         </div>
       </FadeIn>
@@ -161,7 +175,7 @@ export function ProfileView() {
               <h2 className="text-xl font-bold text-ink sm:text-2xl">Drawings by {displayUsername}</h2>
             </div>
             <span className="self-start rounded-full bg-gray-100 px-3 py-1 text-sm text-gray-500 sm:self-auto">
-              0 total
+              {drawings.length} total
             </span>
           </div>
         </FadeIn>
@@ -172,14 +186,36 @@ export function ProfileView() {
               <div key={i} className="aspect-4/3 animate-pulse rounded-2xl bg-gray-100" />
             ))}
           </div>
-        ) : (
+        ) : drawings.length === 0 ? (
           <Card className="border-dashed bg-white/80 py-12 text-center">
             <p className="text-3xl">🎨</p>
             <p className="mt-3 font-medium text-gray-700">No published drawings yet</p>
             <p className="mt-2 text-sm text-ink-muted">
-              Publishing from game rounds is coming soon.
+              Finish a drawing round in a game and it will show up here with its reactions.
             </p>
           </Card>
+        ) : (
+          <FadeInStagger className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {drawings.map((entry) => (
+              <FadeInItem key={entry.id}>
+                <article className="overflow-hidden rounded-2xl border border-gray-200/80 bg-white shadow-(--shadow-soft)">
+                  <div className="aspect-4/3 bg-white">
+                    <WhiteboardPreview document={entry.document} />
+                  </div>
+                  <div className="flex items-center justify-between gap-3 p-3">
+                    <p className="truncate font-semibold text-ink">{entry.word}</p>
+                    <ReactionBar
+                      likes={entry.likes}
+                      dislikes={entry.dislikes}
+                      myReaction={entry.myReaction}
+                      disabled
+                      size="sm"
+                    />
+                  </div>
+                </article>
+              </FadeInItem>
+            ))}
+          </FadeInStagger>
         )}
       </section>
     </div>

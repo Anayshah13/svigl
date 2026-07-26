@@ -12,6 +12,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from starlette.responses import Response
 
 from app.api.auth import router as auth_router
+from app.api.gallery import router as gallery_router
 from app.api.health import router as health_router
 from app.api.rooms import router as rooms_router
 from app.api.session import router as session_router
@@ -123,4 +124,5 @@ app.include_router(health_router)
 app.include_router(auth_router)
 app.include_router(session_router)
 app.include_router(rooms_router)
+app.include_router(gallery_router)
 app.include_router(ws_router)

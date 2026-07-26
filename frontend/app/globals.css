@@ -12,6 +12,8 @@
   --plum-light: rgba(112, 63, 147, 0.12);
   --green-light: rgba(16, 134, 92, 0.12);
   --pink-light: rgba(237, 127, 184, 0.14);
+  --blue: #0284c7;
+  --blue-light: rgba(56, 189, 248, 0.2);
   --shadow-soft: 0 4px 28px -4px rgba(112, 63, 147, 0.12);
   --shadow-card: 0 12px 40px -10px rgba(44, 44, 44, 0.1);
 }
@@ -28,6 +30,8 @@
   --color-plum-light: var(--plum-light);
   --color-green-light: var(--green-light);
   --color-pink-light: var(--pink-light);
+  --color-blue: var(--blue);
+  --color-blue-light: var(--blue-light);
   --font-sans: var(--font-dm-sans);
   --font-script: var(--font-caveat);
   --font-mono: var(--font-geist-mono);

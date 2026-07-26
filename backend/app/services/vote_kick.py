@@ -206,6 +206,12 @@ def cast_vote_kick(
     player_count = len(room.players)
     needed = required_votes(player_count)
     key = room.code.upper()
+    target_player = next(
+        (rp for rp in room.players if rp.user_id == target_id), None
+    )
+    target_name = (
+        target_player.user.name if target_player and target_player.user else "Unknown"
+    )
 
     with _lock:
         room_votes = _votes.setdefault(key, {})
@@ -224,7 +230,9 @@ def cast_vote_kick(
                 player_count=player_count,
                 voter_ids=tuple(sorted(voters, key=str)),
             )
-            return VoteKickCastResult(tally=tally, retracted=True)
+            return VoteKickCastResult(
+                tally=tally, retracted=True, target_name=target_name
+            )
 
         voters.add(voter_id)
         vote_count = len(voters)
@@ -237,17 +245,12 @@ def cast_vote_kick(
         )
 
         if vote_count < needed:
-            return VoteKickCastResult(tally=tally)
+            return VoteKickCastResult(tally=tally, target_name=target_name)
 
         # Majority reached — drop tallies before membership mutation.
         room_votes.pop(target_id, None)
         if not room_votes:
             _votes.pop(key, None)
-
-    target_player = next(
-        (rp for rp in room.players if rp.user_id == target_id), None
-    )
-    target_name = target_player.user.name if target_player and target_player.user else "Unknown"
 
     change = _remove_player(db, room, target_id)
     # _remove_player also clears votes involving the target; ensure room key is clean.

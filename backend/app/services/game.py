@@ -75,6 +75,46 @@ class ChatEvent:
     recipient_ids: tuple[UUID, ...] | None = None
 
 
+def _system_chat(message: str) -> ChatEvent:
+    return ChatEvent(kind="system", message=message)
+
+
+def _drawer_drawing_chat(room: Room, session: GameSession) -> ChatEvent:
+    drawer_name = (
+        _player_name(room, session.drawer_user_id)
+        if session.drawer_user_id is not None
+        else "Someone"
+    )
+    round_n = display_round_number(session)
+    if round_n > 0:
+        return _system_chat(f"Round {round_n} — {drawer_name} is drawing now!")
+    return _system_chat(f"{drawer_name} is drawing now!")
+
+
+def _choosing_word_chat(room: Room, session: GameSession) -> ChatEvent:
+    drawer_name = (
+        _player_name(room, session.drawer_user_id)
+        if session.drawer_user_id is not None
+        else "Someone"
+    )
+    return _system_chat(f"{drawer_name} is choosing a word…")
+
+
+def _round_ended_chat(summary: dict | None) -> ChatEvent | None:
+    if not summary:
+        return None
+    word = summary.get("word")
+    if isinstance(word, str) and word.strip():
+        return _system_chat(f'The word was "{word}"!')
+    return _system_chat("Round ended.")
+
+
+def _game_finished_chat(room: Room, winner_user_id: UUID | None) -> ChatEvent:
+    if winner_user_id is None:
+        return _system_chat("Game over!")
+    return _system_chat(f"{_player_name(room, winner_user_id)} wins!")
+
+
 @dataclass(frozen=True)
 class PrivateDrawerPayload:
     user_id: UUID
@@ -387,10 +427,11 @@ def start_game(db: Session, room_code: str, user_id: UUID) -> GameMutation:
     db.commit()
     return GameMutation(
         room.code,
-        ("GAME_STARTED", "COUNTDOWN_STARTED", "GAME_STATE_UPDATED"),
+        ("CHAT_MESSAGE", "GAME_STARTED", "COUNTDOWN_STARTED", "GAME_STATE_UPDATED"),
         session.phase,
         session.revision,
         session_id=session.id,
+        chat_events=(_system_chat("Game starting!"),),
     )
 
 
@@ -560,6 +601,37 @@ def _begin_round_active(session: GameSession, word: str) -> PrivateDrawerPayload
     )
 
 
+def _start_drawing_round(
+    db: Session, room: Room, session: GameSession, word: str
+) -> tuple[PrivateDrawerPayload, UUID | None]:
+    """Enter ROUND_ACTIVE and allocate a gallery drawing for live reactions."""
+    from app.services.drawings import create_in_progress_drawing
+
+    private = _begin_round_active(session, word)
+    drawing = create_in_progress_drawing(
+        db,
+        room=room,
+        session=session,
+        author_id=session.drawer_user_id,  # type: ignore[arg-type]
+        word=word,
+    )
+    return private, drawing.id
+
+
+def _publish_current_drawing(db: Session, session: GameSession) -> dict | None:
+    """Snapshot canvas → gallery and credit author profile reaction totals."""
+    from app.services.drawings import publish_drawing
+
+    drawing = publish_drawing(db, session.current_drawing_id, session=session)
+    if drawing is None:
+        return None
+    return {
+        "drawing_id": str(drawing.id),
+        "likes": int(drawing.likes_count or 0),
+        "dislikes": int(drawing.dislikes_count or 0),
+    }
+
+
 def _build_round_summary(room: Room, session: GameSession) -> dict:
     guessed = [
         {
@@ -612,10 +684,13 @@ def _end_round_active(db: Session, room: Room, session: GameSession) -> tuple[li
 
     _credit_session_draw(session, session.drawer_user_id)
     _record_drawing_done(db, session.drawer_user_id)
+    reaction_meta = _publish_current_drawing(db, session)
     clear_room_votes(room.code)
     session.phase = GAME_PHASE_ROUND_END
     session.deadline_at = _phase_deadline(ROUND_END_SECONDS)
     summary = _build_round_summary(room, session)
+    if reaction_meta:
+        summary.update(reaction_meta)
     _store_round_summary(session, summary)
     return ["ROUND_ENDED", "GAME_STATE_UPDATED", "SCORES_UPDATED"], summary
 
@@ -651,23 +726,31 @@ def select_word(
     if match is None:
         raise GameError("UNKNOWN", "That word is not one of the offered choices.")
 
-    private = _begin_round_active(session, match)
+    private, drawing_id = _start_drawing_round(db, room, session, match)
     session.revision += 1
     db.commit()
     hint = word_hint_mask(match)
     return GameMutation(
         room.code,
-        ("WORD_SELECTED", "ROUND_STARTED", "CANVAS_CLEAR", "GAME_STATE_UPDATED"),
+        (
+            "CHAT_MESSAGE",
+            "WORD_SELECTED",
+            "ROUND_STARTED",
+            "CANVAS_CLEAR",
+            "GAME_STATE_UPDATED",
+        ),
         session.phase,
         session.revision,
         session_id=session.id,
         private_drawer=private,
         scores=_scoreboard(session),
+        chat_events=(_drawer_drawing_chat(room, session),),
         event_extras={
             "WORD_SELECTED": {"word_length": len(match.replace(" ", ""))},
             "ROUND_STARTED": {
                 "word_hint": hint,
                 "word_length": len(match.replace(" ", "")),
+                "drawing_id": str(drawing_id) if drawing_id else None,
             },
         },
     )
@@ -766,17 +849,22 @@ def submit_chat(
             "SCORES_UPDATED",
             "GAME_STATE_UPDATED",
         ]
-        chat = ChatEvent(
-            kind="correct_guess",
-            message=f"{player_name} guessed correctly!",
-            player_id=str(user_id),
-            player_name=player_name,
-        )
+        chats: list[ChatEvent] = [
+            ChatEvent(
+                kind="correct_guess",
+                message=f"{player_name} guessed correctly!",
+                player_id=str(user_id),
+                player_name=player_name,
+            )
+        ]
         summary = None
         stop_timer = False
         if _all_eligible_guessed(session):
             # Keep CHAT / PLAYER_GUESSED before ROUND_ENDED for client UX.
             _, summary = _end_round_active(db, room, session)
+            ended = _round_ended_chat(summary)
+            if ended is not None:
+                chats.append(ended)
             events = [
                 "CHAT_MESSAGE",
                 "PLAYER_GUESSED",
@@ -793,7 +881,7 @@ def submit_chat(
             session.revision,
             session_id=session.id,
             stop_timer=stop_timer,
-            chat_events=(chat,),
+            chat_events=tuple(chats),
             round_summary=summary,
             scores=_scoreboard(session),
             private_to_user_id=user_id,
@@ -924,6 +1012,7 @@ def advance_due_session(db: Session, session_id: UUID) -> GameMutation | None:
         return None
 
     events: list[str] = []
+    chat_events: list[ChatEvent] = []
     stop_timer = False
     private: PrivateDrawerPayload | None = None
     summary: dict | None = None
@@ -946,12 +1035,13 @@ def advance_due_session(db: Session, session_id: UUID) -> GameMutation | None:
             events.extend(
                 ("WORD_CHOICES_OFFERED", "GAME_STATE_UPDATED", "CANVAS_CLEAR")
             )
+            chat_events.append(_choosing_word_chat(room, session))
     elif session.phase == GAME_PHASE_WORD_SELECTION:
         choices = _parse_word_choices(session)
         if not choices:
             choices = pick_word_choices(3)
         word = secrets.choice(choices)
-        private = _begin_round_active(session, word)
+        private, drawing_id = _start_drawing_round(db, session.room, session, word)
         events.extend(
             ("WORD_SELECTED", "ROUND_STARTED", "CANVAS_CLEAR", "GAME_STATE_UPDATED")
         )
@@ -959,12 +1049,17 @@ def advance_due_session(db: Session, session_id: UUID) -> GameMutation | None:
         event_extras["ROUND_STARTED"] = {
             "word_hint": word_hint_mask(word),
             "word_length": len(word.replace(" ", "")),
+            "drawing_id": str(drawing_id) if drawing_id else None,
         }
+        chat_events.append(_drawer_drawing_chat(session.room, session))
     elif session.phase == GAME_PHASE_ROUND_ACTIVE:
         end_events, summary = _end_round_active(db, session.room, session)
         events.extend(end_events)
         event_extras["ROUND_ENDED"] = summary
         event_extras["SCORES_UPDATED"] = {"scores": list(_scoreboard(session))}
+        ended = _round_ended_chat(summary)
+        if ended is not None:
+            chat_events.append(ended)
     elif session.phase == GAME_PHASE_ROUND_END:
         room = session.room
         # Safety net: admit any member still missing from the roster.
@@ -990,6 +1085,7 @@ def advance_due_session(db: Session, session_id: UUID) -> GameMutation | None:
                 "scores": list(_scoreboard(session)),
             }
             event_extras["SCORES_UPDATED"] = {"scores": list(_scoreboard(session))}
+            chat_events.append(_game_finished_chat(room, winner_id))
         else:
             if _selection_wraps(previous_drawer, next_player):
                 session.current_round += 1
@@ -1000,12 +1096,16 @@ def advance_due_session(db: Session, session_id: UUID) -> GameMutation | None:
             events.extend(
                 ("WORD_CHOICES_OFFERED", "CANVAS_CLEAR", "GAME_STATE_UPDATED")
             )
+            chat_events.append(_choosing_word_chat(room, session))
     elif session.phase == GAME_PHASE_GAME_FINISHED:
         _return_to_lobby(session.room, session)
         events.append("GAME_STATE_UPDATED")
         stop_timer = True
     else:
         return None
+
+    if chat_events:
+        events.insert(0, "CHAT_MESSAGE")
 
     db.commit()
     return GameMutation(
@@ -1019,6 +1119,7 @@ def advance_due_session(db: Session, session_id: UUID) -> GameMutation | None:
         round_summary=summary,
         scores=_scoreboard(session),
         winner_user_id=winner_id,
+        chat_events=tuple(chat_events),
         event_extras=event_extras,
     )
 
@@ -1047,6 +1148,7 @@ def handle_player_departure(
     frozen.is_active = False
     session.revision += 1
     events = ["GAME_STATE_UPDATED"]
+    chat_events: list[ChatEvent] = []
     stop_timer = False
     private: PrivateDrawerPayload | None = None
     summary: dict | None = None
@@ -1064,6 +1166,8 @@ def handle_player_departure(
 
     active = _active_players(session)
     if len(active) < 2:
+        if was_drawing:
+            _publish_current_drawing(db, session)
         _return_to_lobby(room, session)
         stop_timer = True
     elif was_drawer:
@@ -1083,9 +1187,16 @@ def handle_player_departure(
             session.phase = GAME_PHASE_ROUND_END
             session.deadline_at = utcnow() + timedelta(seconds=ROUND_END_SECONDS)
             summary = _build_round_summary(room, session)
+            if was_drawing:
+                reaction_meta = _publish_current_drawing(db, session)
+                if reaction_meta:
+                    summary.update(reaction_meta)
             _store_round_summary(session, summary)
             events.insert(0, "ROUND_ENDED")
             event_extras["ROUND_ENDED"] = summary
+            ended = _round_ended_chat(summary)
+            if ended is not None:
+                chat_events.append(ended)
         # ROUND_END: keep phase/deadline; next tick picks the next active drawer.
     elif (
         session.phase == GAME_PHASE_ROUND_ACTIVE
@@ -1096,6 +1207,12 @@ def handle_player_departure(
         end_events, summary = _end_round_active(db, room, session)
         events = end_events
         event_extras["ROUND_ENDED"] = summary
+        ended = _round_ended_chat(summary)
+        if ended is not None:
+            chat_events.append(ended)
+
+    if chat_events:
+        events.insert(0, "CHAT_MESSAGE")
 
     db.flush()
     return GameMutation(
@@ -1108,6 +1225,7 @@ def handle_player_departure(
         private_drawer=private,
         round_summary=summary,
         scores=_scoreboard(session),
+        chat_events=tuple(chat_events),
         event_extras=event_extras,
     )
 

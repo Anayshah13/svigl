@@ -1,5 +1,6 @@
 import math
 from datetime import datetime, timezone
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -60,6 +61,9 @@ class RoundSummaryResponse(BaseModel):
     drawer_id: UUID | None = None
     guessed: list[RoundGuessedEntryResponse] = Field(default_factory=list)
     scores: list[ScoreEntryResponse] = Field(default_factory=list)
+    drawing_id: UUID | None = None
+    likes: int = 0
+    dislikes: int = 0
 
 
 class GameStateResponse(BaseModel):
@@ -87,6 +91,10 @@ class GameStateResponse(BaseModel):
     guessed_player_ids: list[UUID] = Field(default_factory=list)
     winner_id: UUID | None = None
     round_summary: RoundSummaryResponse | None = None
+    drawing_id: UUID | None = None
+    likes: int = 0
+    dislikes: int = 0
+    my_reaction: Literal["like", "dislike"] | None = None
 
 
 class RoomResponse(BaseModel):
@@ -286,12 +294,42 @@ class RoomResponse(BaseModel):
                         )
                     )
                 drawer_raw = raw_summary.get("drawer_id")
+                drawing_raw = raw_summary.get("drawing_id")
                 round_summary = RoundSummaryResponse(
                     word=raw_summary.get("word"),
                     drawer_id=UUID(str(drawer_raw)) if drawer_raw else None,
                     guessed=guessed_rows,
                     scores=scores,
+                    drawing_id=UUID(str(drawing_raw)) if drawing_raw else None,
+                    likes=int(raw_summary.get("likes") or 0),
+                    dislikes=int(raw_summary.get("dislikes") or 0),
                 )
+
+            drawing_id = session.current_drawing_id
+            likes = 0
+            dislikes = 0
+            my_reaction = None
+            if drawing_id is not None:
+                from sqlalchemy.orm import object_session
+
+                from app.models.drawing import Drawing, DrawingReaction
+
+                db = object_session(room)
+                drawing_row = db.get(Drawing, drawing_id) if db is not None else None
+                if drawing_row is not None:
+                    likes = int(drawing_row.likes_count or 0)
+                    dislikes = int(drawing_row.dislikes_count or 0)
+                    if viewer_id is not None and db is not None:
+                        from sqlalchemy import select as sa_select
+
+                        mine = db.scalar(
+                            sa_select(DrawingReaction).where(
+                                DrawingReaction.drawing_id == drawing_row.id,
+                                DrawingReaction.user_id == viewer_id,
+                            )
+                        )
+                        if mine is not None and mine.value in ("like", "dislike"):
+                            my_reaction = mine.value
 
             game = GameStateResponse(
                 session_id=session.id,
@@ -320,6 +358,10 @@ class RoomResponse(BaseModel):
                 guessed_player_ids=guessed_ids,
                 winner_id=session.winner_user_id,
                 round_summary=round_summary,
+                drawing_id=drawing_id,
+                likes=likes,
+                dislikes=dislikes,
+                my_reaction=my_reaction,
             )
             revision = session.revision
             can_start = (

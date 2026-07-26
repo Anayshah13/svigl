@@ -33,6 +33,10 @@ class EventType(StrEnum):
     VOTE_KICK = "VOTE_KICK"
     VOTE_KICK_UPDATE = "VOTE_KICK_UPDATE"
 
+    # Drawing reactions (live round + gallery carry-over)
+    SET_REACTION = "SET_REACTION"
+    REACTION_UPDATED = "REACTION_UPDATED"
+
     # Game lifecycle (client → server)
     PLAYER_READY = "PLAYER_READY"
     PLAYER_UNREADY = "PLAYER_UNREADY"

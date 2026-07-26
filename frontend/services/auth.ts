@@ -14,6 +14,7 @@ export interface AuthUser {
   provider: AuthProvider;
   drawingsDone: number;
   likesReceived: number;
+  dislikesReceived: number;
 }
 
 interface MeResponse {
@@ -24,6 +25,7 @@ interface MeResponse {
   avatar_url: string | null;
   drawings_done?: number;
   likes_received?: number;
+  dislikes_received?: number;
   access_token?: string;
 }
 
@@ -44,6 +46,7 @@ function mapMeResponse(data: MeResponse): AuthUser {
     provider: data.provider,
     drawingsDone: data.drawings_done ?? 0,
     likesReceived: data.likes_received ?? 0,
+    dislikesReceived: data.dislikes_received ?? 0,
   };
 }
 

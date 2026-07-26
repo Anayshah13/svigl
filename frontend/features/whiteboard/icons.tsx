@@ -15,19 +15,43 @@ export function CurveIcon({ className = "h-5 w-5" }: { className?: string }) {
         strokeWidth="2"
         strokeLinecap="round"
       />
-      {/* Control handle stems */}
-      <line x1="4" y1="18" x2="12" y2="6" stroke="currentColor" strokeWidth="1.25" strokeDasharray="2 2" opacity="0.7" />
-      <line x1="20" y1="18" x2="12" y2="6" stroke="currentColor" strokeWidth="1.25" strokeDasharray="2 2" opacity="0.7" />
-      {/* Endpoints */}
+      <line
+        x1="4"
+        y1="18"
+        x2="12"
+        y2="6"
+        stroke="currentColor"
+        strokeWidth="1.25"
+        strokeDasharray="2 2"
+        opacity="0.7"
+      />
+      <line
+        x1="20"
+        y1="18"
+        x2="12"
+        y2="6"
+        stroke="currentColor"
+        strokeWidth="1.25"
+        strokeDasharray="2 2"
+        opacity="0.7"
+      />
       <circle cx="4" cy="18" r="2" fill="currentColor" />
       <circle cx="20" cy="18" r="2" fill="currentColor" />
-      {/* Single control handle */}
-      <rect x="10.75" y="4.75" width="2.5" height="2.5" rx="0.4" fill="currentColor" opacity="0.85" transform="rotate(45 12 6)" />
+      <rect
+        x="10.75"
+        y="4.75"
+        width="2.5"
+        height="2.5"
+        rx="0.4"
+        fill="currentColor"
+        opacity="0.85"
+        transform="rotate(45 12 6)"
+      />
     </svg>
   );
 }
 
-/** Freehand pencil glyph — angled tip plus a short sketched stroke. */
+/** Freehand pencil glyph — angled tip, optically centered in 24×24. */
 export function PencilIcon({ className = "h-5 w-5" }: { className?: string }) {
   return (
     <svg
@@ -40,16 +64,8 @@ export function PencilIcon({ className = "h-5 w-5" }: { className?: string }) {
       strokeLinejoin="round"
       aria-hidden
     >
-      {/* Pencil body */}
-      <path d="M14.5 3.5l6 6-11 11H3.5v-6l11-11z" />
-      {/* Tip highlight */}
-      <path d="M12.5 5.5l6 6" />
-      {/* Sketch flourish under the tip */}
-      <path
-        d="M4 21c2-1.2 4-1.2 6 0"
-        strokeWidth="1.5"
-        opacity="0.55"
-      />
+      <path d="M13.5 4.5l6 6L8 22H2v-6L13.5 4.5z" />
+      <path d="M11.5 6.5l6 6" />
     </svg>
   );
 }
@@ -57,7 +73,14 @@ export function PencilIcon({ className = "h-5 w-5" }: { className?: string }) {
 /** Straight-line glyph used when the bezier tool is labeled "Line" in demo UI. */
 export function LineIcon({ className = "h-5 w-5" }: { className?: string }) {
   return (
-    <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+    <svg
+      viewBox="0 0 24 24"
+      className={className}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      aria-hidden
+    >
       <path d="M5 19L19 5" strokeLinecap="round" />
     </svg>
   );
@@ -65,45 +88,86 @@ export function LineIcon({ className = "h-5 w-5" }: { className?: string }) {
 
 function RectIcon({ className = "h-5 w-5" }: { className?: string }) {
   return (
-    <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-      <rect x="4" y="6" width="16" height="12" rx="1" />
+    <svg
+      viewBox="0 0 24 24"
+      className={className}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      aria-hidden
+    >
+      <rect x="5" y="6" width="14" height="12" rx="1.5" />
     </svg>
   );
 }
 
 function EllipseIcon({ className = "h-5 w-5" }: { className?: string }) {
   return (
-    <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-      <ellipse cx="12" cy="12" rx="8" ry="6" />
+    <svg
+      viewBox="0 0 24 24"
+      className={className}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      aria-hidden
+    >
+      <ellipse cx="12" cy="12" rx="7.5" ry="5.5" />
     </svg>
   );
 }
 
 function FillIcon({ className = "h-5 w-5" }: { className?: string }) {
   return (
-    <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-      <path d="M7 3l9 9-5 5-9-9 5-5z" strokeLinejoin="round" />
-      <path d="M16 16c1.5 1.5 3 2 4 1s.5-2.5-1-4" strokeLinecap="round" />
+    <svg
+      viewBox="0 0 24 24"
+      className={className}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      aria-hidden
+    >
+      <path
+        d="M8 3.5l8.5 8.5-4.5 4.5L3.5 8 8 3.5z"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M15.5 15.5c1.4 1.4 2.8 1.9 3.7 1 0.9-0.9 0.4-2.3-1-3.7"
+        strokeLinecap="round"
+      />
     </svg>
   );
 }
 
 function SelectIcon({ className = "h-5 w-5" }: { className?: string }) {
   return (
-    <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-      <path d="M5 3l5.5 16 2.5-6 6-2.5L5 3z" strokeLinejoin="round" />
+    <svg
+      viewBox="0 0 24 24"
+      className={className}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      aria-hidden
+    >
+      <path d="M6 3.5l5 15 2.3-5.5L19 10.5 6 3.5z" strokeLinejoin="round" />
     </svg>
   );
 }
 
 function EraserIcon({ className = "h-5 w-5" }: { className?: string }) {
   return (
-    <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+    <svg
+      viewBox="0 0 24 24"
+      className={className}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      aria-hidden
+    >
       <path
-        d="M16.5 3.5l4 4-11 11H5.5l-2-2 13-13z"
+        d="M15.5 4l4 4-10.5 10.5H5.5l-2-2L15.5 4z"
         strokeLinejoin="round"
       />
-      <path d="M8 20h11" strokeLinecap="round" />
+      <path d="M8 20h10" strokeLinecap="round" />
     </svg>
   );
 }
@@ -142,7 +206,14 @@ export function ToolIcon({
 
 export function UndoIcon({ className = "h-5 w-5" }: { className?: string }) {
   return (
-    <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+    <svg
+      viewBox="0 0 24 24"
+      className={className}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      aria-hidden
+    >
       <path d="M9 7H5v4" strokeLinecap="round" strokeLinejoin="round" />
       <path d="M5 11a7 7 0 1 0 2-5" strokeLinecap="round" />
     </svg>
@@ -151,7 +222,14 @@ export function UndoIcon({ className = "h-5 w-5" }: { className?: string }) {
 
 export function RedoIcon({ className = "h-5 w-5" }: { className?: string }) {
   return (
-    <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+    <svg
+      viewBox="0 0 24 24"
+      className={className}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      aria-hidden
+    >
       <path d="M15 7h4v4" strokeLinecap="round" strokeLinejoin="round" />
       <path d="M19 11a7 7 0 1 1-2-5" strokeLinecap="round" />
     </svg>

@@ -35,22 +35,31 @@ describe("getChatInputPolicy", () => {
     expect(policy.disabledReason?.toLowerCase()).toContain("drawing");
   });
 
-  it("disables chat outside ROUND_ACTIVE", () => {
+  it("keeps discussion chat open between rounds and after the game", () => {
     for (const phase of [
       "WORD_SELECTION",
       "COUNTDOWN",
       "ROUND_END",
       "GAME_FINISHED",
-      "LOBBY",
     ] as const) {
       const policy = getChatInputPolicy({
         ...base,
         phase,
+        isDrawer: phase === "WORD_SELECTION",
+        hasGuessed: true,
       });
-      expect(policy.canSendChat).toBe(false);
+      expect(policy.canSendChat).toBe(true);
       expect(policy.canScoreGuess).toBe(false);
-      expect(policy.disabledReason).toBeTruthy();
+      expect(policy.placeholder.toLowerCase()).toContain("say");
+      expect(policy.disabledReason).toBeUndefined();
     }
+  });
+
+  it("disables chat in the lobby", () => {
+    const policy = getChatInputPolicy({ ...base, phase: "LOBBY" });
+    expect(policy.canSendChat).toBe(false);
+    expect(policy.canScoreGuess).toBe(false);
+    expect(policy.disabledReason).toBeTruthy();
   });
 
   it("disables chat when there is no self player", () => {

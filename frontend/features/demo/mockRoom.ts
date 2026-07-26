@@ -116,6 +116,10 @@ export function createDemoRoom(remainingSeconds: number): Room {
       guessedPlayerIds: ["player-maya"],
       winnerId: null,
       roundSummary: null,
+      drawingId: null,
+      likes: 0,
+      dislikes: 0,
+      myReaction: null,
     },
   };
 }

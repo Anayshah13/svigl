@@ -22,62 +22,78 @@ export type ChatInputPolicy = {
 };
 
 const PHASE_DISABLED_REASON: Partial<Record<GamePhase, string>> = {
-  WORD_SELECTION: "Waiting for the drawer to pick a word…",
-  COUNTDOWN: "Round starting soon…",
-  ROUND_END: "Round over — next turn soon.",
-  GAME_FINISHED: "Game over.",
-  LOBBY: "Guessing is only open during the round.",
+  LOBBY: "Chat opens once the game starts.",
 };
+
+/** Phases where everyone can discuss (no scoring). */
+const DISCUSSION_PHASES: ReadonlySet<GamePhase> = new Set([
+  "COUNTDOWN",
+  "WORD_SELECTION",
+  "ROUND_END",
+  "GAME_FINISHED",
+]);
 
 /**
  * Pure phase × role policy for the in-game chat/guess input.
- * Correct guessers keep chat (private on the server).
+ * Correct guessers keep private chat during ROUND_ACTIVE; discussion
+ * chat stays open between rounds and after the game ends.
  */
 export function getChatInputPolicy(input: ChatInputPolicyInput): ChatInputPolicy {
   const { phase, hasSelf, isDrawer, hasGuessed } = input;
   const isActiveDrawing = phase === "ROUND_ACTIVE";
-
-  if (!isActiveDrawing) {
-    return {
-      canSendChat: false,
-      canScoreGuess: false,
-      placeholder: "Chat disabled",
-      disabledReason:
-        PHASE_DISABLED_REASON[phase] ??
-        "Guessing is only open during the round.",
-    };
-  }
-
-  if (isDrawer) {
-    return {
-      canSendChat: false,
-      canScoreGuess: false,
-      placeholder: "Chat disabled",
-      disabledReason: "You're drawing — chat is disabled.",
-    };
-  }
 
   if (!hasSelf) {
     return {
       canSendChat: false,
       canScoreGuess: false,
       placeholder: "Chat disabled",
-      disabledReason: "Guessing is only open during the round.",
+      disabledReason: "Join the game to chat.",
     };
   }
 
-  if (hasGuessed) {
+  if (isActiveDrawing) {
+    if (isDrawer) {
+      return {
+        canSendChat: false,
+        canScoreGuess: false,
+        placeholder: "Chat disabled",
+        disabledReason: "You're drawing — chat is disabled.",
+      };
+    }
+
+    if (hasGuessed) {
+      return {
+        canSendChat: true,
+        canScoreGuess: false,
+        placeholder: "Private chat with correct guessers…",
+        inputHint: "Only correct guessers and the drawer see these messages.",
+      };
+    }
+
+    return {
+      canSendChat: true,
+      canScoreGuess: true,
+      placeholder: "Type your guess here...",
+    };
+  }
+
+  if (DISCUSSION_PHASES.has(phase)) {
     return {
       canSendChat: true,
       canScoreGuess: false,
-      placeholder: "Private chat with correct guessers…",
-      inputHint: "Only correct guessers and the drawer see these messages.",
+      placeholder: "Say something…",
+      inputHint:
+        phase === "GAME_FINISHED"
+          ? undefined
+          : "Chat is open — guesses only count during the round.",
     };
   }
 
   return {
-    canSendChat: true,
-    canScoreGuess: true,
-    placeholder: "Type your guess here...",
+    canSendChat: false,
+    canScoreGuess: false,
+    placeholder: "Chat disabled",
+    disabledReason:
+      PHASE_DISABLED_REASON[phase] ?? "Chat is not available right now.",
   };
 }

@@ -5,6 +5,7 @@ Import model modules here so Alembic autogenerate discovers them via
 """
 
 from app.models.canvas import CanvasState
+from app.models.drawing import Drawing, DrawingReaction
 from app.models.room import (
     GameSession,
     GameSessionPlayer,
@@ -16,6 +17,8 @@ from app.models.user import User
 
 __all__ = [
     "CanvasState",
+    "Drawing",
+    "DrawingReaction",
     "GameSession",
     "GameSessionPlayer",
     "GameSettings",

@@ -43,6 +43,16 @@ export interface VoteKickTally {
 
 type VoteKickHandler = (tally: VoteKickTally) => void;
 
+export interface ReactionUpdate {
+  drawingId: string;
+  likes: number;
+  dislikes: number;
+  userId: string | null;
+  reaction: "like" | "dislike" | null;
+}
+
+type ReactionHandler = (update: ReactionUpdate) => void;
+
 const ROOM_SYNC_EVENTS: WSEventType[] = [
   "ROOM_UPDATED",
   "PLAYER_JOINED",
@@ -99,9 +109,14 @@ class AppWebSocketManager {
   private chatHandlers = new Set<ChatHandler>();
   private canvasHandlers = new Set<CanvasEventHandler>();
   private voteKickHandlers = new Set<VoteKickHandler>();
+  private reactionHandlers = new Set<ReactionHandler>();
 
   get activeRoomCode(): string | null {
     return this.joinedRoomCode;
+  }
+
+  get selfUserId(): string | null {
+    return this.userId;
   }
 
   get bufferedAmount(): number {
@@ -135,6 +150,13 @@ class AppWebSocketManager {
     this.voteKickHandlers.add(onVote);
     return () => {
       this.voteKickHandlers.delete(onVote);
+    };
+  }
+
+  subscribeReactions(onReaction: ReactionHandler): () => void {
+    this.reactionHandlers.add(onReaction);
+    return () => {
+      this.reactionHandlers.delete(onReaction);
     };
   }
 
@@ -233,6 +255,16 @@ class AppWebSocketManager {
 
   voteKick(targetId: string, retract = false): void {
     this.sendIntent("VOTE_KICK", { target_id: targetId, retract });
+  }
+
+  setReaction(
+    reaction: "like" | "dislike" | null,
+    drawingId?: string | null,
+  ): void {
+    this.sendIntent("SET_REACTION", {
+      reaction,
+      ...(drawingId ? { drawing_id: drawingId } : {}),
+    });
   }
 
   /** Drawing sync intents — backend canvas handlers accept these event names. */
@@ -336,6 +368,7 @@ class AppWebSocketManager {
       | "SELECT_WORD"
       | "CHAT_MESSAGE"
       | "VOTE_KICK"
+      | "SET_REACTION"
     >,
     payload: Record<string, unknown> = {},
   ): void {
@@ -446,6 +479,26 @@ class AppWebSocketManager {
       };
       for (const handler of this.voteKickHandlers) {
         handler(tally);
+      }
+      return;
+    }
+
+    if (msg.type === "REACTION_UPDATED") {
+      const reactionRaw = msg.payload.reaction;
+      const reaction =
+        reactionRaw === "like" || reactionRaw === "dislike" ? reactionRaw : null;
+      const update: ReactionUpdate = {
+        drawingId:
+          typeof msg.payload.drawing_id === "string" ? msg.payload.drawing_id : "",
+        likes: typeof msg.payload.likes === "number" ? msg.payload.likes : 0,
+        dislikes:
+          typeof msg.payload.dislikes === "number" ? msg.payload.dislikes : 0,
+        userId:
+          typeof msg.payload.user_id === "string" ? msg.payload.user_id : null,
+        reaction,
+      };
+      for (const handler of this.reactionHandlers) {
+        handler(update);
       }
       return;
     }

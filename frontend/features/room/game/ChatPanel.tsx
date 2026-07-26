@@ -132,14 +132,14 @@ export function ChatPanel({
                     : msg.kind === "close_guess"
                       ? "bg-green-light/70 font-medium text-green"
                       : isPrivate
-                        ? "bg-green-light/50 text-ink"
+                        ? "bg-blue-light text-ink"
                         : isSystem
                           ? "bg-plum-light/50 font-medium text-plum"
                           : "text-ink",
                 )}
               >
                 {isPrivate ? (
-                  <span className="mr-1.5 inline-flex align-middle text-[10px] font-bold uppercase tracking-wide text-green sm:text-[11px]">
+                  <span className="mr-1.5 inline-flex align-middle text-[10px] font-bold uppercase tracking-wide text-blue sm:text-[11px]">
                     Private
                   </span>
                 ) : null}

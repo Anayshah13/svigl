@@ -50,6 +50,9 @@ export interface RoundSummary {
   drawerId: string | null;
   guessed: RoundGuessedEntry[];
   scores: ScoreEntry[];
+  drawingId?: string | null;
+  likes?: number;
+  dislikes?: number;
 }
 
 export interface RoomGameState {
@@ -78,6 +81,11 @@ export interface RoomGameState {
   winnerId: string | null;
   /** Last round summary from ROUND_ENDED (cleared on next round). */
   roundSummary: RoundSummary | null;
+  /** Live / just-ended drawing accepting reactions. */
+  drawingId: string | null;
+  likes: number;
+  dislikes: number;
+  myReaction: "like" | "dislike" | null;
 }
 
 /** Public room shape — uses room code as the identifier, not database IDs. */
@@ -181,6 +189,8 @@ export type WSEventType =
   | "PLAYER_KICKED"
   | "VOTE_KICK"
   | "VOTE_KICK_UPDATE"
+  | "SET_REACTION"
+  | "REACTION_UPDATED"
   | "PLAYER_READY"
   | "PLAYER_UNREADY"
   | "HOST_UPDATE_SETTINGS"
