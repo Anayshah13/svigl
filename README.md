@@ -1,6 +1,6 @@
 # Svigl
 
-> A multiplayer SVG-based drawing and guessing game — think Skribbl.io, but every drawing is built from editable SVG primitives instead of freehand raster strokes.
+> A multiplayer SVG drawing and guessing game — think Skribbl.io, but the canvas is vector-first. Scribble freehand with **Pencil**, or drop exact shapes (line, rect, ellipse, fill); everything lives on the same board and syncs as structured SVG.
 
 ---
 
@@ -12,7 +12,9 @@
 | Backend | FastAPI, SQLAlchemy 2, Alembic, PyJWT, Authlib |
 | Database | PostgreSQL 17 |
 | Auth | Google OAuth 2.0 + JWT session cookies |
+| Realtime | WebSockets (room sync, canvas ops, game events) |
 | Infrastructure | Docker, Docker Compose (local); Vercel (frontend), Railway (backend) |
+| Tests | Vitest (frontend), pytest (backend) |
 
 ---
 
@@ -20,26 +22,62 @@
 
 ```
 svigl/
-├── backend/            # FastAPI app (Python 3.12)
-│   ├── app/            # Application source
-│   ├── alembic/        # DB migrations
+├── backend/                 # FastAPI app (Python 3.12)
+│   ├── app/
+│   │   ├── api/             # HTTP routes (auth, rooms, gallery, session, …)
+│   │   ├── auth/            # Google OAuth, JWT, cookies, guests
+│   │   ├── data/            # Static data (e.g. words.json)
+│   │   ├── db/              # Engine / session
+│   │   ├── models/          # SQLAlchemy models
+│   │   ├── schemas/         # Pydantic schemas
+│   │   ├── services/        # Game, room, canvas, drawings, …
+│   │   └── websocket/       # Connection / room managers + handlers
+│   ├── alembic/             # DB migrations
+│   ├── tests/
 │   ├── Dockerfile
 │   ├── alembic.ini
 │   ├── requirements.txt
-│   ├── .env.example    # Root-level env vars template
-│   └── .env.local      # ← create this (never commit)
-├── frontend/           # Next.js app
-│   ├── app/
-│   ├── components/
-│   ├── stores/         # Client state (session + active room)
-│   ├── lib/create-store.ts  # Lightweight store (useSyncExternalStore)
 │   ├── .env.example
-│   └── .env.local      # ← create this (never commit)
-├── docs/               # Architecture and domain docs
-├── .env.example        # Docker Compose env template
-├── .env                # ← create this (never commit)
+│   └── .env.local           # ← create this (never commit)
+├── frontend/                # Next.js app (feature-oriented)
+│   ├── app/                 # App Router pages (landing, room, gallery, …)
+│   ├── features/            # Domain UI + logic
+│   │   ├── whiteboard/      # SVG canvas, tools, sync, history
+│   │   ├── room/            # Lobby + in-game shell
+│   │   ├── landing/
+│   │   ├── gallery/
+│   │   └── …
+│   ├── components/          # Shared UI (layout, landing, room chrome, …)
+│   ├── services/            # API + WebSocket clients
+│   ├── stores/              # Client state (session + active room)
+│   ├── lib/                 # Helpers (create-store, auth, ws utils, …)
+│   ├── hooks/
+│   ├── contexts/
+│   ├── types/
+│   ├── .env.example
+│   └── .env.local           # ← create this (never commit)
+├── .env.example             # Docker Compose env template
+├── .env                     # ← create this (never commit)
 └── docker-compose.yml
 ```
+
+---
+
+## Whiteboard (drawing model)
+
+The board is an 800×800 logical SVG viewBox. Shapes are structured objects (not a raster bitmap). Tools:
+
+| Shortcut | Tool | Notes |
+|----------|------|--------|
+| `1` | **Pencil** | Default tool. Freehand stroke → simplified + smoothed SVG path (`d`) |
+| `2` | Select | Click / marquee; move, resize, rotate |
+| `3` | Line | Bezier curve/line with editable control handle |
+| `4` | Rectangle | Shift = square |
+| `5` | Ellipse | Shift = circle |
+| `6` | Fill | Flood-fill closed regions → closed path |
+| `7` | Eraser | Removes whole shapes under the cursor |
+
+**Pencil** samples pointer input, simplifies with RDP, and commits a compact quadratic-bezier path so freehand sketching stays vector and multiplayer-friendly alongside geometric shapes. Core logic lives in `frontend/features/whiteboard/` (`pencilStroke.ts`, `types.ts`, `serialize.ts`, canvas + sync).
 
 ---
 
@@ -203,6 +241,7 @@ npm run dev          # development server  → http://localhost:3000
 npm run build        # production build
 npm run start        # serve production build
 npm run lint         # ESLint
+npm test             # Vitest unit tests
 ```
 
 ---
@@ -254,6 +293,8 @@ Global UI state lives in two small stores under `frontend/stores/`:
 
 Both use a tiny in-house store helper (`frontend/lib/create-store.ts`) built on React’s `useSyncExternalStore` — no Zustand or other state library.
 
+Feature modules under `frontend/features/` own domain UI (whiteboard, room game shell, gallery, landing, etc.). Shared chrome and primitives live in `frontend/components/`; HTTP/WS clients in `frontend/services/`.
+
 ---
 
 ## Production Deployment
@@ -293,9 +334,3 @@ Add production redirect URI:
 `https://<your-railway-host>/auth/google/callback`
 
 Keep `http://localhost:8000/auth/google/callback` for local dev.
-
----
-
-## Design Docs
-
-See [`docs/`](docs/) for architecture, state machines, and drawing model notes.

@@ -143,7 +143,7 @@ function shapesToSvgMarkup(shapes: WhiteboardShape[]): string {
         case "fill": {
           const d = s.geometry.d;
           if (typeof d !== "string" || !/^[Mm]/.test(d.trim())) return "";
-          return `<path d="${d}" fill="${s.fill === "none" ? s.stroke : s.fill}" stroke="none"${t}/>`;
+          return `<path d="${d}" fill="${s.fill === "none" ? s.stroke : s.fill}" fill-rule="evenodd" stroke="none"${t}/>`;
         }
         case "pencil": {
           const d = s.geometry.d;
@@ -156,7 +156,8 @@ function shapesToSvgMarkup(shapes: WhiteboardShape[]): string {
     })
     .join("");
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><rect width="100%" height="100%" fill="#ffffff"/>${body}</svg>`;
+  // crispEdges hardens stroke barriers for flood-fill rasterization (less AA leak).
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" shape-rendering="crispEdges"><rect width="100%" height="100%" fill="#ffffff"/>${body}</svg>`;
 }
 
 function cursorForTool(

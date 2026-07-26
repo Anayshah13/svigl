@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { useEffect, useState, type FormEvent } from "react";
+import { useState, useSyncExternalStore, type FormEvent } from "react";
 import { GameFeaturesSection } from "@/components/landing/GameFeaturesSection";
 import { LandingBackgroundDoodles } from "@/components/landing/LandingBackgroundDoodles";
 import { LandingCtaSection } from "@/components/landing/LandingCtaSection";
@@ -46,16 +46,25 @@ function HeadlineWords({ words }: { words: readonly string[] }) {
   );
 }
 
-// Picked after mount so the server and client markup match; the hero fades in
-// from opacity 0, so the swap happens before anything is visible.
+// Server always renders HEADLINES[0]; client picks a stable random index after
+// hydration via useSyncExternalStore (avoids setState-in-effect). The hero
+// fades in from opacity 0, so the swap happens before anything is visible.
+let clientHeadlineIndex: number | undefined;
+
+function getClientHeadlineIndex() {
+  if (clientHeadlineIndex === undefined) {
+    clientHeadlineIndex = Math.floor(Math.random() * HEADLINES.length);
+  }
+  return clientHeadlineIndex;
+}
+
 function useRandomHeadline() {
-  const [index, setIndex] = useState(0);
-
-  useEffect(() => {
-    setIndex(Math.floor(Math.random() * HEADLINES.length));
-  }, []);
-
-  return HEADLINES[index];
+  const index = useSyncExternalStore(
+    () => () => {},
+    getClientHeadlineIndex,
+    () => 0,
+  );
+  return HEADLINES[index]!;
 }
 
 export function LandingPage() {
@@ -86,7 +95,7 @@ export function LandingPage() {
       <LandingBackgroundDoodles />
       <div className="relative z-10">
         <section className="relative flex min-h-[calc(100dvh-3.5rem)] flex-col items-center justify-center px-5 py-16 sm:px-6 sm:py-20 lg:py-24">
-          <div className="relative mx-auto flex w-full max-w-2xl flex-col items-center text-center sm:max-w-3xl lg:-translate-y-[3vh] lg:max-w-4xl">
+          <div className="relative mx-auto flex w-full max-w-2xl flex-col items-center text-center sm:max-w-3xl lg:-translate-y-3vh lg:max-w-4xl">
             <FadeIn className="mb-8 flex w-full justify-center md:hidden">
               <SviglLogo size="hero" className="justify-center text-center" />
             </FadeIn>

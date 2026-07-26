@@ -87,6 +87,7 @@ function ShapeNode({ shape }: { shape: WhiteboardShape }) {
         <path
           d={d}
           fill={shape.fill === "none" ? shape.stroke : shape.fill}
+          fillRule="evenodd"
           stroke="none"
           transform={shape.transform || undefined}
         />

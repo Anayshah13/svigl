@@ -191,7 +191,7 @@ export function useWhiteboard(options: UseWhiteboardOptions = {}): WhiteboardCon
     playerId = "local",
     isDrawer = true,
     initialShapes = [],
-    fillTolerance: initialTolerance = 32,
+    fillTolerance: initialTolerance = 24,
     preferDraw = false,
     onShapeCreated,
     onShapePreview,

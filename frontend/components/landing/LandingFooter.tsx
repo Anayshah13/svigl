@@ -15,6 +15,7 @@ type FooterLink = {
 const CONNECT_LINKS: FooterLink[] = [
   { label: "GitHub", href: "https://github.com/Anayshah13/svigl", external: true },
   { label: "LinkedIn", href: "https://www.linkedin.com/in/anay-shah-5880aa264/", external: true },
+  { label: "Portfolio", href: "https://anay13.tech", external: true },
 ];
 
 function GitHubIcon() {
@@ -34,6 +35,17 @@ function LinkedInIcon() {
       <path
         fill="currentColor"
         d="M20.45 20.45h-3.55v-5.57c0-1.33-.02-3.04-1.85-3.04-1.86 0-2.14 1.45-2.14 2.94v5.67H9.36V9h3.4v1.56h.05a3.73 3.73 0 0 1 3.36-1.84c3.6 0 4.27 2.37 4.27 5.45v6.28ZM5.34 7.43a2.06 2.06 0 1 1 0-4.12 2.06 2.06 0 0 1 0 4.12ZM7.12 20.45H3.56V9h3.56v11.45ZM22.22 0H1.77C.79 0 0 .77 0 1.72v20.56C0 23.23.79 24 1.77 24h20.45c.98 0 1.78-.77 1.78-1.72V1.72C24 .77 23.2 0 22.22 0Z"
+      />
+    </svg>
+  );
+}
+
+function PortfolioIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4">
+      <path
+        fill="currentColor"
+        d="M14 3a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v6a1 1 0 1 1-2 0V6.41l-9.29 9.3a1 1 0 0 1-1.42-1.42L18.59 5H15a1 1 0 0 1-1-1ZM5 5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-5a1 1 0 1 1 2 0v5a4 4 0 0 1-4 4H5a4 4 0 0 1-4-4V7a4 4 0 0 1 4-4h5a1 1 0 1 1 0 2H5Z"
       />
     </svg>
   );
@@ -295,6 +307,16 @@ export function LandingFooter() {
                 className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-plum/15 bg-white/70 text-ink-muted transition-colors hover:border-plum/40 hover:bg-white hover:text-plum"
               >
                 <LinkedInIcon />
+              </motion.a>
+              <motion.a
+                href="https://anay13.tech"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Portfolio"
+                whileHover={{ y: -2 }}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-plum/15 bg-white/70 text-ink-muted transition-colors hover:border-plum/40 hover:bg-white hover:text-plum"
+              >
+                <PortfolioIcon />
               </motion.a>
             </div>
           </motion.div>

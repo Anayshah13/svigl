@@ -225,6 +225,12 @@ def apply_shape_created(
 
     Transient SHAPE_UPDATED previews are never persisted, so the normal path
     pushes one undoable ``add``. A repeated commit safely becomes an update.
+
+    Replay hook (future): after a successful commit, append a timed
+    ``shape.commit`` (or equivalent) event to the in-progress drawing's
+    timeline buffer. Do the same for persisted update/delete/clear/undo/redo.
+    Ephemeral previews should only be recorded if mid-stroke pencil replay
+    is required; they must not mutate ``CanvasState``.
     """
     room = _room(db, room_code)
     session = _session(room)

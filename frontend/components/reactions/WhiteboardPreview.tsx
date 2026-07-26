@@ -1,6 +1,7 @@
 "use client";
 
 import { ShapeList } from "@/features/whiteboard/ShapeRenderer";
+import { normalizeShape } from "@/features/whiteboard/serialize";
 import type { WhiteboardExport, WhiteboardShape } from "@/features/whiteboard/types";
 import { WHITEBOARD_VIEWBOX } from "@/features/whiteboard/types";
 import { cn } from "@/lib/cn";
@@ -11,6 +12,16 @@ function isWhiteboardDoc(value: unknown): value is WhiteboardExport {
   return Array.isArray(doc.shapes);
 }
 
+function safeShapes(document: WhiteboardExport | null | undefined): WhiteboardShape[] {
+  if (!isWhiteboardDoc(document)) return [];
+  const out: WhiteboardShape[] = [];
+  for (const item of document.shapes) {
+    const normalized = normalizeShape(item);
+    if (normalized) out.push(normalized);
+  }
+  return out;
+}
+
 /** Read-only whiteboard snapshot for gallery / profile cards. */
 export function WhiteboardPreview({
   document,
@@ -19,9 +30,7 @@ export function WhiteboardPreview({
   document: WhiteboardExport | null | undefined;
   className?: string;
 }) {
-  const shapes: WhiteboardShape[] = isWhiteboardDoc(document)
-    ? document.shapes
-    : [];
+  const shapes = safeShapes(document);
   const vb =
     isWhiteboardDoc(document) && document.viewBox
       ? document.viewBox

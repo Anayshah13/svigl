@@ -24,7 +24,6 @@ const INITIAL_FORM = {
   type: "feedback" as FeedbackType,
   name: "",
   email: "",
-  subject: "",
   message: "",
 };
 
@@ -125,7 +124,7 @@ export function FeedbackPage() {
                     Help us improve
                   </span>
 
-                  <h1 className="mt-4 text-[clamp(1.875rem,3.2vw,2.75rem)] font-bold leading-[1.1] tracking-tight text-ink">
+                  <h1 className="mt-4 font-display text-[clamp(1.875rem,3.2vw,2.75rem)] font-normal leading-[1.1] tracking-tight text-ink">
                     Report an issue or share feedback
                   </h1>
                   <p className="script-accent mt-2 text-[clamp(1.75rem,3.5vw,2.5rem)] font-semibold leading-none">
@@ -170,7 +169,7 @@ export function FeedbackPage() {
                     </div>
                   </fieldset>
 
-                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  <div className="grid gap-4 sm:grid-cols-2">
                     <label className="block">
                       <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-ink-muted sm:text-sm">
                         Name <span className="font-normal normal-case">(optional)</span>
@@ -196,19 +195,6 @@ export function FeedbackPage() {
                         className="h-12 text-base"
                       />
                     </label>
-                    <label className="block sm:col-span-2 lg:col-span-1">
-                      <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-ink-muted sm:text-sm">
-                        Subject
-                      </span>
-                      <Input
-                        value={form.subject}
-                        onChange={(event) => setForm((prev) => ({ ...prev, subject: event.target.value }))}
-                        placeholder="Short summary"
-                        required
-                        maxLength={120}
-                        className="h-12 text-base"
-                      />
-                    </label>
                   </div>
 
                   <label className="block">
@@ -229,7 +215,15 @@ export function FeedbackPage() {
 
                   {!emailConfigured ? (
                     <p role="status" className="text-xs leading-relaxed text-plum/75 sm:text-sm">
-                      Email delivery not configured yet — add EmailJS keys to{" "}
+                      Email delivery not configured yet — add{" "}
+                      <code className="rounded bg-plum-light/70 px-1.5 py-0.5 text-xs">
+                        NEXT_PUBLIC_EMAILJS_TEMPLATE_ID
+                      </code>{" "}
+                      and{" "}
+                      <code className="rounded bg-plum-light/70 px-1.5 py-0.5 text-xs">
+                        NEXT_PUBLIC_EMAILJS_PUBLIC_KEY
+                      </code>{" "}
+                      to{" "}
                       <code className="rounded bg-plum-light/70 px-1.5 py-0.5 text-xs">.env.local</code>.
                     </p>
                   ) : null}

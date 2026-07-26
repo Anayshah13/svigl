@@ -102,7 +102,12 @@ def create_in_progress_drawing(
     author_id: UUID,
     word: str,
 ) -> Drawing:
-    """Allocate a drawing id for the current turn so live reactions can attach."""
+    """Allocate a drawing id for the current turn so live reactions can attach.
+
+    Replay hook (future): start an empty stroke/shape timeline here keyed by
+    ``drawing.id``. Live canvas commits during the round should append timed
+    events to that buffer (see ``publish_drawing``).
+    """
     existing = db.scalar(
         select(Drawing).where(
             Drawing.session_id == session.id,
@@ -149,6 +154,18 @@ def publish_drawing(
 
     Profile counters are updated exactly once at publish time from the
     drawing's denormalized reaction totals (not per live reaction).
+
+    Replay hook (future) — integrate here, not earlier:
+      1. During ROUND_ACTIVE, record an append-only timeline of committed
+         canvas ops (and, if needed, throttled pencil samples) against the
+         in-progress ``drawing.id`` — see ``create_in_progress_drawing`` and
+         ``app.services.canvas.apply_shape_*``.
+      2. At this publish point, persist that timeline next to
+         ``drawing.document`` (Postgres JSON column or sibling table).
+      3. Gallery/profile keep using ``WhiteboardExport`` (``document``) for
+         the static preview; hover replay loads the timeline and animates
+         from a blank board in stroke/shape order with original timing.
+      Final ``document.shapes`` alone is insufficient for true timing replay.
     """
     if drawing_id is None:
         return None
@@ -162,7 +179,9 @@ def publish_drawing(
         return drawing
 
     shapes = _load_canvas_shapes(db, drawing.session_id)
+    # Canonical static snapshot for gallery / profile (WhiteboardExport).
     drawing.document = _empty_document(shapes)
+    # Future: also attach the recorded replay timeline for this drawing_id.
     drawing.status = DRAWING_STATUS_PUBLISHED
     drawing.published_at = utcnow()
 

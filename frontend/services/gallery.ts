@@ -36,15 +36,26 @@ interface GalleryListApi {
   total: number;
 }
 
+const EMPTY_DOCUMENT: WhiteboardExport = {
+  version: 1,
+  viewBox: { width: 800, height: 800 },
+  shapes: [],
+  exportedAt: 0,
+};
+
 function mapItem(item: GalleryApiItem): GalleryEntry {
   const published = item.published_at ?? item.created_at;
+  const document =
+    item.document && Array.isArray(item.document.shapes)
+      ? item.document
+      : EMPTY_DOCUMENT;
   return {
     id: item.id,
     authorId: item.author_id,
     authorName: item.author_name,
     authorAvatarUrl: item.author_avatar_url ?? null,
     word: item.word,
-    document: item.document,
+    document,
     likes: item.likes ?? 0,
     dislikes: item.dislikes ?? 0,
     myReaction: item.my_reaction ?? null,
