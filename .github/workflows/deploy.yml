@@ -1,0 +1,67 @@
+# Deploy FastAPI backend to AWS EC2 on pushes that touch backend code
+# or this workflow. Frontend (Next.js) is deployed separately (e.g. Vercel).
+#
+# Required GitHub Secrets:
+#   EC2_HOST     — instance hostname or IP
+#   EC2_USER     — SSH user (must be able to git pull and sudo systemctl)
+#   EC2_SSH_KEY  — private key for SSH (PEM contents)
+#
+# Assumptions:
+#   - /opt/svigl is a git checkout of this repo on `main`
+#   - EC2 can `git pull origin main` via deploy key / SSH agent (no prompts)
+#   - /opt/svigl/backend/.venv exists and is the runtime venv
+#   - systemd unit `svigl` runs the API; EC2_USER has passwordless sudo for it
+#   - Alembic/env reads DATABASE_URL (or POSTGRES_*) from the service environment
+
+name: Deploy backend to EC2
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "backend/**"
+      - ".github/workflows/deploy.yml"
+
+concurrency:
+  group: deploy-backend-ec2
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy FastAPI to EC2
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          # Needed for sudo systemctl without a TTY on some AMIs
+          request_pty: true
+          script_stop: true
+          command_timeout: 10m
+          script: |
+            set -e
+
+            echo "==> Updating repository at /opt/svigl"
+            cd /opt/svigl
+            git pull origin main
+
+            echo "==> Installing Python dependencies"
+            cd /opt/svigl/backend
+            # Portable activate (works under sh and bash)
+            . .venv/bin/activate
+            pip install -r requirements.txt
+
+            echo "==> Running Alembic migrations"
+            alembic upgrade head
+
+            echo "==> Restarting systemd service: svigl"
+            sudo systemctl restart svigl
+
+            echo "==> Verifying service status"
+            sudo systemctl status svigl --no-pager
