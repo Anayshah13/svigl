@@ -13,7 +13,7 @@
 | Database | PostgreSQL 17 |
 | Auth | Google OAuth 2.0 + JWT session cookies |
 | Realtime | WebSockets (room sync, canvas ops, game events) |
-| Infrastructure | Docker, Docker Compose (local); Vercel (frontend), Railway (backend) |
+| Infrastructure | Docker, Docker Compose (local); any Linux host / container for production |
 | Tests | Vitest (frontend), pytest (backend) |
 
 ---
@@ -137,9 +137,9 @@ COOKIE_SECURE=false
 COOKIE_SAMESITE=lax
 ```
 
-> **Safari / iPad note:** With the frontend on Vercel and API on Railway, Safari blocks cross-site cookies (ITP). The app falls back to a Bearer token in `sessionStorage` (guest login response body, Google OAuth hash) and passes it on HTTP + WebSocket. Cookies still work in Chrome. For a cleaner production setup, put both on the same site (e.g. `svigl.com` + `api.svigl.com`) and use `COOKIE_SAMESITE=lax`.
+> **Safari / iPad note:** When the frontend and API are on different sites, Safari may block cross-site cookies (ITP). The app falls back to a Bearer token in `sessionStorage` (guest login response body, Google OAuth hash) and passes it on HTTP + WebSocket. Cookies still work in Chrome. For a cleaner production setup, put both on the same site (e.g. `app.example.com` + `api.example.com`) and use `COOKIE_SAMESITE=lax`.
 
-> **Google OAuth setup:** Go to [Google Cloud Console](https://console.cloud.google.com/) → APIs & Services → Credentials → Create OAuth 2.0 Client ID. Add `http://localhost:8000/auth/google/callback` as an authorised redirect URI. For production, also add `https://<your-railway-host>/auth/google/callback`.
+> **Google OAuth setup:** Go to [Google Cloud Console](https://console.cloud.google.com/) → APIs & Services → Credentials → Create OAuth 2.0 Client ID. Add `http://localhost:8000/auth/google/callback` as an authorised redirect URI. For production, also add `https://<your-api-host>/auth/google/callback`.
 
 ### 3. `frontend/.env.local`
 
@@ -299,38 +299,54 @@ Feature modules under `frontend/features/` own domain UI (whiteboard, room game 
 
 ## Production Deployment
 
-| Service | Host | Notes |
-|---------|------|-------|
-| Frontend | [Vercel](https://vercel.com) | Set `NEXT_PUBLIC_API_URL` and `NEXT_PUBLIC_WS_URL` at build time |
-| Backend | [Railway](https://railway.app) | Docker build from `backend/`; set service root directory to `backend` |
+Hosting-agnostic: configure via environment variables, then run the usual process managers / reverse proxies for your host.
 
-### Railway (backend)
+### Backend (FastAPI)
+
+From `backend/` (with a virtualenv and dependencies installed):
+
+```bash
+# migrations
+alembic upgrade head
+
+# serve (PORT defaults to 8000 if unset)
+uvicorn app.main:app --host 0.0.0.0 --port "${PORT:-8000}" --proxy-headers
+```
+
+Or use the container image built from `backend/Dockerfile` (entrypoint runs migrations, then uvicorn). Listen port is controlled by `PORT`.
 
 Required variables (see `backend/.env.example`):
 
-- `FRONTEND_URL` — e.g. `https://svigl.vercel.app`
+- `FRONTEND_URL` — e.g. `https://app.example.com`
 - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`
 - `JWT_SECRET`, `JWT_EXPIRE_MINUTES`, `SESSION_SECRET_KEY`
-- `COOKIE_SECURE=true`, `COOKIE_SAMESITE=none`, `DEBUG=false`
-- `DATABASE_URL` — from Railway Postgres
-
-**Networking:** public domain **target port must be `8080`** (matches `PORT` in `backend/Dockerfile`). A mismatch causes Railway 502 “Application failed to respond”.
+- `COOKIE_SECURE`, `COOKIE_SAMESITE`, `DEBUG=false`
+- `DATABASE_URL` — e.g. `postgresql://user:pass@host:5432/dbname`
 
 Health check: `GET /health`
 
-### Vercel (frontend)
+### Frontend (Next.js)
 
-```env
-NEXT_PUBLIC_API_URL=https://<your-railway-host>
-NEXT_PUBLIC_WS_URL=wss://<your-railway-host>
+From `frontend/`:
+
+```bash
+npm run build
+npm start
 ```
 
-Redeploy after changing these (they are baked in at build time).
+Set at **build** time:
+
+```env
+NEXT_PUBLIC_API_URL=https://<your-api-host>
+NEXT_PUBLIC_WS_URL=wss://<your-api-host>
+```
+
+Rebuild after changing these — they are inlined at build time.
 
 ### Google Cloud Console
 
 Add production redirect URI:
 
-`https://<your-railway-host>/auth/google/callback`
+`https://<your-api-host>/auth/google/callback`
 
 Keep `http://localhost:8000/auth/google/callback` for local dev.

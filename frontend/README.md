@@ -32,13 +32,13 @@ npm run start    # serve production build
 npm run lint     # ESLint
 ```
 
-## Production (Vercel)
+## Production
 
-Set at build time:
+Set at build time (any host):
 
 ```env
-NEXT_PUBLIC_API_URL=https://<your-railway-host>
-NEXT_PUBLIC_WS_URL=wss://<your-railway-host>
+NEXT_PUBLIC_API_URL=https://<your-api-host>
+NEXT_PUBLIC_WS_URL=wss://<your-api-host>
 ```
 
-Redeploy after changing env vars.
+Rebuild after changing these — they are inlined at build time.

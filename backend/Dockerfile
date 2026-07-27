@@ -2,12 +2,8 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-# Pin PORT to Railway's common default so Dockerfile EXPOSE, process bind,
-# and public-domain target port all agree. A previous EXPOSE 8000 left the
-# Railway domain targeting 8000 while the app listened on 8080 → edge 502.
 ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    PORT=8080
+    PYTHONUNBUFFERED=1
 
 RUN addgroup --system app && adduser --system --ingroup app app
 
@@ -23,7 +19,8 @@ RUN chmod +x ./entrypoint.sh
 
 USER app
 
-EXPOSE 8080
+# Default listen port; override at runtime with PORT.
+EXPOSE 8000
 
 ENTRYPOINT ["./entrypoint.sh"]
 CMD []

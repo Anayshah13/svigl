@@ -3,7 +3,7 @@ import { getAccessToken } from "@/lib/access-token";
 /**
  * Backend HTTP base URL (no trailing slash).
  * Local default keeps `npm run dev` working without env files.
- * Production (Vercel) must set NEXT_PUBLIC_API_URL at build time.
+ * Production must set NEXT_PUBLIC_API_URL at build time.
  */
 export function getApiUrl(): string {
   const url = process.env.NEXT_PUBLIC_API_URL?.trim();

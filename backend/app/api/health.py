@@ -10,5 +10,5 @@ def root_health_check() -> dict[str, str]:
 
 @router.get("/health")
 def health_check() -> dict[str, str]:
-    """Railway / container health probe."""
+    """Load balancer / container health probe."""
     return {"status": "ok"}

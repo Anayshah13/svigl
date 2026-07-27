@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     app_name: str = "API"
     debug: bool = False
 
-    # Prefer DATABASE_URL (Railway). Fall back to POSTGRES_* (local docker-compose).
+    # Prefer DATABASE_URL. Fall back to POSTGRES_* (e.g. local docker-compose).
     database_url_env: str | None = Field(
         default=None,
         validation_alias=AliasChoices("DATABASE_URL", "database_url"),
@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     postgres_user: str | None = None
     postgres_password: str | None = None
     postgres_db: str | None = None
-    # Local docker-compose service name. Production should set DATABASE_URL.
+    # Used when DATABASE_URL is unset (e.g. compose service hostname).
     postgres_host: str = "postgres"
     postgres_port: int = 5432
 
@@ -40,8 +40,8 @@ class Settings(BaseSettings):
     )
 
     # Explicit cookie flags — set per environment (do not derive from DEBUG).
-    # Dev: COOKIE_SECURE=false, COOKIE_SAMESITE=lax
-    # Prod (cross-site Vercel↔Railway): COOKIE_SECURE=true, COOKIE_SAMESITE=none
+    # Same-site (or localhost): COOKIE_SECURE=false/true, COOKIE_SAMESITE=lax
+    # Cross-site frontend↔API: COOKIE_SECURE=true, COOKIE_SAMESITE=none
     cookie_secure: bool = False
     cookie_samesite: Literal["lax", "strict", "none"] = "lax"
 
@@ -88,7 +88,7 @@ class Settings(BaseSettings):
     def database_url(self) -> str:
         if self.database_url_env:
             url = self.database_url_env
-            # Railway / Heroku sometimes use postgres:// — normalize for SQLAlchemy.
+            # Some providers still emit postgres:// — normalize for SQLAlchemy.
             if url.startswith("postgres://"):
                 return "postgresql://" + url.removeprefix("postgres://")
             return url
