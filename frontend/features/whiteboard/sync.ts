@@ -120,9 +120,10 @@ const CANVAS_EVENT_SET = new Set<string>([
  * Syncs whiteboard shapes for one room attachment.
  *
  * ```ts
- * const stop = canvasSync.attach({ onShapes: setShapes });
- * canvasSync.publishShapePreview(shape); // coalesced ~30fps, not persisted
- * canvasSync.publishShapeCreated(shape); // persisted on pointer up
+ * const sync = createCanvasSyncClient();
+ * const stop = sync.attach({ onShapes: setShapes });
+ * sync.publishShapePreview(shape); // coalesced ~30fps, not persisted
+ * sync.publishShapeCreated(shape); // persisted on pointer up
  * ```
  */
 export function createCanvasSyncClient() {
@@ -470,8 +471,5 @@ export function createCanvasSyncClient() {
 }
 
 export type CanvasSyncClient = ReturnType<typeof createCanvasSyncClient>;
-
-/** Singleton for the active room tab — whiteboard UI can import this later. */
-export const canvasSync = createCanvasSyncClient();
 
 export type { HistoryOp, WhiteboardShape };

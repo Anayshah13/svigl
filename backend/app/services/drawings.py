@@ -500,32 +500,6 @@ def list_gallery(
     return [(d, my_map.get(d.id)) for d in drawings]
 
 
-def get_published_drawing(
-    db: Session, drawing_id: UUID, *, viewer_id: UUID | None = None
-) -> tuple[Drawing, ReactionValue | None]:
-    drawing = db.scalar(
-        select(Drawing)
-        .where(
-            Drawing.id == drawing_id,
-            Drawing.status == DRAWING_STATUS_PUBLISHED,
-        )
-        .options(selectinload(Drawing.author))
-    )
-    if drawing is None:
-        raise DrawingError("NOT_FOUND", "Drawing not found.", status_code=404)
-    my = None
-    if viewer_id is not None:
-        row = db.scalar(
-            select(DrawingReaction).where(
-                DrawingReaction.drawing_id == drawing_id,
-                DrawingReaction.user_id == viewer_id,
-            )
-        )
-        if row is not None and row.value in (REACTION_LIKE, REACTION_DISLIKE):
-            my = row.value  # type: ignore[assignment]
-    return drawing, my
-
-
 def set_gallery_reaction(
     db: Session,
     *,

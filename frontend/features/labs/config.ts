@@ -6,7 +6,7 @@ import type { LabConfig } from "./types";
  * Adding a lab:
  * 1. Append a config object here (slug becomes the route segment).
  * 2. Add an icon in `components/LabIcon.tsx` if you introduce a new `icon` key.
- * 3. Optionally seed mock/API leaderboard data for that slug.
+ * 3. Valid scores automatically update the local leaderboard store.
  *
  * Routes (`/labs/[lab]`, `/labs/leaderboard/[lab]`) resolve from this list —
  * no new page files required.
@@ -72,10 +72,6 @@ export function getLabBySlug(slug: string): LabConfig | undefined {
 
 export function getAllLabs(): readonly LabConfig[] {
   return LABS;
-}
-
-export function getAvailableLabs(): readonly LabConfig[] {
-  return LABS.filter((lab) => lab.status === "available" || lab.status === "beta");
 }
 
 export function labPath(slug: string): string {

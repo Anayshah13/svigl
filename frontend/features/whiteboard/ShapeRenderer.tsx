@@ -49,9 +49,7 @@ function ShapeNode({ shape }: { shape: WhiteboardShape }) {
     }
     case "ellipse": {
       const g = shape.geometry;
-      return (
-        <ellipse cx={g.cx} cy={g.cy} rx={g.rx} ry={g.ry} {...common} />
-      );
+      return <ellipse cx={g.cx} cy={g.cy} rx={g.rx} ry={g.ry} {...common} />;
     }
     case "arrow": {
       const g = shape.geometry;
@@ -115,6 +113,8 @@ function ShapeNode({ shape }: { shape: WhiteboardShape }) {
   }
 }
 
+const MemoShapeNode = React.memo(ShapeNode);
+
 export function ShapeList({
   shapes,
   selectedId,
@@ -132,33 +132,6 @@ export function ShapeList({
   );
   return (
     <>
-      <style>{`
-        @keyframes wb-shape-enter {
-          from { opacity: 0; transform: scale(0.97); }
-          to { opacity: 1; transform: scale(1); }
-        }
-        .wb-shape-enter {
-          transform-box: fill-box;
-          transform-origin: center;
-          animation: wb-shape-enter 180ms ease-out;
-        }
-        @keyframes wb-select-in {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
-        .wb-select-in {
-          animation: wb-select-in 140ms ease-out;
-        }
-        /* Opacity-only: CSS transform would override SVG transform attrs
-           (e.g. rotated diamond handles) and park them at a wrong origin. */
-        @keyframes wb-handle-pop {
-          from { opacity: 0.5; }
-          to { opacity: 1; }
-        }
-        .wb-handle-pop {
-          animation: wb-handle-pop 140ms ease-out;
-        }
-      `}</style>
       {shapes.map((shape) => {
         const isSelected = selected.has(shape.id);
         const dimOthers = selected.size > 0 && !isSelected;
@@ -173,7 +146,7 @@ export function ShapeList({
                 : undefined
             }
           >
-            <ShapeNode shape={shape} />
+            <MemoShapeNode shape={shape} />
           </g>
         );
       })}

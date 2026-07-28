@@ -1,7 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  experimental: {
+    optimizePackageImports: ["framer-motion", "gsap", "@gsap/react"],
+  },
 };
 
 export default nextConfig;

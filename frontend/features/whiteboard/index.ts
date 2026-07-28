@@ -17,7 +17,6 @@ export {
 
 export { WhiteboardCanvas } from "./WhiteboardCanvas";
 export { SquareBoard } from "./SquareBoard";
-export { WhiteboardToolbar } from "./WhiteboardToolbar";
 export { ToolDock } from "./ToolDock";
 export { StyleDock } from "./StyleDock";
 export { ActionBar } from "./ActionBar";
@@ -26,7 +25,7 @@ export { ContextMenu } from "./ContextMenu";
 export { DrawerOnboarding, useDrawerOnboarding } from "./DrawerOnboarding";
 export { ShortcutHelp } from "./ShortcutHelp";
 export { CurveIcon, ToolIcon } from "./icons";
-export { ShapeList, ShapeNode, BezierDraftOverlay, SelectionOverlay } from "./ShapeRenderer";
+export { ShapeList, BezierDraftOverlay, SelectionOverlay } from "./ShapeRenderer";
 
 export { useWhiteboard } from "./useWhiteboard";
 export type {
@@ -41,7 +40,6 @@ export { throttle } from "./throttle";
 export { floodFillMask, maskToPath, floodFillToPath } from "./floodFill";
 export {
   exportShapes,
-  exportShapesJson,
   importShapes,
   importShapesJson,
   mergeShapesById,
@@ -53,7 +51,6 @@ export {
 
 export {
   createCanvasSyncClient,
-  canvasSync,
   SHAPE_UPDATE_THROTTLE_MS,
 } from "./sync";
 export type {
@@ -78,7 +75,6 @@ export {
   hitTestShapes,
   translateShape,
   resizeRectFromCorner,
-  resizeEllipseFromCorner,
   distToSegment,
   offsetTransform,
   snapCoord,

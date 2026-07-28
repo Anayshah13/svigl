@@ -37,12 +37,15 @@ export type LeaderboardEntry = {
   rank: number;
   player: string;
   score: number;
-  /** ISO date string */
+  /** ISO date string (YYYY-MM-DD) */
   date: string;
+  /** Present when loaded from the global API. */
+  userId?: string;
 };
 
 export type LabLeaderboardSummary = {
   slug: string;
   topScore: number | null;
   entryCount: number;
+  topPlayer?: string | null;
 };

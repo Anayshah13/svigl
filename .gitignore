@@ -4,6 +4,7 @@ auth_key.json
 backend/.env.local
 __pycache__/
 *.py[cod]
+.pytest_cache/
 .venv/
 venv/
 .env.production.local

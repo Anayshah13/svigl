@@ -206,6 +206,23 @@ html.has-active-room-bar main {
   }
 }
 
+@keyframes wb-shape-enter {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.wb-shape-enter {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: wb-shape-enter 180ms ease-out;
+}
+
 .wb-handle-pop {
   animation: wb-handle-in 160ms ease-out;
 }
@@ -216,7 +233,282 @@ html.has-active-room-bar main {
 
 @media (prefers-reduced-motion: reduce) {
   .wb-handle-pop,
-  .wb-select-in {
+  .wb-select-in,
+  .wb-shape-enter {
+    animation: none !important;
+  }
+}
+
+/* Aurora background — compositor CSS (no Framer JS on every page) */
+.aurora-root {
+  contain: strict;
+}
+
+.aurora-paused,
+.aurora-paused * {
+  animation-play-state: paused !important;
+}
+
+.aurora-spot {
+  will-change: transform;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+
+@keyframes aurora-drift-a {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  25% {
+    transform: translate3d(80px, 50px, 0) scale(1.08);
+  }
+  50% {
+    transform: translate3d(40px, -40px, 0) scale(0.94);
+  }
+  75% {
+    transform: translate3d(-30px, 30px, 0) scale(1.05);
+  }
+}
+
+@keyframes aurora-drift-b {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  25% {
+    transform: translate3d(-70px, 60px, 0) scale(1.08);
+  }
+  50% {
+    transform: translate3d(-30px, -20px, 0) scale(0.94);
+  }
+  75% {
+    transform: translate3d(50px, -50px, 0) scale(1.05);
+  }
+}
+
+@keyframes aurora-drift-c {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  25% {
+    transform: translate3d(60px, -45px, 0) scale(1.08);
+  }
+  50% {
+    transform: translate3d(-50px, 55px, 0) scale(0.94);
+  }
+  75% {
+    transform: translate3d(25px, -25px, 0) scale(1.05);
+  }
+}
+
+@keyframes aurora-drift-d {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  25% {
+    transform: translate3d(-55px, -35px, 0) scale(1.08);
+  }
+  50% {
+    transform: translate3d(35px, 45px, 0) scale(0.94);
+  }
+  75% {
+    transform: translate3d(-40px, 20px, 0) scale(1.05);
+  }
+}
+
+@keyframes aurora-drift-e {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  25% {
+    transform: translate3d(45px, -50px, 0) scale(1.08);
+  }
+  50% {
+    transform: translate3d(-35px, 30px, 0) scale(0.94);
+  }
+  75% {
+    transform: translate3d(60px, -20px, 0) scale(1.05);
+  }
+}
+
+@keyframes aurora-drift-f {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  25% {
+    transform: translate3d(-40px, 40px, 0) scale(1.08);
+  }
+  50% {
+    transform: translate3d(55px, -30px, 0) scale(0.94);
+  }
+  75% {
+    transform: translate3d(-25px, 35px, 0) scale(1.05);
+  }
+}
+
+.aurora-spot.aurora-drift-a {
+  animation-name: aurora-drift-a;
+}
+.aurora-spot.aurora-drift-b {
+  animation-name: aurora-drift-b;
+}
+.aurora-spot.aurora-drift-c {
+  animation-name: aurora-drift-c;
+}
+.aurora-spot.aurora-drift-d {
+  animation-name: aurora-drift-d;
+}
+.aurora-spot.aurora-drift-e {
+  animation-name: aurora-drift-e;
+}
+.aurora-spot.aurora-drift-f {
+  animation-name: aurora-drift-f;
+}
+
+.aurora-ring-spin {
+  animation-name: aurora-spin;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+.aurora-ring-pulse {
+  animation-name: aurora-pulse-scale;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+
+@keyframes aurora-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes aurora-pulse-scale {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.06);
+  }
+}
+
+.aurora-ring-stroke {
+  animation-name: aurora-opacity-pulse;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+
+@keyframes aurora-opacity-pulse {
+  0%,
+  100% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+
+.aurora-square {
+  animation-name: aurora-square-bob;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+
+@keyframes aurora-square-bob {
+  0%,
+  100% {
+    transform: rotate(var(--aurora-rot, 0deg)) translate3d(0, 0, 0);
+  }
+  50% {
+    transform: rotate(calc(var(--aurora-rot, 0deg) + 90deg)) translate3d(12px, -18px, 0);
+  }
+}
+
+.aurora-blob {
+  animation-name: aurora-blob-drift;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+
+@keyframes aurora-blob-drift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  33% {
+    transform: translate3d(20px, -15px, 0) scale(1.15);
+  }
+  66% {
+    transform: translate3d(-10px, 10px, 0) scale(1);
+  }
+}
+
+.aurora-triangle {
+  animation-name: aurora-triangle-bob;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+
+@keyframes aurora-triangle-bob {
+  0%,
+  100% {
+    transform: rotate(var(--aurora-rot, 0deg)) translate3d(0, 0, 0);
+  }
+  50% {
+    transform: rotate(calc(var(--aurora-rot, 0deg) + 120deg)) translate3d(0, -12px, 0);
+  }
+}
+
+.aurora-bezier {
+  animation-name: aurora-bezier-drift;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+
+@keyframes aurora-bezier-drift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  33% {
+    transform: translate3d(15px, -12px, 0);
+  }
+  66% {
+    transform: translate3d(-10px, 8px, 0);
+  }
+}
+
+.aurora-bezier-path {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation-name: aurora-bezier-draw;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+
+@keyframes aurora-bezier-draw {
+  0% {
+    stroke-dashoffset: 1;
+  }
+  45% {
+    stroke-dashoffset: 0;
+  }
+  65% {
+    stroke-dashoffset: 0;
+  }
+  100% {
+    stroke-dashoffset: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aurora-root * {
     animation: none !important;
   }
 }

@@ -11,4 +11,4 @@ export function prefersReducedMotion(): boolean {
   return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
-export { gsap, ScrollTrigger, useGSAP };
+export { gsap, useGSAP };

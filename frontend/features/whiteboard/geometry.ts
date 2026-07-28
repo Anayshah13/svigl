@@ -575,27 +575,6 @@ export function resizeRectFromHandle(
   return normalizeRect(x0, y0, x1, y1, keepAspect && isCorner);
 }
 
-export function resizeEllipseFromCorner(
-  g: { cx: number; cy: number; rx: number; ry: number },
-  corner: RectCorner,
-  point: Point,
-  keepCircle: boolean,
-): { cx: number; cy: number; rx: number; ry: number } {
-  const box = {
-    x: g.cx - g.rx,
-    y: g.cy - g.ry,
-    width: g.rx * 2,
-    height: g.ry * 2,
-  };
-  const next = resizeRectFromCorner(box, corner, point, keepCircle);
-  return {
-    cx: next.x + next.width / 2,
-    cy: next.y + next.height / 2,
-    rx: Math.max(0.5, next.width / 2),
-    ry: Math.max(0.5, next.height / 2),
-  };
-}
-
 /** Padding around the shape AABB for selection chrome. */
 export const SELECTION_PAD = 6;
 

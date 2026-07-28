@@ -167,10 +167,6 @@ export function exportShapes(shapes: WhiteboardShape[]): WhiteboardExport {
   };
 }
 
-export function exportShapesJson(shapes: WhiteboardShape[]): string {
-  return JSON.stringify(exportShapes(shapes));
-}
-
 /**
  * Import a shape list. Soft-normalizes each entry so one legacy/broken pencil
  * stroke cannot wipe an entire snapshot (previously threw → empty board).

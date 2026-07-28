@@ -5,6 +5,8 @@ import { useEffect, useRef, useState } from "react";
 /**
  * Local countdown from the server deadline. TIMER_UPDATED / snapshots correct
  * skew; the UI keeps ticking even if a tick is dropped.
+ *
+ * Only commits React state when the displayed whole-second value changes.
  */
 export function usePhaseCountdown(
   phaseEndsAt: string | null | undefined,
@@ -37,14 +39,27 @@ export function usePhaseCountdown(
       return;
     }
 
+    let intervalId: number | undefined;
+
     const tick = () => {
       const now = Date.now() - skewMsRef.current;
-      setSeconds(Math.max(0, Math.ceil((endMs - now) / 1000)));
+      const next = Math.max(0, Math.ceil((endMs - now) / 1000));
+      setSeconds((prev) => (prev === next ? prev : next));
     };
 
     tick();
-    const id = window.setInterval(tick, 250);
-    return () => window.clearInterval(id);
+    const msIntoSecond = (Date.now() - skewMsRef.current) % 1000;
+    const alignId = window.setTimeout(() => {
+      tick();
+      intervalId = window.setInterval(tick, 1000);
+    }, Math.max(0, 1000 - msIntoSecond));
+
+    return () => {
+      window.clearTimeout(alignId);
+      if (intervalId !== undefined) {
+        window.clearInterval(intervalId);
+      }
+    };
   }, [phaseEndsAt]);
 
   if (phaseEndsAt) {

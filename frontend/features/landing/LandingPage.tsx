@@ -7,6 +7,7 @@ import { GameFeaturesSection } from "@/components/landing/GameFeaturesSection";
 import { LandingBackgroundDoodles } from "@/components/landing/LandingBackgroundDoodles";
 import { LandingCtaSection } from "@/components/landing/LandingCtaSection";
 import { LandingFooter } from "@/components/landing/LandingFooter";
+import { LabsCtaOverlapShapes } from "@/components/layout/LabsCtaMarks";
 import { SviglLogo } from "@/components/layout/SviglLogo";
 import { FadeIn } from "@/components/motion/FadeIn";
 import { Button } from "@/components/ui/Button";
@@ -227,7 +228,16 @@ export function LandingPage() {
                 </Card>
               </motion.div>
             </FadeIn>
+
           </div>
+
+          {/* Labs CTA — bottom right, overlap-shapes style */}
+          <FadeIn
+            delay={0.28}
+            className="pointer-events-auto absolute bottom-5 right-3 z-20 sm:bottom-8 sm:right-5 lg:bottom-10 lg:right-8"
+          >
+            <LabsCtaOverlapShapes />
+          </FadeIn>
         </section>
 
         <GameFeaturesSection />

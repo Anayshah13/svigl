@@ -12,7 +12,6 @@ export {
   LABS,
   LAB_SLUGS,
   getAllLabs,
-  getAvailableLabs,
   getLabBySlug,
   isLabSlug,
   labLeaderboardPath,
@@ -25,9 +24,7 @@ export {
 export {
   formatLabDate,
   formatLabScore,
-  getMockLeaderboard,
-  getMockLeaderboardSummaries,
-} from "./mock-data";
+} from "./format";
 
 export { LabsView } from "./LabsView";
 export { LabDetailView } from "./LabDetailView";
@@ -43,3 +40,6 @@ export { SectionHeader } from "./components/SectionHeader";
 export { EmptyState } from "./components/EmptyState";
 export { LabIcon } from "./components/LabIcon";
 export { LabCanvasPlaceholder } from "./components/LabCanvasPlaceholder";
+export { LabChallengeCanvas } from "./components/LabChallengeCanvas";
+export { ScoreBreakdown } from "./components/ScoreBreakdown";
+

@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.auth.dependencies import get_current_user, get_current_user_optional
@@ -20,7 +20,6 @@ from app.schemas.gallery import (
 from app.services.drawings import (
     DrawingError,
     gallery_count,
-    get_published_drawing,
     list_gallery,
     set_gallery_reaction,
 )
@@ -76,21 +75,6 @@ def browse_gallery(
         items=[_to_item(drawing, mine) for drawing, mine in rows],
         total=total,
     )
-
-
-@router.get("/{drawing_id}", response_model=GalleryDrawingResponse)
-def get_gallery_drawing(
-    drawing_id: UUID,
-    db: Session = Depends(get_db),
-    viewer: User | None = Depends(get_current_user_optional),
-) -> GalleryDrawingResponse:
-    try:
-        drawing, mine = get_published_drawing(
-            db, drawing_id, viewer_id=viewer.id if viewer else None
-        )
-    except DrawingError as exc:
-        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
-    return _to_item(drawing, mine)
 
 
 @router.put("/{drawing_id}/reaction", response_model=ReactionStateResponse)

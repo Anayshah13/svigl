@@ -1,5 +1,4 @@
 export {
-  BarCascade,
   DotPulseGrid,
   LetterBounce,
   LoaderScreen,

@@ -1,4 +1,4 @@
-import { ROOM_ERROR_MESSAGES, type RoomError, type RoomErrorCode } from "@/types/room";
+import { ROOM_ERROR_MESSAGES, type RoomError } from "@/types/room";
 
 /** 4-letter room code used by the backend (A–Z). */
 export const ROOM_CODE_LENGTH = 4;
@@ -24,8 +24,4 @@ export function validateRoomCode(input: string): RoomError | null {
 
 export function formatRoomCodeInput(value: string): string {
   return value.replace(/[^a-zA-Z]/g, "").toUpperCase().slice(0, ROOM_CODE_LENGTH);
-}
-
-export function toRoomError(code: RoomErrorCode, override?: string): RoomError {
-  return { code, message: override ?? ROOM_ERROR_MESSAGES[code] };
 }

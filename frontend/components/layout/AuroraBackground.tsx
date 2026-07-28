@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { useEffect, useState } from "react";
 import { colors } from "@/lib/colors";
 
 /** Large soft radial spots — green & plum, more visible */
@@ -14,8 +14,7 @@ const FADED_SPOTS = [
     opacity: 0.28,
     blur: 70,
     duration: 38,
-    x: [0, 80, 40, -30, 0],
-    y: [0, 50, -40, 30, 0],
+    anim: "aurora-drift-a",
   },
   {
     id: "g1",
@@ -26,8 +25,7 @@ const FADED_SPOTS = [
     opacity: 0.24,
     blur: 75,
     duration: 42,
-    x: [0, -70, -30, 50, 0],
-    y: [0, 60, -20, -50, 0],
+    anim: "aurora-drift-b",
   },
   {
     id: "p2",
@@ -38,8 +36,7 @@ const FADED_SPOTS = [
     opacity: 0.22,
     blur: 85,
     duration: 36,
-    x: [0, 60, -50, 25, 0],
-    y: [0, -45, 55, -25, 0],
+    anim: "aurora-drift-c",
   },
   {
     id: "g2",
@@ -50,8 +47,7 @@ const FADED_SPOTS = [
     opacity: 0.26,
     blur: 72,
     duration: 40,
-    x: [0, -55, 35, -40, 0],
-    y: [0, -35, 45, 20, 0],
+    anim: "aurora-drift-d",
   },
   {
     id: "p3",
@@ -62,8 +58,7 @@ const FADED_SPOTS = [
     opacity: 0.2,
     blur: 80,
     duration: 44,
-    x: [0, 45, -35, 60, 0],
-    y: [0, -50, 30, -20, 0],
+    anim: "aurora-drift-e",
   },
   {
     id: "g3",
@@ -74,10 +69,9 @@ const FADED_SPOTS = [
     opacity: 0.18,
     blur: 65,
     duration: 33,
-    x: [0, -40, 55, -25, 0],
-    y: [0, 40, -30, 35, 0],
+    anim: "aurora-drift-f",
   },
-];
+] as const;
 
 const RINGS = [
   { x: "8%", y: "15%", size: 120, stroke: colors.plum, duration: 22, delay: 0 },
@@ -171,42 +165,50 @@ function GeometricDoodles() {
   return (
     <div className="absolute inset-0 overflow-hidden">
       {RINGS.map((ring, i) => (
-        <motion.div
+        <div
           key={`ring-${i}`}
-          className="absolute"
-          style={{ left: ring.x, top: ring.y, width: ring.size, height: ring.size }}
-          animate={{ rotate: [0, 360], scale: [1, 1.06, 1] }}
-          transition={{
-            rotate: { duration: ring.duration, repeat: Infinity, ease: "linear" },
-            scale: { duration: ring.duration * 0.5, repeat: Infinity, ease: "easeInOut" },
-            delay: ring.delay,
+          className="absolute aurora-ring-spin"
+          style={{
+            left: ring.x,
+            top: ring.y,
+            width: ring.size,
+            height: ring.size,
+            animationDuration: `${ring.duration}s`,
+            animationDelay: `${ring.delay}s`,
           }}
         >
-          <svg viewBox="0 0 100 100" className="h-full w-full">
-            <motion.circle
-              cx="50"
-              cy="50"
-              r="42"
-              fill="none"
-              stroke={ring.stroke}
-              strokeWidth="2"
-              strokeOpacity={0.35}
-              strokeDasharray="8 6"
-              initial={{ pathLength: 0, opacity: 0.3 }}
-              animate={{ pathLength: 1, opacity: [0.3, 0.55, 0.3] }}
-              transition={{
-                pathLength: { duration: 2, delay: ring.delay },
-                opacity: { duration: ring.duration * 0.4, repeat: Infinity, ease: "easeInOut" },
-              }}
-            />
-          </svg>
-        </motion.div>
+          <div
+            className="h-full w-full aurora-ring-pulse"
+            style={{
+              animationDuration: `${ring.duration * 0.5}s`,
+              animationDelay: `${ring.delay}s`,
+            }}
+          >
+            <svg viewBox="0 0 100 100" className="h-full w-full">
+              <circle
+                className="aurora-ring-stroke"
+                cx="50"
+                cy="50"
+                r="42"
+                fill="none"
+                stroke={ring.stroke}
+                strokeWidth="2"
+                strokeOpacity={0.35}
+                strokeDasharray="8 6"
+                style={{
+                  animationDuration: `${ring.duration * 0.4}s`,
+                  animationDelay: `${ring.delay}s`,
+                }}
+              />
+            </svg>
+          </div>
+        </div>
       ))}
 
       {SQUARES.map((sq, i) => (
-        <motion.div
+        <div
           key={`sq-${i}`}
-          className="absolute border-2"
+          className="absolute border-2 aurora-square"
           style={{
             left: sq.x,
             top: sq.y,
@@ -214,24 +216,16 @@ function GeometricDoodles() {
             height: sq.size,
             borderColor: sq.color,
             opacity: 0.35,
-          }}
-          animate={{
-            rotate: [sq.rotate, sq.rotate + 90, sq.rotate],
-            y: [0, -18, 0],
-            x: [0, 12, 0],
-          }}
-          transition={{
-            duration: sq.duration,
-            repeat: Infinity,
-            ease: "easeInOut",
+            ["--aurora-rot" as string]: `${sq.rotate}deg`,
+            animationDuration: `${sq.duration}s`,
           }}
         />
       ))}
 
       {FILLED_CIRCLES.map((c, i) => (
-        <motion.div
+        <div
           key={`fc-${i}`}
-          className="absolute rounded-full"
+          className="absolute rounded-full aurora-blob"
           style={{
             left: c.x,
             top: c.y,
@@ -239,68 +233,84 @@ function GeometricDoodles() {
             height: c.size,
             backgroundColor: c.color,
             opacity: 0.12,
+            animationDuration: `${c.duration}s`,
           }}
-          animate={{ scale: [1, 1.15, 1], x: [0, 20, -10, 0], y: [0, -15, 10, 0] }}
-          transition={{ duration: c.duration, repeat: Infinity, ease: "easeInOut" }}
         />
       ))}
 
       {TRIANGLES.map((tri, i) => (
-        <motion.svg
+        <svg
           key={`tri-${i}`}
           viewBox="0 0 100 86"
-          className="absolute"
-          style={{ left: tri.x, top: tri.y, width: tri.size, height: tri.size * 0.86, opacity: 0.28 }}
-          animate={{ rotate: [tri.rotate, tri.rotate + 120, tri.rotate], y: [0, -12, 0] }}
-          transition={{ duration: tri.duration, repeat: Infinity, ease: "easeInOut" }}
+          className="absolute aurora-triangle"
+          style={{
+            left: tri.x,
+            top: tri.y,
+            width: tri.size,
+            height: tri.size * 0.86,
+            opacity: 0.28,
+            ["--aurora-rot" as string]: `${tri.rotate}deg`,
+            animationDuration: `${tri.duration}s`,
+          }}
         >
           <polygon points="50,4 96,82 4,82" fill="none" stroke={tri.color} strokeWidth="3" />
-        </motion.svg>
+        </svg>
       ))}
 
       {BEZIER_DOODLES.map((b, i) => (
-        <motion.svg
+        <svg
           key={`bezier-${i}`}
           viewBox="0 0 200 100"
-          className="absolute overflow-visible"
-          style={{ left: b.left, top: b.top, width: b.width, height: b.width * 0.5 }}
-          animate={{ x: [0, 15, -10, 0], y: [0, -12, 8, 0] }}
-          transition={{ duration: b.duration + 4, repeat: Infinity, ease: "easeInOut", delay: b.delay ?? 0 }}
+          className="absolute overflow-visible aurora-bezier"
+          style={{
+            left: b.left,
+            top: b.top,
+            width: b.width,
+            height: b.width * 0.5,
+            animationDuration: `${b.duration + 4}s`,
+            animationDelay: `${b.delay}s`,
+          }}
         >
-          <motion.path
+          <path
+            className="aurora-bezier-path"
             d={b.d}
             fill="none"
             stroke={b.stroke}
             strokeWidth="2"
             strokeLinecap="round"
             strokeOpacity={0.4}
-            initial={{ pathLength: 0 }}
-            animate={{ pathLength: [0, 1, 1, 0] }}
-            transition={{
-              duration: b.duration,
-              repeat: Infinity,
-              ease: "easeInOut",
-              delay: b.delay ?? 0,
-              times: [0, 0.45, 0.65, 1],
+            pathLength={1}
+            style={{
+              animationDuration: `${b.duration}s`,
+              animationDelay: `${b.delay}s`,
             }}
           />
-        </motion.svg>
+        </svg>
       ))}
     </div>
   );
 }
 
 export function AuroraBackground() {
+  const [paused, setPaused] = useState(false);
+
+  useEffect(() => {
+    const sync = () => setPaused(document.hidden);
+    sync();
+    document.addEventListener("visibilitychange", sync);
+    return () => document.removeEventListener("visibilitychange", sync);
+  }, []);
+
   return (
     <div
-      className="pointer-events-none fixed inset-0 -z-10 overflow-hidden"
+      className={`pointer-events-none fixed inset-0 -z-10 overflow-hidden aurora-root${paused ? " aurora-paused" : ""}`}
       aria-hidden="true"
       style={{ background: colors.white }}
     >
       {FADED_SPOTS.map((spot) => (
-        <motion.div
+        <div
           key={spot.id}
-          className="absolute rounded-full"
+          className={`absolute rounded-full aurora-spot ${spot.anim}`}
           style={{
             width: spot.size,
             height: spot.size,
@@ -309,17 +319,7 @@ export function AuroraBackground() {
             background: `radial-gradient(circle at 40% 40%, ${spot.hue} 0%, transparent 68%)`,
             opacity: spot.opacity,
             filter: `blur(${spot.blur}px)`,
-            willChange: "transform",
-          }}
-          animate={{
-            x: spot.x,
-            y: spot.y,
-            scale: [1, 1.08, 0.94, 1.05, 1],
-          }}
-          transition={{
-            duration: spot.duration,
-            repeat: Infinity,
-            ease: "easeInOut",
+            animationDuration: `${spot.duration}s`,
           }}
         />
       ))}

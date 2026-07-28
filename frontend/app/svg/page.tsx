@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
+import { LABS_CTA_ITERATIONS } from "@/components/layout/LabsCtaMarks";
 import { SviglLabsLogo } from "@/components/layout/SviglLabsLogo";
 
 const colors = {
@@ -63,7 +64,7 @@ function LogoCard({
       transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
       className="group flex flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#141428]/95 shadow-xl backdrop-blur-sm transition-all hover:border-white/20 hover:shadow-2xl"
     >
-      <div className="flex min-h-[220px] items-center justify-center bg-[#fafaf8] px-6 py-10 sm:min-h-[240px]">
+      <div className="flex min-h-[220px] items-center justify-center overflow-visible bg-[#fafaf8] px-6 py-10 sm:min-h-[240px]">
         {children}
       </div>
       <div className="border-t border-white/10 px-5 py-4">
@@ -432,6 +433,29 @@ export default function SvgShowcasePage() {
             {LAB_LOGOS.map((item) => (
               <LogoCard key={item.title} title={item.title} subtitle={item.subtitle}>
                 <item.component />
+              </LogoCard>
+            ))}
+          </div>
+        </section>
+
+        {/* Labs CTA marks — stacked 04 lockup inside animated shapes */}
+        <section className="mb-20">
+          <SectionHeader
+            eyebrow="Landing CTA"
+            title={
+              <>
+                <span className="script-accent text-[1.15em]">Svigl</span>
+              </>
+            }
+            accent="Labs CTA Marks"
+            description="Kept Overlap + Dual Orbit. Seven new directions — soft drifts, orbits, morphs — plus a clean swirling test tube."
+          />
+          <div className="mx-auto grid max-w-6xl gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {LABS_CTA_ITERATIONS.map((item) => (
+              <LogoCard key={item.id} title={item.title} subtitle={item.subtitle}>
+                <div className="flex min-h-65 items-center justify-center pt-6">
+                  <item.component />
+                </div>
               </LogoCard>
             ))}
           </div>
