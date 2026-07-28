@@ -77,14 +77,14 @@ export function LabsCtaOverlapShapes({ href }: { href?: string }) {
         <motion.span
           aria-hidden
           className="absolute left-[6%] top-[18%] h-[4.6rem] w-[4.6rem] rounded-full"
-          style={{ background: `${colors.pink}40` }}
+          style={{ background: `${colors.pink}C8` }}
           animate={{ x: [0, 6, 0], y: [0, -8, 0], rotate: [0, 8, 0] }}
           transition={{ duration: 6.5, repeat: Infinity, ease: "easeInOut" }}
         />
         <motion.span
           aria-hidden
           className="absolute bottom-[12%] right-[4%] h-[4.2rem] w-[4.2rem] rounded-[1.15rem]"
-          style={{ background: `${colors.chartreuse}55` }}
+          style={{ background: `${colors.chartreuse}D0` }}
           animate={{ x: [0, -7, 0], y: [0, 6, 0], rotate: [12, -4, 12] }}
           transition={{ duration: 7.2, repeat: Infinity, ease: "easeInOut", delay: 0.3 }}
         />
@@ -94,7 +94,7 @@ export function LabsCtaOverlapShapes({ href }: { href?: string }) {
           style={{
             borderLeft: "28px solid transparent",
             borderRight: "28px solid transparent",
-            borderBottom: `48px solid ${colors.plum}38`,
+            borderBottom: `48px solid ${colors.plum}B8`,
           }}
           animate={{ y: [0, 7, 0], rotate: [-10, 6, -10] }}
           transition={{ duration: 5.8, repeat: Infinity, ease: "easeInOut", delay: 0.5 }}
@@ -103,15 +103,18 @@ export function LabsCtaOverlapShapes({ href }: { href?: string }) {
           aria-hidden
           className="absolute left-[22%] bottom-[10%] h-3.5 w-3.5 rounded-full"
           style={{ background: colors.green }}
-          animate={{ scale: [1, 1.35, 1], opacity: [0.55, 1, 0.55] }}
+          animate={{ scale: [1, 1.35, 1], opacity: [0.85, 1, 0.85] }}
           transition={{ duration: 3.2, repeat: Infinity, ease: "easeInOut" }}
         />
         <motion.span
-          className="relative z-10 rounded-2xl bg-white/55 px-3 py-2 shadow-[0_10px_24px_-12px_rgba(44,44,44,0.2)] backdrop-blur-[1.5px]"
+          className="relative z-10 rounded-2xl bg-white px-3 py-2 shadow-[0_12px_28px_-12px_rgba(44,44,44,0.28)]"
           animate={{ y: [0, -3, 0] }}
           transition={{ duration: 4.8, repeat: Infinity, ease: "easeInOut" }}
         >
-          <StackLockup />
+          <StackLockup
+            sviglClassName="-translate-x-[4px] text-[2.35rem] sm:text-[2.6rem]"
+            labsClassName="mt-0.5 text-[1rem] sm:text-[1.1rem]"
+          />
         </motion.span>
       </motion.span>
     </CtaShell>

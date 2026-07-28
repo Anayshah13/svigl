@@ -230,20 +230,20 @@ export function LandingPage() {
             </FadeIn>
 
           </div>
-
-          {/* Labs CTA — bottom right, overlap-shapes style */}
-          <FadeIn
-            delay={0.28}
-            className="pointer-events-auto absolute bottom-5 right-3 z-20 sm:bottom-8 sm:right-5 lg:bottom-10 lg:right-8"
-          >
-            <LabsCtaOverlapShapes />
-          </FadeIn>
         </section>
 
         <GameFeaturesSection />
         <LandingCtaSection />
         <LandingFooter />
       </div>
+
+      {/* Labs CTA — fixed bottom-right for full landing scroll */}
+      <FadeIn
+        delay={0.28}
+        className="pointer-events-auto fixed bottom-5 right-3 z-40 sm:bottom-8 sm:right-5 lg:bottom-10 lg:right-8"
+      >
+        <LabsCtaOverlapShapes />
+      </FadeIn>
     </div>
   );
 }

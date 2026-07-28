@@ -43,14 +43,12 @@ const HERO_ORBS = [
 const HERO_MARGIN_DOODLES: Doodle[] = [
   { kind: "circle", x: "6%", y: "18%", size: 56, color: colors.chartreuse, delay: 0.1, duration: 11, opacity: 0.28 },
   { kind: "ring", x: "88%", y: "16%", size: 96, stroke: 2.5, color: colors.plum, delay: 0.2, duration: 16, opacity: 0.32 },
-  { kind: "triangle", x: "82%", y: "38%", size: 48, rotate: -18, color: colors.green, delay: 0.35, duration: 14, opacity: 0.26 },
   { kind: "diamond", x: "4%", y: "42%", size: 40, rotate: 12, color: colors.pink, delay: 0.45, duration: 13, opacity: 0.24 },
-  { kind: "cross", x: "92%", y: "48%", size: 34, color: colors.chartreuse, delay: 0.15, duration: 12, opacity: 0.3 },
   { kind: "rect", x: "2%", y: "62%", w: 42, h: 42, rx: 10, color: colors.plum, delay: 0.55, duration: 15, opacity: 0.22 },
-  { kind: "circle", x: "90%", y: "62%", size: 64, color: colors.pink, delay: 0.25, duration: 10, opacity: 0.2 },
   { kind: "ring", x: "8%", y: "72%", size: 72, stroke: 2, color: colors.green, delay: 0.4, duration: 18, opacity: 0.28 },
   { kind: "triangle", x: "94%", y: "8%", size: 36, rotate: 25, color: colors.plum, delay: 0.6, duration: 12, opacity: 0.24 },
   { kind: "diamond", x: "14%", y: "8%", size: 32, rotate: -8, color: colors.green, delay: 0.3, duration: 14, opacity: 0.26 },
+  // bottom-right cleared for Labs CTA
 ];
 
 /** Dense field — hero through footer */
@@ -80,41 +78,31 @@ const DOODLES: Doodle[] = [
   { kind: "rect", x: "52%", y: "30%", w: 44, h: 44, rx: 10, color: colors.green, delay: 0.55 },
   { kind: "ring", x: "76%", y: "34%", size: 80, stroke: 2, color: colors.pink, delay: 0.35, duration: 30 },
   { kind: "triangle", x: "36%", y: "38%", size: 36, rotate: 8, color: colors.plum, delay: 0.45, duration: 18 },
-  { kind: "circle", x: "68%", y: "40%", size: 46, color: colors.plum, delay: 0.25 },
   { kind: "diamond", x: "8%", y: "42%", size: 34, rotate: 30, color: colors.pink, delay: 0.6, duration: 23 },
-  { kind: "rect", x: "84%", y: "44%", w: 52, h: 28, rx: 14, color: colors.chartreuse, delay: 0.2 },
   { kind: "cross", x: "58%", y: "46%", size: 30, color: colors.green, delay: 0.7, duration: 16 },
   { kind: "circle", x: "42%", y: "34%", size: 24, color: colors.pink, delay: 0.85 },
   { kind: "ring", x: "28%", y: "44%", size: 52, stroke: 1.5, color: colors.plum, delay: 0.5, duration: 22 },
 
-  { kind: "circle", x: "72%", y: "50%", size: 68, color: colors.green, delay: 0.15, opacity: 0.18 },
   { kind: "rect", x: "14%", y: "52%", w: 40, h: 64, rx: 8, color: colors.pink, delay: 0.4 },
   { kind: "triangle", x: "46%", y: "54%", size: 50, rotate: -12, color: colors.chartreuse, delay: 0.55, duration: 21 },
-  { kind: "diamond", x: "88%", y: "56%", size: 38, rotate: 45, color: colors.plum, delay: 0.3, duration: 24 },
   { kind: "circle", x: "32%", y: "58%", size: 44, color: colors.plum, delay: 0.65 },
   { kind: "ring", x: "58%", y: "60%", size: 96, stroke: 2, color: colors.green, delay: 0.2, duration: 32 },
-  { kind: "cross", x: "78%", y: "62%", size: 34, color: colors.chartreuse, delay: 0.75, duration: 18 },
   { kind: "rect", x: "4%", y: "64%", w: 56, h: 32, rx: 16, color: colors.green, delay: 0.45 },
   { kind: "circle", x: "52%", y: "66%", size: 30, color: colors.pink, delay: 0.8 },
   { kind: "triangle", x: "22%", y: "68%", size: 42, rotate: 25, color: colors.green, delay: 0.35, duration: 19 },
 
   { kind: "circle", x: "38%", y: "72%", size: 54, color: colors.chartreuse, delay: 0.5 },
-  { kind: "rect", x: "66%", y: "70%", w: 48, h: 48, rx: 12, color: colors.pink, delay: 0.25 },
   { kind: "ring", x: "10%", y: "74%", size: 74, stroke: 2, color: colors.plum, delay: 0.6, duration: 27 },
-  { kind: "diamond", x: "82%", y: "76%", size: 32, rotate: 20, color: colors.green, delay: 0.4, duration: 22 },
   { kind: "circle", x: "54%", y: "78%", size: 40, color: colors.plum, delay: 0.15 },
   { kind: "cross", x: "44%", y: "80%", size: 26, color: colors.pink, delay: 0.7, duration: 17 },
-  { kind: "triangle", x: "92%", y: "82%", size: 44, rotate: -15, color: colors.chartreuse, delay: 0.55, duration: 20 },
   { kind: "circle", x: "18%", y: "80%", size: 36, color: colors.pink, delay: 0.3 },
 
-  { kind: "circle", x: "62%", y: "86%", size: 48, color: colors.green, delay: 0.45 },
   { kind: "rect", x: "28%", y: "88%", w: 44, h: 24, rx: 8, color: colors.plum, delay: 0.65 },
   { kind: "ring", x: "48%", y: "90%", size: 60, stroke: 1.5, color: colors.pink, delay: 0.2, duration: 25 },
   { kind: "circle", x: "8%", y: "92%", size: 42, color: colors.chartreuse, delay: 0.75 },
-  { kind: "diamond", x: "78%", y: "94%", size: 36, rotate: 10, color: colors.pink, delay: 0.5, duration: 21 },
   { kind: "triangle", x: "36%", y: "96%", size: 38, rotate: 18, color: colors.plum, delay: 0.35, duration: 23 },
-  { kind: "cross", x: "88%", y: "92%", size: 30, color: colors.green, delay: 0.6, duration: 18 },
   { kind: "circle", x: "52%", y: "95%", size: 26, color: colors.plum, delay: 0.85 },
+  // bottom-right cleared for Labs CTA
 ];
 
 const SCATTER_DOTS = [
@@ -136,33 +124,23 @@ const SCATTER_DOTS = [
   { x: 6, y: 40, size: 13, color: palette[0] },
   { x: 32, y: 42, size: 9, color: palette[2] },
   { x: 58, y: 38, size: 14, color: palette[1] },
-  { x: 78, y: 43, size: 10, color: palette[3] },
-  { x: 94, y: 41, size: 12, color: palette[4] },
   { x: 14, y: 50, size: 11, color: palette[0] },
   { x: 40, y: 52, size: 13, color: palette[2] },
   { x: 62, y: 48, size: 9, color: palette[1] },
-  { x: 84, y: 53, size: 12, color: palette[3] },
   { x: 26, y: 58, size: 10, color: palette[4] },
   { x: 50, y: 60, size: 14, color: palette[0] },
-  { x: 74, y: 57, size: 11, color: palette[2] },
   { x: 4, y: 64, size: 12, color: palette[1] },
   { x: 36, y: 66, size: 9, color: palette[3] },
   { x: 60, y: 63, size: 13, color: palette[4] },
-  { x: 88, y: 67, size: 10, color: palette[0] },
   { x: 16, y: 72, size: 11, color: palette[2] },
   { x: 44, y: 74, size: 12, color: palette[1] },
-  { x: 68, y: 71, size: 9, color: palette[3] },
-  { x: 92, y: 75, size: 14, color: palette[4] },
   { x: 10, y: 80, size: 10, color: palette[0] },
   { x: 52, y: 82, size: 13, color: palette[2] },
-  { x: 76, y: 79, size: 11, color: palette[1] },
   { x: 30, y: 86, size: 12, color: palette[3] },
   { x: 58, y: 88, size: 9, color: palette[4] },
-  { x: 82, y: 85, size: 14, color: palette[0] },
   { x: 20, y: 92, size: 11, color: palette[2] },
   { x: 46, y: 94, size: 10, color: palette[1] },
-  { x: 70, y: 91, size: 13, color: palette[3] },
-  { x: 94, y: 96, size: 12, color: palette[4] },
+  // bottom-right cleared for Labs CTA
 ];
 
 export type BezierConfig = {
@@ -190,10 +168,8 @@ const BACKGROUND_BEZIERS: BezierConfig[] = [
   { id: "b5", left: "4%", top: "22%", width: 280, viewH: 100, start: { x: 8, y: 48 }, end: { x: 272, y: 52 }, cp1Base: { x: 90, y: 10 }, cp2Base: { x: 185, y: 92 }, cp1Motion: { ax: 34, ay: 22, speed: 0.52 }, cp2Motion: { ax: 26, ay: 28, speed: 0.6 }, color: colors.plum, phase: 0.5 },
   { id: "b6", left: "48%", top: "26%", width: 230, viewH: 115, start: { x: 12, y: 90 }, end: { x: 218, y: 16 }, cp1Base: { x: 70, y: 32 }, cp2Base: { x: 155, y: 68 }, cp1Motion: { ax: 28, ay: 20, speed: 0.58 }, cp2Motion: { ax: 22, ay: 18, speed: 0.52 }, color: colors.pink, phase: 3.0 },
   { id: "b7", left: "14%", top: "36%", width: 250, viewH: 110, start: { x: 10, y: 50 }, end: { x: 240, y: 55 }, cp1Base: { x: 75, y: 8 }, cp2Base: { x: 170, y: 95 }, cp1Motion: { ax: 30, ay: 24, speed: 0.62 }, cp2Motion: { ax: 22, ay: 20, speed: 0.55 }, color: colors.green, phase: 1.2 },
-  { id: "b8", left: "75%", top: "34%", width: 210, viewH: 125, start: { x: 15, y: 105 }, end: { x: 195, y: 18 }, cp1Base: { x: 50, y: 40 }, cp2Base: { x: 140, y: 78 }, cp1Motion: { ax: 26, ay: 22, speed: 0.64 }, cp2Motion: { ax: 20, ay: 16, speed: 0.5 }, color: colors.chartreuse, phase: 2.8 },
   { id: "b9", left: "2%", top: "48%", width: 270, viewH: 95, start: { x: 5, y: 42 }, end: { x: 265, y: 48 }, cp1Base: { x: 85, y: 4 }, cp2Base: { x: 180, y: 90 }, cp1Motion: { ax: 36, ay: 16, speed: 0.48 }, cp2Motion: { ax: 28, ay: 22, speed: 0.56 }, color: colors.plum, phase: 0.3 },
   { id: "b10", left: "40%", top: "44%", width: 240, viewH: 120, start: { x: 18, y: 95 }, end: { x: 222, y: 20 }, cp1Base: { x: 72, y: 36 }, cp2Base: { x: 160, y: 65 }, cp1Motion: { ax: 24, ay: 28, speed: 0.7 }, cp2Motion: { ax: 26, ay: 20, speed: 0.52 }, color: colors.pink, phase: 3.6 },
-  { id: "b11", left: "60%", top: "52%", width: 220, viewH: 110, start: { x: 10, y: 85 }, end: { x: 210, y: 22 }, cp1Base: { x: 58, y: 28 }, cp2Base: { x: 150, y: 72 }, cp1Motion: { ax: 28, ay: 20, speed: 0.55 }, cp2Motion: { ax: 20, ay: 24, speed: 0.62 }, color: colors.green, phase: 1.8 },
   { id: "b12", left: "10%", top: "58%", width: 260, viewH: 100, start: { x: 8, y: 47 }, end: { x: 252, y: 50 }, cp1Base: { x: 82, y: 6 }, cp2Base: { x: 175, y: 92 }, cp1Motion: { ax: 30, ay: 22, speed: 0.58 }, cp2Motion: { ax: 22, ay: 20, speed: 0.48 }, color: colors.chartreuse, phase: 2.4 },
 ];
 
@@ -545,7 +521,6 @@ function FloatingCursors({ reduced }: { reduced: boolean }) {
   const cursors = [
     { x: "10%", y: "30%", color: colors.plum, label: "A", duration: 11 },
     { x: "86%", y: "24%", color: colors.green, label: "M", duration: 13 },
-    { x: "78%", y: "58%", color: colors.pink, label: "K", duration: 12 },
     { x: "8%", y: "55%", color: colors.chartreuse, label: "R", duration: 14 },
   ];
 
