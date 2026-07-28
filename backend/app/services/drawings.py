@@ -104,9 +104,8 @@ def create_in_progress_drawing(
 ) -> Drawing:
     """Allocate a drawing id for the current turn so live reactions can attach.
 
-    Replay hook (future): start an empty stroke/shape timeline here keyed by
-    ``drawing.id``. Live canvas commits during the round should append timed
-    events to that buffer (see ``publish_drawing``).
+    Also starts an empty ``timeline`` buffer; canvas commits append timed
+    ReplayEvents during ROUND_ACTIVE (see ``app.services.replay``).
     """
     existing = db.scalar(
         select(Drawing).where(
@@ -116,6 +115,8 @@ def create_in_progress_drawing(
     )
     if existing is not None:
         session.current_drawing_id = existing.id
+        if existing.timeline is None:
+            existing.timeline = []
         return existing
 
     drawing = Drawing(
@@ -125,6 +126,7 @@ def create_in_progress_drawing(
         turn_number=session.current_turn,
         word=word[:64],
         document=None,
+        timeline=[],
         status=DRAWING_STATUS_IN_PROGRESS,
         likes_count=0,
         dislikes_count=0,
@@ -155,17 +157,9 @@ def publish_drawing(
     Profile counters are updated exactly once at publish time from the
     drawing's denormalized reaction totals (not per live reaction).
 
-    Replay hook (future) — integrate here, not earlier:
-      1. During ROUND_ACTIVE, record an append-only timeline of committed
-         canvas ops (and, if needed, throttled pencil samples) against the
-         in-progress ``drawing.id`` — see ``create_in_progress_drawing`` and
-         ``app.services.canvas.apply_shape_*``.
-      2. At this publish point, persist that timeline next to
-         ``drawing.document`` (Postgres JSON column or sibling table).
-      3. Gallery/profile keep using ``WhiteboardExport`` (``document``) for
-         the static preview; hover replay loads the timeline and animates
-         from a blank board in stroke/shape order with original timing.
-      Final ``document.shapes`` alone is insufficient for true timing replay.
+    Replay: ``timeline`` was appended live during ROUND_ACTIVE; we only ensure
+    it is a list before flipping to published. Gallery thumbnails keep using
+    ``document`` (WhiteboardExport); clients load ``timeline`` via the replay API.
     """
     if drawing_id is None:
         return None
@@ -181,7 +175,8 @@ def publish_drawing(
     shapes = _load_canvas_shapes(db, drawing.session_id)
     # Canonical static snapshot for gallery / profile (WhiteboardExport).
     drawing.document = _empty_document(shapes)
-    # Future: also attach the recorded replay timeline for this drawing_id.
+    if drawing.timeline is None:
+        drawing.timeline = []
     drawing.status = DRAWING_STATUS_PUBLISHED
     drawing.published_at = utcnow()
 

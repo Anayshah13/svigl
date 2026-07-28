@@ -60,7 +60,11 @@ export class HistoryStack {
   }
 }
 
-function applyForward(shapes: WhiteboardShape[], op: HistoryOp): WhiteboardShape[] {
+/** Apply a history op forward — shared by live undo stack and replay. */
+export function applyForward(
+  shapes: WhiteboardShape[],
+  op: HistoryOp,
+): WhiteboardShape[] {
   switch (op.type) {
     case "add":
       return [...shapes, cloneShape(op.shape)];
@@ -75,7 +79,11 @@ function applyForward(shapes: WhiteboardShape[], op: HistoryOp): WhiteboardShape
   }
 }
 
-function applyInverse(shapes: WhiteboardShape[], op: HistoryOp): WhiteboardShape[] {
+/** Invert a history op — shared by live undo stack and replay. */
+export function applyInverse(
+  shapes: WhiteboardShape[],
+  op: HistoryOp,
+): WhiteboardShape[] {
   switch (op.type) {
     case "add":
       return shapes.filter((s) => s.id !== op.shape.id);

@@ -37,7 +37,7 @@ from app.services.words import (
 COUNTDOWN_SECONDS = 3
 WORD_SELECTION_SECONDS = 10
 ROUND_END_SECONDS = 2
-GAME_FINISHED_SECONDS = 5
+GAME_FINISHED_SECONDS = 45  # Time to open Watch replay before returning to lobby.
 MIN_ROUND_DURATION = 15
 MAX_ROUND_DURATION = 180
 MIN_ROUNDS = 1

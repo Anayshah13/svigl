@@ -67,6 +67,8 @@ class Drawing(Base):
     word: Mapped[str] = mapped_column(String(64), nullable=False)
     # WhiteboardExport JSON (version / viewBox / shapes / exportedAt).
     document: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    # Ordered ReplayEvent list (see schemas.replay) — append-only during the round.
+    timeline: Mapped[list | None] = mapped_column(JSON, nullable=True)
     status: Mapped[str] = mapped_column(
         String(16),
         nullable=False,

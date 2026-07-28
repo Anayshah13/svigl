@@ -28,6 +28,11 @@ from app.services.drawings import (
 router = APIRouter(prefix="/gallery", tags=["gallery"])
 
 
+def _has_replay(drawing) -> bool:
+    timeline = getattr(drawing, "timeline", None)
+    return isinstance(timeline, list) and len(timeline) > 0
+
+
 def _to_item(drawing, my_reaction) -> GalleryDrawingResponse:
     author = drawing.author
     return GalleryDrawingResponse(
@@ -42,6 +47,7 @@ def _to_item(drawing, my_reaction) -> GalleryDrawingResponse:
         my_reaction=my_reaction,
         published_at=drawing.published_at,
         created_at=drawing.created_at,
+        has_replay=_has_replay(drawing),
     )
 
 

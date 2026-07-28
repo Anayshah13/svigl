@@ -15,7 +15,7 @@ type JsonObject = Record<string, unknown>;
 
 const DEFAULT_SETTINGS: GameSettings = {
   rounds: 3,
-  roundDurationSeconds: 60,
+  roundDurationSeconds: 75,
 };
 
 function object(value: unknown): JsonObject {

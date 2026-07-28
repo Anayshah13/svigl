@@ -71,6 +71,11 @@ export default function SettingsPage() {
                 Open gallery
               </Button>
             </Link>
+            <Link href="/labs" className="w-full sm:w-auto">
+              <Button variant="outline" size="sm" className="w-full sm:w-auto">
+                Open labs
+              </Button>
+            </Link>
             <Link
               href={authUser ? profilePath(authUser.username) : "/profile"}
               className="w-full sm:w-auto"

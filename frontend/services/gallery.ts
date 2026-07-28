@@ -15,6 +15,7 @@ export interface GalleryEntry {
   dislikes: number;
   myReaction: ReactionValue;
   publishedAt: number;
+  hasReplay: boolean;
 }
 
 interface GalleryApiItem {
@@ -29,6 +30,7 @@ interface GalleryApiItem {
   my_reaction?: "like" | "dislike" | null;
   published_at?: string | null;
   created_at: string;
+  has_replay?: boolean;
 }
 
 interface GalleryListApi {
@@ -60,6 +62,7 @@ function mapItem(item: GalleryApiItem): GalleryEntry {
     dislikes: item.dislikes ?? 0,
     myReaction: item.my_reaction ?? null,
     publishedAt: published ? Date.parse(published) : Date.now(),
+    hasReplay: Boolean(item.has_replay),
   };
 }
 

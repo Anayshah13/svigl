@@ -18,6 +18,7 @@ type NavItem = {
 
 const STATIC_NAV: NavItem[] = [
   { href: "/gallery", label: "Gallery" },
+  { href: "/labs", label: "Labs" },
   { href: "/settings", label: "Settings" },
   { href: "/feedback", label: "Feedback" },
 ];

@@ -124,35 +124,29 @@ function LinkItem({ link }: { link: FooterLink }) {
 }
 
 function WavyDottedDivider() {
+  // Fixed sine-like path — longer wavelength; only the dash crawls.
+  const wave =
+    "M0 16 Q75 2 150 16 Q225 30 300 16 Q375 2 450 16 Q525 30 600 16 Q675 2 750 16 Q825 30 900 16 Q975 2 1050 16 Q1125 30 1200 16";
+
   return (
     <div className="relative z-20 h-8 w-full sm:h-10">
-      <motion.svg
+      <svg
         aria-hidden="true"
         viewBox="0 0 1200 32"
         className="h-full w-full text-plum/45"
         preserveAspectRatio="none"
-        initial={false}
       >
         <motion.path
+          d={wave}
           fill="none"
           stroke="currentColor"
           strokeWidth="2.5"
           strokeLinecap="round"
           strokeDasharray="2 8"
-          animate={{
-            d: [
-              "M0 16 Q75 -4 150 16 T300 16 T450 16 T600 16 T750 16 T900 16 T1050 16 T1200 16",
-              "M0 16 Q75 20 150 16 T300 16 T450 16 T600 16 T750 16 T900 16 T1050 16 T1200 16",
-              "M0 16 Q75 -4 150 16 T300 16 T450 16 T600 16 T750 16 T900 16 T1050 16 T1200 16",
-            ],
-            strokeDashoffset: [0, -40],
-          }}
-          transition={{
-            d: { duration: 5, repeat: Infinity, ease: "easeInOut" },
-            strokeDashoffset: { duration: 2.5, repeat: Infinity, ease: "linear" },
-          }}
+          animate={{ strokeDashoffset: [0, -40] }}
+          transition={{ duration: 2.5, repeat: Infinity, ease: "linear" }}
         />
-      </motion.svg>
+      </svg>
     </div>
   );
 }
@@ -162,6 +156,7 @@ export function LandingFooter() {
   const exploreLinks: FooterLink[] = [
     { label: "Home", href: "/" },
     { label: "Gallery", href: "/gallery" },
+    { label: "Labs", href: "/labs" },
     { label: "Profile", href: authUser ? profilePath(authUser.username) : "/profile" },
     { label: "Feedback", href: "/feedback" },
   ];

@@ -29,6 +29,7 @@ from app.schemas.canvas import (
     shapes_to_dicts,
 )
 from app.services.room import _load_room
+from app.services.replay import append_replay_event
 
 
 class CanvasError(Exception):
@@ -226,11 +227,9 @@ def apply_shape_created(
     Transient SHAPE_UPDATED previews are never persisted, so the normal path
     pushes one undoable ``add``. A repeated commit safely becomes an update.
 
-    Replay hook (future): after a successful commit, append a timed
-    ``shape.commit`` (or equivalent) event to the in-progress drawing's
-    timeline buffer. Do the same for persisted update/delete/clear/undo/redo.
-    Ephemeral previews should only be recorded if mid-stroke pencil replay
-    is required; they must not mutate ``CanvasState``.
+    After a successful commit, appends a timed ``shape.created`` (or
+    ``shape.updated``) event to the in-progress drawing timeline for replay.
+    Ephemeral previews are not recorded.
     """
     room = _room(db, room_code)
     session = _session(room)
@@ -250,6 +249,7 @@ def apply_shape_created(
         shapes.append(shape)
         _store_shapes(canvas, shapes)
         _push_undo(canvas, HistoryAddOp(type="add", shape=shape))
+        replay_type = "shape.created"
     else:
         before = shapes[existing_idx]
         shapes[existing_idx] = shape
@@ -260,8 +260,17 @@ def apply_shape_created(
             )
         else:
             _push_undo(canvas, HistoryAddOp(type="add", shape=shape))
+        replay_type = "shape.updated"
 
     op_seq = _bump(canvas)
+    append_replay_event(
+        db,
+        session=session,
+        event_type=replay_type,  # type: ignore[arg-type]
+        player_id=user_id,
+        payload={"shape": shape_to_dict(shape)},
+        tool=shape.tool,  # type: ignore[arg-type]
+    )
     db.commit()
 
     return CanvasBroadcast(
@@ -297,6 +306,7 @@ def apply_shape_updated(
         shapes.append(after)
         _store_shapes(canvas, shapes)
         _push_undo(canvas, HistoryAddOp(type="add", shape=after))
+        replay_type = "shape.created"
     else:
         before = shapes[idx]
         shapes[idx] = after
@@ -305,7 +315,16 @@ def apply_shape_updated(
             _push_undo(
                 canvas, HistoryUpdateOp(type="update", before=before, after=after)
             )
+        replay_type = "shape.updated"
     op_seq = _bump(canvas)
+    append_replay_event(
+        db,
+        session=session,
+        event_type=replay_type,  # type: ignore[arg-type]
+        player_id=user_id,
+        payload={"shape": shape_to_dict(after)},
+        tool=after.tool,  # type: ignore[arg-type]
+    )
     db.commit()
 
     return CanvasBroadcast(
@@ -385,6 +404,14 @@ def apply_shape_deleted(
     op = HistoryRemoveOp(type="remove", shape=removed, index=idx)
     _push_undo(canvas, op)
     op_seq = _bump(canvas)
+    append_replay_event(
+        db,
+        session=session,
+        event_type="shape.deleted",
+        player_id=user_id,
+        payload={"shape_id": shape_id},
+        tool="eraser",
+    )
     db.commit()
 
     return CanvasBroadcast(
@@ -413,6 +440,14 @@ def apply_canvas_cleared(
     canvas.shapes = []
     _push_undo(canvas, op)
     op_seq = _bump(canvas)
+    append_replay_event(
+        db,
+        session=session,
+        event_type="canvas.cleared",
+        player_id=user_id,
+        payload={},
+        tool=None,
+    )
     db.commit()
 
     return CanvasBroadcast(
@@ -477,6 +512,14 @@ def apply_undo(db: Session, room_code: str, user_id: UUID) -> CanvasBroadcast:
     redo.append(raw_op)
     canvas.redo_stack = redo
     op_seq = _bump(canvas)
+    append_replay_event(
+        db,
+        session=session,
+        event_type="undo",
+        player_id=user_id,
+        payload={"op": op.model_dump(mode="json")},
+        tool=None,
+    )
     db.commit()
 
     return CanvasBroadcast(
@@ -512,6 +555,14 @@ def apply_redo(db: Session, room_code: str, user_id: UUID) -> CanvasBroadcast:
     undo.append(raw_op)
     canvas.undo_stack = undo
     op_seq = _bump(canvas)
+    append_replay_event(
+        db,
+        session=session,
+        event_type="redo",
+        player_id=user_id,
+        payload={"op": op.model_dump(mode="json")},
+        tool=None,
+    )
     db.commit()
 
     return CanvasBroadcast(

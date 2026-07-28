@@ -36,6 +36,8 @@ class GalleryDrawingResponse(BaseModel):
     my_reaction: Literal["like", "dislike"] | None = None
     published_at: datetime | None = None
     created_at: datetime
+    # True when a non-empty replay timeline was recorded.
+    has_replay: bool = False
 
 
 class GalleryListResponse(BaseModel):

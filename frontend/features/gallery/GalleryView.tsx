@@ -5,9 +5,9 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { FadeIn, FadeInItem, FadeInStagger } from "@/components/motion/FadeIn";
 import { ReactionBar } from "@/components/reactions/ReactionBar";
-import { WhiteboardPreview } from "@/components/reactions/WhiteboardPreview";
 import { Input } from "@/components/ui/Input";
 import { DotPulseGrid } from "@/features/loaders";
+import { DrawingHoverReveal, ReplayPlayer } from "@/features/replay";
 import {
   fetchGalleryEntries,
   setGalleryReaction,
@@ -15,6 +15,7 @@ import {
   type ReactionValue,
 } from "@/services/gallery";
 import { colors } from "@/lib/colors";
+import { cn } from "@/lib/cn";
 import { profilePath } from "@/lib/names";
 import { useSessionStore } from "@/stores/session";
 
@@ -32,23 +33,48 @@ function GalleryCard({
   entry,
   canReact,
   onReact,
+  onOpenReplay,
 }: {
   entry: GalleryEntry;
   canReact: boolean;
   onReact: (id: string, reaction: ReactionValue) => void;
+  onOpenReplay?: (entry: GalleryEntry) => void;
 }) {
   const initial = entry.authorName.charAt(0).toUpperCase();
   const color = avatarColor(entry.authorName);
+  const canReplay = Boolean(entry.hasReplay && onOpenReplay);
 
   return (
     <FadeInItem>
       <motion.article
         whileHover={{ y: -6, boxShadow: "0 20px 40px -12px rgb(79 70 229 / 0.12)" }}
         transition={{ type: "spring", stiffness: 400, damping: 25 }}
-        className="overflow-hidden rounded-2xl border border-gray-200/80 bg-white shadow-(--shadow-soft)"
+        className={cn(
+          "overflow-hidden rounded-2xl border border-gray-200/80 bg-white shadow-(--shadow-soft)",
+          canReplay && "cursor-pointer",
+        )}
+        onClick={canReplay ? () => onOpenReplay?.(entry) : undefined}
+        onKeyDown={
+          canReplay
+            ? (e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  onOpenReplay?.(entry);
+                }
+              }
+            : undefined
+        }
+        role={canReplay ? "button" : undefined}
+        tabIndex={canReplay ? 0 : undefined}
+        aria-label={canReplay ? `Replay drawing of ${entry.word}` : undefined}
       >
-        <div className="dot-grid aspect-square overflow-hidden bg-white">
-          <WhiteboardPreview document={entry.document} className="h-full w-full" />
+        <div className="dot-grid relative aspect-square overflow-hidden bg-white">
+          <DrawingHoverReveal
+            drawingId={entry.id}
+            document={entry.document}
+            hasReplay={entry.hasReplay}
+            className="h-full w-full"
+          />
         </div>
         <div className="flex items-center gap-3 p-4">
           <div
@@ -64,19 +90,22 @@ function GalleryCard({
               <Link
                 href={profilePath(entry.authorName)}
                 className="hover:text-plum hover:underline"
+                onClick={(e) => e.stopPropagation()}
               >
                 {entry.authorName}
               </Link>
             </p>
           </div>
-          <ReactionBar
-            likes={entry.likes}
-            dislikes={entry.dislikes}
-            myReaction={entry.myReaction}
-            disabled={!canReact}
-            onReact={canReact ? (next) => onReact(entry.id, next) : undefined}
-            size="sm"
-          />
+          <div onClick={(e) => e.stopPropagation()}>
+            <ReactionBar
+              likes={entry.likes}
+              dislikes={entry.dislikes}
+              myReaction={entry.myReaction}
+              disabled={!canReact}
+              onReact={canReact ? (next) => onReact(entry.id, next) : undefined}
+              size="sm"
+            />
+          </div>
         </div>
       </motion.article>
     </FadeInItem>
@@ -108,6 +137,7 @@ export function GalleryView() {
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>("recent");
   const [search, setSearch] = useState("");
+  const [replayEntry, setReplayEntry] = useState<GalleryEntry | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -139,7 +169,6 @@ export function GalleryView() {
       if (!authUser) return;
       const previous = entries.find((e) => e.id === id);
       if (!previous) return;
-      // Optimistic
       setEntries((list) =>
         list.map((entry) => {
           if (entry.id !== id) return entry;
@@ -176,7 +205,6 @@ export function GalleryView() {
   );
 
   const filtered = useMemo(() => {
-    // Server already filters mine/top/search; keep client sort stable for "recent".
     if (filter === "top") {
       return [...entries].sort((a, b) => b.likes - a.likes);
     }
@@ -193,7 +221,7 @@ export function GalleryView() {
               Gallery
             </h1>
             <p className="mt-1 text-sm text-ink-muted sm:mt-2 sm:text-base">
-              Vector sketches from live games — reactions carry over from the round.
+              Vector sketches from live games — hover a card to see it drawn.
             </p>
           </div>
           <div className="relative w-full lg:max-w-sm">
@@ -278,9 +306,47 @@ export function GalleryView() {
               entry={entry}
               canReact={Boolean(authUser) && authUser?.id !== entry.authorId}
               onReact={onReact}
+              onOpenReplay={setReplayEntry}
             />
           ))}
         </FadeInStagger>
+      ) : null}
+
+      {replayEntry ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-ink/50 p-4 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Replay of ${replayEntry.word}`}
+          onClick={() => setReplayEntry(null)}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") setReplayEntry(null);
+          }}
+        >
+          <div className="w-full max-w-lg" onClick={(e) => e.stopPropagation()}>
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <p className="truncate text-sm font-semibold text-white">
+                {replayEntry.word}
+                <span className="ml-2 font-normal text-white/60">
+                  by {replayEntry.authorName}
+                </span>
+              </p>
+              <button
+                type="button"
+                onClick={() => setReplayEntry(null)}
+                className="rounded-lg bg-white/15 px-3 py-1.5 text-sm font-medium text-white hover:bg-white/25"
+              >
+                Close
+              </button>
+            </div>
+            <ReplayPlayer
+              key={replayEntry.id}
+              drawingId={replayEntry.id}
+              autoPlay
+              className="shadow-xl"
+            />
+          </div>
+        </div>
       ) : null}
     </div>
   );

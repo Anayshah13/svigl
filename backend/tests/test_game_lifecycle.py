@@ -82,7 +82,7 @@ def test_create_room_initializes_settings_and_session(db: Session) -> None:
     room = create_room(db, host_id=host.id, max_players=8)
     assert room.game_settings is not None
     assert room.game_settings.total_rounds == 3
-    assert room.game_settings.round_duration_seconds == 60
+    assert room.game_settings.round_duration_seconds == 75
     assert room.game_session is not None
     assert room.game_session.phase == GAME_PHASE_LOBBY
     snapshot = RoomResponse.from_room(room)

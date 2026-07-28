@@ -36,7 +36,7 @@ export type {
   DraftStroke,
 } from "./useWhiteboard";
 
-export { HistoryStack } from "./history";
+export { HistoryStack, applyForward, applyInverse } from "./history";
 export { throttle } from "./throttle";
 export { floodFillMask, maskToPath, floodFillToPath } from "./floodFill";
 export {

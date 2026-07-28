@@ -128,7 +128,7 @@ class RoomResponse(BaseModel):
         if room.game_settings is None:
             settings = GameSettingsResponse(
                 total_rounds=3,
-                round_duration_seconds=60,
+                round_duration_seconds=75,
             )
         else:
             settings = GameSettingsResponse(

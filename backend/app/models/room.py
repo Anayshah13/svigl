@@ -128,7 +128,7 @@ class GameSettings(Base):
     )
     total_rounds: Mapped[int] = mapped_column(Integer, nullable=False, default=3)
     round_duration_seconds: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=60
+        Integer, nullable=False, default=75
     )
 
     room: Mapped["Room"] = relationship(back_populates="game_settings")
@@ -171,7 +171,7 @@ class GameSession(Base):
     )
     total_rounds: Mapped[int] = mapped_column(Integer, nullable=False, default=3)
     round_duration_seconds: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=60
+        Integer, nullable=False, default=75
     )
     drawer_user_id: Mapped[UUID | None] = mapped_column(
         Uuid, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
