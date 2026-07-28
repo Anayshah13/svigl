@@ -136,101 +136,365 @@
   animation-delay: 320ms;
 }
 
-/* ── Spray Bloom ── */
-@keyframes spray-bloom {
-  0% {
-    transform: scale(0.55);
-    opacity: 0.85;
+/* ── Pencil Sketch ── */
+@keyframes pencil-trace {
+  0%,
+  10% {
+    stroke-dashoffset: 0;
   }
-  70% {
-    opacity: 0.35;
+  50% {
+    stroke-dashoffset: 260;
+  }
+  51% {
+    stroke-dashoffset: -260;
   }
   100% {
-    transform: scale(1.35);
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes pencil-tip-travel {
+  0% {
+    offset-distance: 0%;
+    opacity: 0.9;
+  }
+  50% {
+    opacity: 0.3;
+  }
+  100% {
+    offset-distance: 100%;
+    opacity: 0.9;
+  }
+}
+
+.anim-pencil-trace {
+  stroke-dasharray: 260;
+  stroke-dashoffset: 0;
+  animation: pencil-trace 2.8s ease-in-out infinite;
+}
+
+.anim-pencil-tip {
+  offset-path: path(
+    "M60 18 C82 16,100 34,102 56 C104 78,88 100,64 104 C40 108,18 90,16 66 C14 42,32 20,60 18"
+  );
+  offset-rotate: auto;
+  animation: pencil-tip-travel 2.8s ease-in-out infinite;
+}
+
+/* ── Hex Grid ── */
+@keyframes hex-fill {
+  0%,
+  15% {
+    opacity: 0.1;
+    transform: scale(0.7);
+  }
+  50% {
+    opacity: 0.9;
+    transform: scale(1);
+  }
+  85%,
+  100% {
+    opacity: 0.1;
+    transform: scale(0.7);
+  }
+}
+
+.anim-hex {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: hex-fill 2.1s ease-in-out infinite;
+}
+
+.anim-hex-d0 { animation-delay: 0ms; }
+.anim-hex-d1 { animation-delay: 150ms; }
+.anim-hex-d2 { animation-delay: 300ms; }
+.anim-hex-d3 { animation-delay: 450ms; }
+.anim-hex-d4 { animation-delay: 600ms; }
+.anim-hex-d5 { animation-delay: 750ms; }
+.anim-hex-d6 { animation-delay: 900ms; }
+
+/* ── Flask Bubble ── */
+@keyframes bubble-rise {
+  0% {
+    transform: translateY(0) scale(1);
+    opacity: 0.75;
+  }
+  60% {
+    opacity: 0.5;
+  }
+  100% {
+    transform: translateY(-55px) scale(0.4);
     opacity: 0;
   }
 }
 
-.anim-spray {
+.anim-bubble {
   transform-box: fill-box;
   transform-origin: center;
-  animation: spray-bloom 2s ease-out infinite;
+  animation: bubble-rise 2.4s ease-in infinite;
 }
 
-.anim-spray-d0 {
-  animation-delay: 0ms;
-}
-.anim-spray-d1 {
-  animation-delay: 200ms;
-}
-.anim-spray-d2 {
-  animation-delay: 400ms;
-}
-.anim-spray-d3 {
-  animation-delay: 600ms;
-}
-.anim-spray-d4 {
-  animation-delay: 800ms;
-}
-.anim-spray-d5 {
-  animation-delay: 1000ms;
-}
-.anim-spray-d6 {
-  animation-delay: 300ms;
-}
-.anim-spray-d7 {
-  animation-delay: 700ms;
+.anim-bubble-d0 { animation-delay: 0ms; }
+.anim-bubble-d1 { animation-delay: 400ms; }
+.anim-bubble-d2 { animation-delay: 800ms; }
+.anim-bubble-d3 { animation-delay: 1200ms; }
+.anim-bubble-d4 { animation-delay: 600ms; }
+
+/* ── Dice Tumble ── */
+@keyframes dice-rock {
+  0%, 100% { transform: rotate(0deg); }
+  20% { transform: rotate(8deg); }
+  40% { transform: rotate(-6deg); }
+  60% { transform: rotate(4deg); }
+  80% { transform: rotate(-2deg); }
 }
 
-/* ── Bezier Draw — rest frame fully drawn ── */
-@keyframes bezier-draw {
-  0%,
-  15% {
-    stroke-dashoffset: 0;
+@keyframes dice-face-in {
+  0%, 30% { opacity: 1; }
+  33%, 100% { opacity: 0; }
+}
+
+@keyframes dice-face-mid {
+  0%, 30% { opacity: 0; }
+  33%, 63% { opacity: 1; }
+  66%, 100% { opacity: 0; }
+}
+
+@keyframes dice-face-out {
+  0%, 63% { opacity: 0; }
+  66%, 96% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+.anim-dice-rock {
+  animation: dice-rock 1.8s ease-in-out infinite;
+}
+
+.anim-dice-face-1 {
+  animation: dice-face-in 3s ease-in-out infinite;
+}
+
+.anim-dice-face-2 {
+  animation: dice-face-mid 3s ease-in-out infinite;
+}
+
+.anim-dice-face-3 {
+  animation: dice-face-out 3s ease-in-out infinite;
+}
+
+/* ── Waveform Pulse ── */
+@keyframes wave-bar {
+  0%, 100% {
+    transform: scaleY(0.3);
+    opacity: 0.45;
   }
-  55% {
-    stroke-dashoffset: 320;
-  }
-  56% {
-    stroke-dashoffset: -320;
-  }
-  100% {
-    stroke-dashoffset: 0;
+  50% {
+    transform: scaleY(1);
+    opacity: 1;
   }
 }
 
-@keyframes bezier-pen {
+.anim-wave {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: wave-bar 1.2s ease-in-out infinite;
+}
+
+.anim-wave-d0 { animation-delay: 0ms; }
+.anim-wave-d1 { animation-delay: 80ms; }
+.anim-wave-d2 { animation-delay: 160ms; }
+.anim-wave-d3 { animation-delay: 240ms; }
+.anim-wave-d4 { animation-delay: 320ms; }
+.anim-wave-d5 { animation-delay: 240ms; }
+.anim-wave-d6 { animation-delay: 160ms; }
+.anim-wave-d7 { animation-delay: 80ms; }
+.anim-wave-d8 { animation-delay: 0ms; }
+
+/* ── Helix Spin ── */
+@keyframes helix-rotate {
+  0% { transform: scaleX(1) rotate(0deg); }
+  25% { transform: scaleX(0.3) rotate(0deg); }
+  50% { transform: scaleX(-1) rotate(0deg); }
+  75% { transform: scaleX(0.3) rotate(0deg); }
+  100% { transform: scaleX(1) rotate(0deg); }
+}
+
+.anim-helix-rotate {
+  animation: helix-rotate 2.4s ease-in-out infinite;
+}
+
+/* ── Pixel Mosaic ── */
+@keyframes pixel-pop {
   0% {
-    offset-distance: 0%;
-    opacity: 0.85;
+    opacity: 0;
+    transform: scale(0);
+  }
+  20% {
+    opacity: 0.9;
+    transform: scale(1.1);
+  }
+  35% {
+    transform: scale(1);
+  }
+  70% {
+    opacity: 0.9;
+    transform: scale(1);
   }
   100% {
-    offset-distance: 100%;
-    opacity: 0.85;
+    opacity: 0;
+    transform: scale(0.5);
   }
 }
 
-.anim-bezier-path {
-  stroke-dasharray: 320;
-  stroke-dashoffset: 0;
-  animation: bezier-draw 2.6s ease-in-out infinite;
+.anim-pixel {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: pixel-pop 2.8s ease-in-out infinite;
 }
 
-.anim-bezier-pen {
-  offset-path: path("M 28 148 C 48 40, 92 40, 100 100 S 152 160, 172 52");
-  offset-rotate: 0deg;
-  animation: bezier-pen 2.6s ease-in-out infinite;
+.anim-pixel-d0 { animation-delay: 0ms; }
+.anim-pixel-d1 { animation-delay: 100ms; }
+.anim-pixel-d2 { animation-delay: 200ms; }
+.anim-pixel-d3 { animation-delay: 300ms; }
+.anim-pixel-d4 { animation-delay: 120ms; }
+.anim-pixel-d5 { animation-delay: 220ms; }
+.anim-pixel-d6 { animation-delay: 320ms; }
+.anim-pixel-d7 { animation-delay: 420ms; }
+.anim-pixel-d8 { animation-delay: 240ms; }
+.anim-pixel-d9 { animation-delay: 340ms; }
+.anim-pixel-d10 { animation-delay: 440ms; }
+.anim-pixel-d11 { animation-delay: 540ms; }
+.anim-pixel-d12 { animation-delay: 360ms; }
+.anim-pixel-d13 { animation-delay: 460ms; }
+.anim-pixel-d14 { animation-delay: 560ms; }
+.anim-pixel-d15 { animation-delay: 660ms; }
+
+/* ── Crosshair Lock ── */
+@keyframes xhair-spin {
+  0%, 70% { transform: rotate(0deg); }
+  85% { transform: rotate(90deg); }
+  100% { transform: rotate(90deg); }
 }
 
-/* ── Arc Sweep ── */
-@keyframes arc-sweep {
-  to {
-    stroke-dashoffset: -250;
+@keyframes xhair-lock {
+  0%, 60% {
+    r: 10;
+    stroke-opacity: 0.4;
+  }
+  80%, 100% {
+    r: 6;
+    stroke-opacity: 1;
   }
 }
 
-.anim-arc-sweep {
-  animation: arc-sweep 1.35s linear infinite;
+@keyframes xhair-dot-pulse {
+  0%, 60% { opacity: 0.3; r: 2; }
+  80%, 90% { opacity: 1; r: 3.5; }
+  100% { opacity: 0.3; r: 2; }
+}
+
+.anim-xhair-spin {
+  animation: xhair-spin 2s ease-in-out infinite;
+}
+
+.anim-xhair-lock {
+  animation: xhair-lock 2s ease-in-out infinite;
+}
+
+.anim-xhair-dot {
+  animation: xhair-dot-pulse 2s ease-in-out infinite;
+}
+
+/* ── Hourglass Flow ── */
+@keyframes hourglass-flip {
+  0%, 45% { transform: rotate(0deg); }
+  50%, 95% { transform: rotate(180deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes sand-top-drain {
+  0% { height: 22px; }
+  45% { height: 2px; }
+  50% { height: 22px; }
+  95% { height: 2px; }
+  100% { height: 22px; }
+}
+
+@keyframes sand-bottom-fill {
+  0% { height: 2px; }
+  45% { height: 22px; }
+  50% { height: 2px; }
+  95% { height: 22px; }
+  100% { height: 2px; }
+}
+
+@keyframes sand-stream-flow {
+  0%, 100% { opacity: 0.8; }
+  45%, 50% { opacity: 0; }
+  55% { opacity: 0.8; }
+  95% { opacity: 0; }
+}
+
+.anim-hourglass-flip {
+  animation: hourglass-flip 4s ease-in-out infinite;
+}
+
+.anim-sand-top {
+  animation: sand-top-drain 4s ease-in-out infinite;
+}
+
+.anim-sand-bottom {
+  animation: sand-bottom-fill 4s ease-in-out infinite;
+}
+
+.anim-sand-stream {
+  animation: sand-stream-flow 4s ease-in-out infinite;
+}
+
+/* ── Circuit Trace ── */
+@keyframes circuit-draw {
+  0%, 10% { stroke-dashoffset: 200; opacity: 0.2; }
+  50% { stroke-dashoffset: 0; opacity: 1; }
+  90%, 100% { stroke-dashoffset: -200; opacity: 0.2; }
+}
+
+@keyframes circuit-node-pulse {
+  0%, 30% { opacity: 0.3; transform: scale(0.7); }
+  50%, 70% { opacity: 1; transform: scale(1.2); }
+  100% { opacity: 0.3; transform: scale(0.7); }
+}
+
+.anim-circuit-a {
+  stroke-dasharray: 200;
+  animation: circuit-draw 2.2s ease-in-out infinite;
+}
+
+.anim-circuit-b {
+  stroke-dasharray: 200;
+  animation: circuit-draw 2.2s ease-in-out 0.4s infinite;
+}
+
+.anim-circuit-c {
+  stroke-dasharray: 200;
+  animation: circuit-draw 2.2s ease-in-out 0.8s infinite;
+}
+
+.anim-circuit-node-a {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: circuit-node-pulse 2.2s ease-in-out infinite;
+}
+
+.anim-circuit-node-b {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: circuit-node-pulse 2.2s ease-in-out 0.4s infinite;
+}
+
+.anim-circuit-node-c {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: circuit-node-pulse 2.2s ease-in-out 0.8s infinite;
 }
 
 /* ── Morph Square ── */

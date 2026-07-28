@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { SviglLabsLogo } from "@/components/layout/SviglLabsLogo";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/cn";
 import { ACCENT_BG_SOFT, ACCENT_TEXT } from "../accents";
@@ -35,7 +36,7 @@ export function LabHeader({
   className?: string;
 }) {
   return (
-    <header className={cn("flex flex-col gap-5", className)}>
+    <header className={cn("flex flex-col gap-6 sm:gap-7", className)}>
       <Link
         href={backHref}
         className="inline-flex w-fit items-center gap-1.5 text-sm font-medium text-ink-muted transition-colors hover:text-plum"
@@ -44,27 +45,28 @@ export function LabHeader({
         {backLabel}
       </Link>
 
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+      <SviglLabsLogo size="md" />
+
+      <div className="flex flex-col gap-4 border-t border-plum/10 pt-5 sm:flex-row sm:items-start sm:justify-between sm:pt-6">
         <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-3.5 sm:gap-4">
             <div
               className={cn(
-                "flex h-11 w-11 items-center justify-center rounded-2xl",
+                "flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl sm:h-14 sm:w-14",
                 ACCENT_BG_SOFT[lab.accent],
                 ACCENT_TEXT[lab.accent],
               )}
             >
-              <LabIcon id={lab.icon} />
+              <LabIcon id={lab.icon} className="h-7 w-7 sm:h-8 sm:w-8" />
             </div>
-            <div>
-              <p className="text-xs font-bold uppercase tracking-widest text-plum">Svigl Labs</p>
-              <h1 className="mt-0.5 text-[clamp(1.65rem,5vw,2.25rem)] font-bold tracking-tight text-ink">
-                {lab.name}
-              </h1>
-            </div>
+            <h1 className="text-[clamp(1.75rem,5.5vw,2.5rem)] font-bold tracking-tight text-ink">
+              {lab.name}
+            </h1>
           </div>
-          <p className="mt-3 max-w-xl text-sm text-ink-muted sm:text-base">{lab.description}</p>
-          <div className="mt-3">
+          <p className="mt-3 max-w-xl text-sm text-ink-muted sm:mt-3.5 sm:text-base">
+            {lab.description}
+          </p>
+          <div className="mt-3.5">
             <DifficultyBadge difficulty={lab.difficulty} />
           </div>
         </div>

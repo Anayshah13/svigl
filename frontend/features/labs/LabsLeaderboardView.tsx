@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { motion } from "framer-motion";
+import { SviglLabsLogo } from "@/components/layout/SviglLabsLogo";
 import { FadeIn, FadeInItem, FadeInStagger } from "@/components/motion/FadeIn";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/cn";
@@ -20,8 +21,8 @@ export function LabsLeaderboardView() {
     <div className="page-shell gap-8 sm:gap-10">
       <FadeIn>
         <SectionHeader
-          eyebrow="Competition"
-          title="Labs Leaderboard"
+          eyebrow="Leaderboards"
+          title={<SviglLabsLogo size="default" link={false} />}
           description="Browse top scores across every skill challenge."
           action={
             <Link href={labsPath()}>

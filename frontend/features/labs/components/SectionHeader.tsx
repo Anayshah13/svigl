@@ -9,11 +9,13 @@ export function SectionHeader({
   className,
 }: {
   eyebrow?: string;
-  title: string;
+  title: ReactNode;
   description?: string;
   action?: ReactNode;
   className?: string;
 }) {
+  const titleIsString = typeof title === "string";
+
   return (
     <div
       className={cn(
@@ -25,9 +27,15 @@ export function SectionHeader({
         {eyebrow ? (
           <p className="text-xs font-bold uppercase tracking-widest text-plum">{eyebrow}</p>
         ) : null}
-        <h1 className="mt-1 text-[clamp(1.75rem,6vw,2.5rem)] font-bold tracking-tight text-ink sm:mt-2">
-          {title}
-        </h1>
+        {titleIsString ? (
+          <h1 className="mt-1 text-[clamp(1.75rem,6vw,2.5rem)] font-bold tracking-tight text-ink sm:mt-2">
+            {title}
+          </h1>
+        ) : (
+          <div className="mt-1 sm:mt-2" role="heading" aria-level={1}>
+            {title}
+          </div>
+        )}
         {description ? (
           <p className="mt-1 max-w-xl text-sm text-ink-muted sm:mt-2 sm:text-base">{description}</p>
         ) : null}

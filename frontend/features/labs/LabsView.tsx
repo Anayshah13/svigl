@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { SviglLabsLogo } from "@/components/layout/SviglLabsLogo";
 import { FadeIn, FadeInItem, FadeInStagger } from "@/components/motion/FadeIn";
 import { Button } from "@/components/ui/Button";
 import { getAllLabs, labsLeaderboardPath } from "./config";
@@ -14,8 +15,7 @@ export function LabsView() {
     <div className="page-shell gap-8 sm:gap-10">
       <FadeIn>
         <SectionHeader
-          eyebrow="Experiments"
-          title="Svigl Labs"
+          title={<SviglLabsLogo size="lg" link={false} />}
           description="Train your drawing precision with skill-based challenges."
           action={
             <Link href={labsLeaderboardPath()}>

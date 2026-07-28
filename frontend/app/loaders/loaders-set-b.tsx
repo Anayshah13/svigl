@@ -11,47 +11,6 @@ const colors = {
   white: "#FAFAF8",
 };
 
-/** Arc Sweep — chartreuse progress arc over plum track */
-function ArcSweep() {
-  return (
-    <svg viewBox="0 0 120 120" className="h-28 w-28" aria-hidden>
-      <defs>
-        <filter id="arc-glow" x="-40%" y="-40%" width="180%" height="180%">
-          <feGaussianBlur stdDeviation="2" result="blur" />
-          <feMerge>
-            <feMergeNode in="blur" />
-            <feMergeNode in="SourceGraphic" />
-          </feMerge>
-        </filter>
-      </defs>
-      <circle
-        cx="60"
-        cy="60"
-        r="40"
-        fill="none"
-        stroke={colors.plum}
-        strokeWidth="6"
-        strokeOpacity="0.35"
-      />
-      <circle
-        cx="60"
-        cy="60"
-        r="40"
-        fill="none"
-        stroke={colors.chartreuse}
-        strokeWidth="6"
-        strokeLinecap="round"
-        strokeDasharray="80 170"
-        className="loader-anim anim-arc-sweep"
-        filter="url(#arc-glow)"
-        transform="rotate(-90 60 60)"
-      />
-      <circle cx="60" cy="60" r="8" fill={colors.plum} fillOpacity="0.5" />
-      <circle cx="60" cy="60" r="4" fill={colors.chartreuse} />
-    </svg>
-  );
-}
-
 /** Morph Square — soft square ↔ diamond with multi-color edges */
 function MorphSquare() {
   return (
@@ -173,11 +132,6 @@ function BarCascade() {
 }
 
 export const LOADER_SET_B: LoaderItem[] = [
-  {
-    title: "Arc Sweep",
-    description: "Chartreuse arc sweeping a plum track",
-    component: ArcSweep,
-  },
   {
     title: "Morph Square",
     description: "Square softens into a diamond",

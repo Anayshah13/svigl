@@ -5,6 +5,7 @@ import "./loaders.css";
 import { LOADER_SET_A } from "./loaders-set-a";
 import { LOADER_SET_B } from "./loaders-set-b";
 import { LOADER_SET_C } from "./loaders-set-c";
+import { LOADER_SET_D } from "./loaders-set-d";
 
 const colors = {
   pink: "#ED7FB8",
@@ -13,7 +14,7 @@ const colors = {
   chartreuse: "#BBE331",
 };
 
-const ALL_LOADERS = [...LOADER_SET_A, ...LOADER_SET_B, ...LOADER_SET_C];
+const ALL_LOADERS = [...LOADER_SET_A, ...LOADER_SET_B, ...LOADER_SET_C, ...LOADER_SET_D];
 
 function LoaderCard({
   title,
@@ -64,9 +65,9 @@ export default function LoadersShowcasePage() {
             Svigl <span style={{ color: colors.chartreuse }}>Loaders</span>
           </h1>
           <p className="mx-auto mt-4 max-w-2xl text-base text-white/40 sm:text-lg">
-            Fifteen CSS &amp; SVG loader ideas in brand colors. Static by default —
-            hover a card to preview the motion. Pick one later for landing, network waits,
-            and the game room.
+            Twenty-two CSS &amp; SVG loader ideas in brand colors. Static by default —
+            hover a card to preview the motion. Built for minigames, solo play,
+            Svigl Labs, and every loading state in between.
           </p>
           <div className="mx-auto mt-6 flex flex-wrap items-center justify-center gap-2">
             {[
@@ -103,7 +104,7 @@ export default function LoadersShowcasePage() {
           viewport={{ once: true }}
           className="mt-16 text-center text-sm text-white/25"
         >
-          Demo only — nothing is wired into the app yet. Tell us which one you want live.
+          Demo only — hover to preview. Tell us which ones to wire into the app.
         </motion.p>
       </div>
     </div>
