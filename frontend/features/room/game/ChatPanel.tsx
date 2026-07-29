@@ -100,7 +100,7 @@ export function ChatPanel({
     >
       {!hideHeader ? (
         <div className="shrink-0 border-b border-plum/10 px-3 py-2 sm:px-4 sm:py-3">
-          <h2 className="text-[10px] font-bold uppercase tracking-wider text-ink-muted sm:text-xs">
+          <h2 className="text-xs font-bold uppercase tracking-wider text-ink-muted">
             Chat
           </h2>
         </div>
@@ -139,7 +139,7 @@ export function ChatPanel({
                 )}
               >
                 {isPrivate ? (
-                  <span className="mr-1.5 inline-flex align-middle text-[10px] font-bold uppercase tracking-wide text-blue sm:text-[11px]">
+                  <span className="mr-1.5 inline-flex align-middle text-xs font-bold uppercase tracking-wide text-blue">
                     Private
                   </span>
                 ) : null}

@@ -22,7 +22,7 @@ const FEATURES: Array<{
   },
   {
     title: "Cozy multiplayer",
-    desc: "Rooms hold up to 16 players. Share the link, pick your words, start when everyone's in.",
+    desc: "Rooms hold up to 12 players. Share the link, pick your words, start when everyone's in.",
     accent: colors.green,
     visual: "multiplayer" as const,
   },
@@ -278,7 +278,7 @@ function ToolbarVisual() {
           );
         })}
       </div>
-      <p className="fv-tool-label text-center text-[10px] font-semibold text-ink-muted">
+      <p className="fv-tool-label text-center text-xs font-semibold text-ink-muted">
         {TOOLS[active].label}{" "}
         <span className="font-mono font-bold text-plum">[{TOOLS[active].key}]</span>
       </p>
@@ -373,14 +373,14 @@ function NoAdsVisual() {
       >
         <div className="fv-ad-banner flex items-center gap-2 rounded-lg bg-ink/4 px-2 py-1.5">
           <div
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[9px] font-extrabold tracking-wide text-white"
+            className="flex h-11 w-11 shrink-0 touch-manipulation items-center justify-center rounded-md text-xs font-extrabold tracking-wide text-white"
             style={{ background: colors.pink }}
           >
             AD
           </div>
           <div className="min-w-0 flex-1">
             <p className="truncate text-[11px] font-bold text-ink">Buy more guesses!</p>
-            <p className="truncate text-[10px] text-ink-muted">Watch a 30s video →</p>
+            <p className="truncate text-xs text-ink-muted">Watch a 30s video →</p>
           </div>
         </div>
 
@@ -404,7 +404,7 @@ function NoAdsVisual() {
           </>
         )}
       </button>
-      <p className="text-center text-[10px] font-semibold text-ink-muted">
+      <p className="text-center text-xs font-semibold text-ink-muted">
         {banned ? "Blocked. Game stays clean." : "Tap again to block."}
       </p>
     </div>
@@ -668,7 +668,7 @@ export function GameFeaturesSection() {
       <FadeIn>
         <div className="flex flex-col gap-3 sm:gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-lg">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-plum sm:text-xs">The Game</p>
+            <p className="text-xs font-bold uppercase tracking-widest text-plum">The Game</p>
             <h2 className="mt-1.5 font-display text-[clamp(1.4rem,4.4vw,2rem)] font-bold tracking-tight text-ink sm:mt-2 lg:text-4xl">
               About Svigl.
             </h2>

@@ -58,7 +58,7 @@ export function createDemoRoom(
     code: DEMO_ROOM_CODE,
     hostId: DEMO_SELF_ID,
     status: "PLAYING",
-    maxPlayers: 8,
+    maxPlayers: 12,
     createdAt: new Date().toISOString(),
     players: DEMO_PLAYERS,
     settings: {

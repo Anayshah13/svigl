@@ -104,7 +104,7 @@ export function ToolDock({
                 </span>
                 <span
                   className={cn(
-                    "font-mono text-[10px] leading-tight",
+                    "font-mono text-xs leading-tight",
                     active ? "text-white/75" : "text-ink-muted",
                   )}
                 >

@@ -85,26 +85,38 @@ export function LabDetailView({ lab }: { lab: LabConfig }) {
   };
 
   return (
-    <div className="page-shell gap-8 sm:gap-10">
-      <FadeIn>
+    <div className="page-shell page-shell-lab">
+      <div className="lg:hidden">
+        <LabHeader lab={lab} compact />
+      </div>
+      <FadeIn className="hidden lg:block">
         <LabHeader lab={lab} />
       </FadeIn>
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1.6fr)_minmax(16rem,0.9fr)] lg:gap-8">
-        <FadeIn delay={0.05}>
-          <section className="overflow-hidden rounded-3xl border border-gray-200/80 bg-white p-5 shadow-(--shadow-soft) sm:p-6">
-            <div className="mb-5">
-              <p className="text-xs font-bold uppercase tracking-widest text-plum">Challenge</p>
-              <h2 className="mt-1 text-xl font-bold tracking-tight text-ink">{lab.name}</h2>
-              <p className="mt-1 text-sm text-ink-muted">{lab.description}</p>
-            </div>
+      <div className="flex flex-col gap-5 lg:grid lg:grid-cols-[minmax(0,1.6fr)_minmax(16rem,0.9fr)] lg:gap-8">
+        {/* Play zone owns the first mobile viewport; stats sit below it. */}
+        <div className="lab-play-zone min-h-0">
+          <FadeIn delay={0.05} className="flex min-h-0 flex-1 flex-col">
+            <section className="flex min-h-0 flex-1 flex-col rounded-3xl border border-gray-200/80 bg-white p-3 shadow-(--shadow-soft) sm:p-5 lg:p-6">
+              <div className="mb-5 hidden lg:block">
+                <p className="text-xs font-bold uppercase tracking-widest text-plum">
+                  Challenge
+                </p>
+                <h2 className="mt-1 text-xl font-bold tracking-tight text-ink">
+                  {lab.name}
+                </h2>
+                <p className="mt-1 text-sm text-ink-muted">{lab.description}</p>
+              </div>
 
-            <LabChallengeCanvas lab={lab} onScored={onScored} />
-            {boardMessage ? (
-              <p className="mt-4 text-center text-xs font-medium text-ink-muted">{boardMessage}</p>
-            ) : null}
-          </section>
-        </FadeIn>
+              <LabChallengeCanvas lab={lab} onScored={onScored} fillHeight />
+              {boardMessage ? (
+                <p className="mt-3 shrink-0 text-center text-xs font-medium text-ink-muted lg:mt-4">
+                  {boardMessage}
+                </p>
+              ) : null}
+            </section>
+          </FadeIn>
+        </div>
 
         <div className="flex flex-col gap-5">
           <FadeInStagger
@@ -142,7 +154,7 @@ export function LabDetailView({ lab }: { lab: LabConfig }) {
                 </h3>
                 <Link
                   href={labPath(lab.slug)}
-                  className="text-xs font-semibold text-plum transition-opacity hover:opacity-80"
+                  className="inline-flex min-h-11 touch-manipulation items-center text-xs font-semibold text-plum transition-opacity hover:opacity-80 sm:min-h-0"
                 >
                   Refresh
                 </Link>

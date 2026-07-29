@@ -217,10 +217,10 @@ export function ProfileView({ username }: { username: string }) {
 
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="rounded-full bg-plum-light px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-plum sm:text-[11px]">
+                  <span className="rounded-full bg-plum-light px-3 py-1 text-xs font-bold uppercase tracking-wider text-plum">
                     {isOwnProfile ? providerLabel(profile.provider) : "Player profile"}
                   </span>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 sm:text-xs">
+                  <span className="text-xs font-bold uppercase tracking-wider text-gray-400">
                     {handle}
                   </span>
                 </div>

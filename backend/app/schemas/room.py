@@ -15,7 +15,7 @@ from app.models.room import (
 
 
 class CreateRoomRequest(BaseModel):
-    max_players: int = Field(default=8, ge=2, le=16)
+    max_players: int = Field(default=12, ge=2, le=12)
 
 
 class TargetPlayerRequest(BaseModel):

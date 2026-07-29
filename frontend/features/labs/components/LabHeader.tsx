@@ -27,19 +27,64 @@ export function LabHeader({
   backHref = labsPath(),
   backLabel = "Back to Labs",
   showLeaderboard = true,
+  compact = false,
   className,
 }: {
   lab: LabConfig;
   backHref?: string;
   backLabel?: string;
   showLeaderboard?: boolean;
+  /** Mobile play chrome: back + title + leaderboard in one row. */
+  compact?: boolean;
   className?: string;
 }) {
+  if (compact) {
+    return (
+      <header
+        className={cn(
+          "flex shrink-0 items-center gap-2 sm:gap-3",
+          className,
+        )}
+      >
+        <Link
+          href={backHref}
+          aria-label={backLabel}
+          className="inline-flex min-h-11 min-w-11 touch-manipulation items-center justify-center rounded-full text-ink-muted transition-colors hover:bg-plum-light/50 hover:text-plum"
+        >
+          <BackArrowIcon />
+        </Link>
+
+        <div className="flex min-w-0 flex-1 items-center gap-2.5">
+          <div
+            className={cn(
+              "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl",
+              ACCENT_BG_SOFT[lab.accent],
+              ACCENT_TEXT[lab.accent],
+            )}
+          >
+            <LabIcon id={lab.icon} className="h-5 w-5" />
+          </div>
+          <h1 className="truncate text-base font-bold tracking-tight text-ink sm:text-lg">
+            {lab.name}
+          </h1>
+        </div>
+
+        {showLeaderboard ? (
+          <Link href={labLeaderboardPath(lab.slug)} className="shrink-0 touch-manipulation">
+            <Button variant="outline" size="sm" className="min-h-11 touch-manipulation sm:min-h-9">
+              Leaderboard
+            </Button>
+          </Link>
+        ) : null}
+      </header>
+    );
+  }
+
   return (
     <header className={cn("flex flex-col gap-6 sm:gap-7", className)}>
       <Link
         href={backHref}
-        className="inline-flex w-fit items-center gap-1.5 text-sm font-medium text-ink-muted transition-colors hover:text-plum"
+        className="inline-flex min-h-11 w-fit touch-manipulation items-center gap-1.5 text-sm font-medium text-ink-muted transition-colors hover:text-plum sm:min-h-0"
       >
         <BackArrowIcon />
         {backLabel}
@@ -72,8 +117,8 @@ export function LabHeader({
         </div>
 
         {showLeaderboard ? (
-          <Link href={labLeaderboardPath(lab.slug)} className="shrink-0">
-            <Button variant="outline" size="sm">
+          <Link href={labLeaderboardPath(lab.slug)} className="shrink-0 touch-manipulation">
+            <Button variant="outline" size="sm" className="min-h-11 touch-manipulation sm:min-h-9">
               Leaderboard
             </Button>
           </Link>

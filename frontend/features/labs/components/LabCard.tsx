@@ -52,18 +52,31 @@ export function LabCard({ lab, className }: { lab: LabConfig; className?: string
 
       <div className="mt-6 flex flex-col gap-2 sm:flex-row">
         {isPlayable ? (
-          <Link href={playHref} className="flex-1">
-            <Button variant="primary" size="sm" className="w-full">
+          <Link href={playHref} className="flex-1 touch-manipulation">
+            <Button
+              variant="primary"
+              size="sm"
+              className="w-full min-h-11 touch-manipulation sm:min-h-9"
+            >
               Play
             </Button>
           </Link>
         ) : (
-          <Button variant="primary" size="sm" className="w-full flex-1" disabled>
+          <Button
+            variant="primary"
+            size="sm"
+            className="w-full min-h-11 flex-1 touch-manipulation sm:min-h-9"
+            disabled
+          >
             Play
           </Button>
         )}
-        <Link href={boardHref} className="flex-1">
-          <Button variant="outline" size="sm" className="w-full">
+        <Link href={boardHref} className="flex-1 touch-manipulation">
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full min-h-11 touch-manipulation sm:min-h-9"
+          >
             Leaderboard
           </Button>
         </Link>

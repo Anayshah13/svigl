@@ -126,7 +126,7 @@ function PlayerActions({
           setOpen((o) => !o);
           setConfirmKick(false);
         }}
-        className="inline-flex h-8 w-8 items-center justify-center rounded-full text-ink-muted transition-colors hover:bg-plum-light hover:text-plum"
+        className="inline-flex h-11 w-11 touch-manipulation items-center justify-center rounded-full text-ink-muted transition-colors hover:bg-plum-light hover:text-plum focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-plum/40"
         aria-label={`Manage ${displayName}`}
       >
         <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4" aria-hidden="true">
@@ -142,7 +142,7 @@ function PlayerActions({
             type="button"
             disabled={busy}
             onClick={() => void handleMakeHost()}
-            className="flex w-full items-center gap-2 px-3.5 py-2.5 text-left text-sm font-medium text-ink transition-colors hover:bg-plum-light disabled:opacity-50"
+            className="flex min-h-11 w-full items-center gap-2 px-3.5 py-2.5 text-left text-sm font-medium text-ink transition-colors touch-manipulation hover:bg-plum-light disabled:opacity-50"
           >
             <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4 shrink-0 text-plum" aria-hidden="true">
               <path d="M10 2l2.09 4.26L17 7.27l-3.5 3.41L14.18 16 10 13.77 5.82 16l.68-5.32L3 7.27l4.91-1.01z" />
@@ -153,7 +153,7 @@ function PlayerActions({
             type="button"
             disabled={busy}
             onClick={() => void handleKick()}
-            className={`flex w-full items-center gap-2 px-3.5 py-2.5 text-left text-sm font-medium transition-colors disabled:opacity-50 ${
+            className={`flex min-h-11 w-full items-center gap-2 px-3.5 py-2.5 text-left text-sm font-medium transition-colors touch-manipulation disabled:opacity-50 ${
               confirmKick
                 ? "bg-red-50 text-red-600 hover:bg-red-100"
                 : "text-red-500 hover:bg-red-50"
@@ -409,12 +409,13 @@ export function RoomView() {
       <div
         className={
           inGame
-            ? "page-shell page-shell-game relative z-10 gap-2 overflow-hidden sm:gap-3"
+            ? "page-shell page-shell-game page-shell-game-immersive relative z-10 gap-2 overflow-hidden sm:gap-3"
             : "page-shell page-shell-tight relative z-10 gap-5 sm:gap-6"
         }
       >
       {inGame ? (
-        <div className="flex shrink-0 items-start justify-between gap-2">
+        /* Desktop/tablet only — mobile uses MobileGameHeader + menu (invite/leave). */
+        <div className="hidden shrink-0 items-start justify-between gap-2 lg:flex">
           <div className="min-w-0">
             <div className="relative inline-block pr-8">
               <h1 className="break-all font-mono text-xl font-bold tracking-[0.1em] text-ink sm:text-2xl sm:tracking-[0.14em]">

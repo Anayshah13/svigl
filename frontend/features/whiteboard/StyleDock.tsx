@@ -41,7 +41,7 @@ function Swatch({ color, active, onSelect, size = "md" }: SwatchProps) {
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-plum/40",
         size === "md"
           ? "h-11 w-11 sm:h-9 sm:w-9"
-          : "h-8 w-8",
+          : "h-11 w-11",
         active ? "scale-110 border-ink" : "border-black/10 hover:scale-105",
         isWhite && "shadow-[inset_0_0_0_1px_rgba(0,0,0,0.12)]",
       )}
@@ -180,12 +180,12 @@ export function StyleDock({
           <div
             role="dialog"
             aria-label="Colors and stroke width"
-            className="absolute bottom-full left-0 z-50 mb-2 w-[min(17.5rem,calc(100vw-1.5rem))] max-h-[min(22rem,calc(100dvh-7rem))] overflow-y-auto overscroll-contain rounded-2xl border border-plum/15 bg-white p-3 shadow-lg"
+            className="absolute bottom-full left-0 z-50 mb-2 w-[min(24rem,calc(100vw-1rem))] max-h-[min(22rem,calc(100dvh-7rem))] overflow-y-auto overscroll-contain rounded-2xl border border-plum/15 bg-white p-3 shadow-lg"
           >
-            <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-ink-muted">
+            <p className="mb-1.5 text-xs font-bold uppercase tracking-wider text-ink-muted">
               Colors
             </p>
-            <div className="grid grid-cols-7 gap-1.5">
+            <div className="grid grid-cols-6 gap-2 sm:grid-cols-7">
               {allColors.map((c) => (
                 <Swatch
                   key={c}
@@ -205,7 +205,7 @@ export function StyleDock({
                   aria-label="Custom color picker"
                   onClick={() => pickerRef.current?.click()}
                   className={cn(
-                    "relative inline-flex h-8 w-8 shrink-0 touch-manipulation items-center justify-center overflow-hidden rounded-full border-2 border-dashed border-plum/40",
+                    "relative inline-flex h-11 w-11 shrink-0 touch-manipulation items-center justify-center overflow-hidden rounded-full border-2 border-dashed border-plum/40",
                     "hover:border-plum focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-plum/40",
                   )}
                   style={{
@@ -230,10 +230,10 @@ export function StyleDock({
             </div>
 
             <div className="mt-3 border-t border-plum/10 pt-2">
-              <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-ink-muted">
+              <p className="mb-1.5 text-xs font-bold uppercase tracking-wider text-ink-muted">
                 Stroke
               </p>
-              <div className="flex items-center gap-1.5" role="group" aria-label="Stroke width">
+              <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Stroke width">
                 {STROKE_WIDTHS.map((w) => (
                   <button
                     key={w}
@@ -243,7 +243,7 @@ export function StyleDock({
                     aria-pressed={strokeWidth === w}
                     onClick={() => onStrokeWidthChange(w)}
                     className={cn(
-                      "inline-flex h-10 w-10 shrink-0 touch-manipulation items-center justify-center rounded-xl transition-all",
+                      "inline-flex h-11 w-11 shrink-0 touch-manipulation items-center justify-center rounded-xl transition-all",
                       "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-plum/40",
                       strokeWidth === w
                         ? "bg-plum text-white"
@@ -350,7 +350,7 @@ export function StyleDock({
               aria-label="More colors"
               className="absolute bottom-full left-0 z-50 mb-2 w-max max-w-none -translate-x-2 rounded-2xl border border-plum/15 bg-white px-2.5 py-2 shadow-lg sm:-translate-x-3"
             >
-              <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-ink-muted">
+              <p className="mb-1.5 text-xs font-bold uppercase tracking-wider text-ink-muted">
                 More colors
               </p>
               <div

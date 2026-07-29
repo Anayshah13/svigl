@@ -84,7 +84,7 @@ function requireRoom(data: unknown): Room {
   return room;
 }
 
-export async function createRoom(maxPlayers = 8): Promise<Room> {
+export async function createRoom(maxPlayers = 12): Promise<Room> {
   const data = await roomRequest<unknown>("/rooms", {
     method: "POST",
     body: JSON.stringify({ max_players: maxPlayers }),

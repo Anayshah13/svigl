@@ -9,6 +9,7 @@ import { usePhaseCountdown } from "@/hooks/usePhaseCountdown";
 import { useGameChat } from "@/hooks/useGameChat";
 import { cn } from "@/lib/cn";
 import { formatDisplayName } from "@/lib/names";
+import { shareRoomInvite } from "@/lib/room-invite";
 import type { ChatMessage, Room, RoomPlayer } from "@/types/room";
 import type { VoteKickTally } from "@/services/app-websocket";
 import { ChatPanel } from "./ChatPanel";
@@ -158,6 +159,11 @@ export function GameScreen({
           label: "Scores & chat",
           onSelect: () => setMobileChatOpen(true),
         },
+        {
+          id: "invite",
+          label: "Invite friends",
+          onSelect: () => void shareRoomInvite(room.code),
+        },
       ];
       if (onLeaveRoom) {
         actions.push({
@@ -169,7 +175,7 @@ export function GameScreen({
       }
       return actions;
     },
-    [leaving, onLeaveRoom],
+    [leaving, onLeaveRoom, room.code],
   );
 
   if (!showBoard) {

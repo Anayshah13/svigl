@@ -56,7 +56,7 @@ export function DrawerOnboarding({
       )}
     >
       <div className="w-full max-w-md rounded-3xl border border-plum/20 bg-white p-5 shadow-lg sm:p-6">
-        <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-plum">
+        <p className="text-xs font-bold uppercase tracking-[0.18em] text-plum">
           You&apos;re the drawer
         </p>
         <h2

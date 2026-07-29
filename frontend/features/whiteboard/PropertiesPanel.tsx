@@ -104,7 +104,7 @@ export function PropertiesPanel({
     >
       <div className="flex items-start justify-between gap-2">
         <div>
-          <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-plum">
+          <p className="text-xs font-bold uppercase tracking-[0.14em] text-plum">
             Properties
           </p>
           <p className="mt-0.5 text-sm font-semibold">
@@ -152,7 +152,7 @@ export function PropertiesPanel({
           </div>
           <div className="flex flex-col gap-0.5">
             <dt className="text-ink-muted">Transform</dt>
-            <dd className="break-all font-mono text-[10px] font-medium leading-snug">
+            <dd className="break-all font-mono text-xs font-medium leading-snug">
               {selected.transform || "none"}
             </dd>
           </div>

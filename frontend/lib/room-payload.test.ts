@@ -5,7 +5,7 @@ const snapshot = {
   code: "TEST",
   host_id: "alice",
   status: "PLAYING",
-  max_players: 8,
+  max_players: 12,
   created_at: "2026-07-15T00:00:00Z",
   revision: 7,
   settings: {

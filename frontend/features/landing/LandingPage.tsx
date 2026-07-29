@@ -95,19 +95,19 @@ export function LandingPage() {
     <div className="relative min-h-0">
       <LandingBackgroundDoodles />
       <div className="relative z-10">
-        <section className="relative flex min-h-[calc(100dvh-3.5rem)] flex-col items-center justify-center px-5 py-16 sm:px-6 sm:py-20 lg:py-24">
+        <section className="relative flex min-h-[calc(100dvh-3.5rem)] flex-col items-center justify-center px-5 py-16 sm:min-h-[calc(100dvh-4rem)] sm:px-6 sm:py-20 lg:py-24">
           <div className="relative mx-auto flex w-full max-w-2xl flex-col items-center text-center sm:max-w-3xl lg:-translate-y-3vh lg:max-w-4xl">
             <FadeIn className="mb-8 flex w-full justify-center md:hidden">
               <SviglLogo size="hero" className="justify-center text-center" />
             </FadeIn>
 
             <FadeIn delay={0.08} className="w-full">
-              <h1 className="font-display text-[clamp(1.75rem,6.5vw,2.5rem)] font-normal leading-[1.08] tracking-tight text-ink sm:text-5xl lg:text-[4rem] lg:leading-[1.04] xl:text-[4.5rem]">
+              <h1 className="text-fluid-display font-display font-normal leading-[1.08] tracking-tight text-ink lg:leading-[1.04]">
                 <HeadlineWords words={headline.words} />{" "}
                 <br className="sm:hidden" />
                 <motion.span
                   key={headline.accent}
-                  className="script-accent relative inline-block text-[clamp(1.95rem,7.25vw,2.75rem)] sm:text-6xl lg:text-[4.5rem] xl:text-[5rem]"
+                  className="script-accent text-fluid-script relative inline-block"
                   initial={{ opacity: 0, y: 20, scale: 0.96 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   transition={{
@@ -237,10 +237,10 @@ export function LandingPage() {
         <LandingFooter />
       </div>
 
-      {/* Labs CTA — fixed bottom-right for full landing scroll */}
+      {/* Labs CTA — fixed bottom-right; lifts above ActiveRoomBar via .labs-cta-fixed */}
       <FadeIn
         delay={0.28}
-        className="pointer-events-auto fixed bottom-5 right-3 z-40 sm:bottom-8 sm:right-5 lg:bottom-10 lg:right-8"
+        className="labs-cta-fixed pointer-events-auto fixed z-40"
       >
         <LabsCtaOverlapShapes />
       </FadeIn>

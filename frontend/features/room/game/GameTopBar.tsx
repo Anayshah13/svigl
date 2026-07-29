@@ -70,7 +70,7 @@ export function GameTopBar({
       </p>
 
       <div className="min-w-0">
-        <p className="text-[10px] font-bold uppercase tracking-wider text-ink-muted sm:text-[11px]">
+        <p className="text-xs font-bold uppercase tracking-wider text-ink-muted">
           Round {Math.max(1, game.roundNumber)} of {game.totalRounds}
         </p>
         <p className="text-xs font-semibold leading-snug text-ink sm:text-sm">

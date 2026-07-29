@@ -502,7 +502,7 @@ export function mapRoomPayload(value: unknown, previous?: Room | null): Room | n
       "",
     status,
     maxPlayers:
-      numberValue(source.maxPlayers, source.max_players, previous?.maxPlayers) ?? 8,
+      numberValue(source.maxPlayers, source.max_players, previous?.maxPlayers) ?? 12,
     createdAt:
       stringValue(source.createdAt, source.created_at, previous?.createdAt) ?? "",
     players: playersWithScores,

@@ -73,7 +73,7 @@ export function WordDisplay({
         <p
           className={cn(
             "font-bold uppercase tracking-[0.2em] text-plum",
-            inline ? "text-[9px] shrink-0" : "text-[10px]",
+            inline ? "text-xs shrink-0" : "text-xs",
           )}
         >
           Draw this

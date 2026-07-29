@@ -37,9 +37,9 @@ export function VoteKickButton({
           : `Vote to kick (${votes} of ${required})`
       }
       className={cn(
-        "inline-flex shrink-0 items-center gap-1 font-semibold transition-colors",
+        "inline-flex min-h-11 shrink-0 touch-manipulation items-center gap-1 font-semibold transition-colors",
         compact
-          ? "rounded-lg px-1.5 py-0.5 text-[10px]"
+          ? "rounded-lg px-2 py-1.5 text-xs"
           : "rounded-xl px-2.5 py-1.5 text-xs",
         voted
           ? "bg-red-100 text-red-600 hover:bg-red-200"
@@ -49,7 +49,7 @@ export function VoteKickButton({
       <svg
         viewBox="0 0 20 20"
         fill="currentColor"
-        className={cn(compact ? "h-3 w-3" : "h-3.5 w-3.5")}
+        className="h-3.5 w-3.5"
         aria-hidden="true"
       >
         <path d="M10 18a8 8 0 100-16 8 8 0 000 16zM6.94 6.94a.75.75 0 011.06 0L10 8.94l1.999-2a.75.75 0 111.061 1.061L11.06 10l2 1.999a.75.75 0 11-1.061 1.061L10 11.06l-1.999 2a.75.75 0 11-1.061-1.061L8.94 10l-2-1.999a.75.75 0 010-1.061z" />

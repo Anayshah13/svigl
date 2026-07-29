@@ -16,6 +16,15 @@
   --blue-light: rgba(56, 189, 248, 0.2);
   --shadow-soft: 0 4px 28px -4px rgba(112, 63, 147, 0.12);
   --shadow-card: 0 12px 40px -10px rgba(44, 44, 44, 0.1);
+  /* Fluid type scale (320–1280px) */
+  --text-fluid-xs: clamp(0.75rem, 0.7rem + 0.25vw, 0.875rem);
+  --text-fluid-sm: clamp(0.875rem, 0.8rem + 0.375vw, 1rem);
+  --text-fluid-base: clamp(1rem, 0.9rem + 0.5vw, 1.125rem);
+  --text-fluid-lg: clamp(1.125rem, 1rem + 0.625vw, 1.25rem);
+  --text-fluid-xl: clamp(1.25rem, 1rem + 1.25vw, 1.5rem);
+  --text-fluid-2xl: clamp(1.5rem, 1.25rem + 1.25vw, 2rem);
+  --text-fluid-display: clamp(1.75rem, 1.1rem + 4vw, 4.5rem);
+  --text-fluid-script: clamp(1.95rem, 1.2rem + 4.5vw, 5rem);
 }
 
 @theme inline {
@@ -59,6 +68,57 @@ main {
 
 html.has-active-room-bar main {
   padding-bottom: var(--active-room-bar-offset, 7rem);
+}
+
+/* Fixed Labs CTA — clear home indicator; lift above ActiveRoomBar when present */
+.labs-cta-fixed {
+  bottom: max(1.25rem, env(safe-area-inset-bottom, 0px));
+  right: max(0.75rem, env(safe-area-inset-right, 0px));
+}
+
+@media (min-width: 640px) {
+  .labs-cta-fixed {
+    bottom: max(2rem, env(safe-area-inset-bottom, 0px));
+    right: max(1.25rem, env(safe-area-inset-right, 0px));
+  }
+}
+
+@media (min-width: 1024px) {
+  .labs-cta-fixed {
+    bottom: max(2.5rem, env(safe-area-inset-bottom, 0px));
+    right: max(2rem, env(safe-area-inset-right, 0px));
+  }
+}
+
+html.has-active-room-bar .labs-cta-fixed {
+  bottom: calc(
+    var(--active-room-bar-offset, 7rem) + max(0.75rem, env(safe-area-inset-bottom, 0px))
+  );
+}
+
+.text-fluid-xs {
+  font-size: var(--text-fluid-xs);
+}
+.text-fluid-sm {
+  font-size: var(--text-fluid-sm);
+}
+.text-fluid-base {
+  font-size: var(--text-fluid-base);
+}
+.text-fluid-lg {
+  font-size: var(--text-fluid-lg);
+}
+.text-fluid-xl {
+  font-size: var(--text-fluid-xl);
+}
+.text-fluid-2xl {
+  font-size: var(--text-fluid-2xl);
+}
+.text-fluid-display {
+  font-size: var(--text-fluid-display);
+}
+.text-fluid-script {
+  font-size: var(--text-fluid-script);
 }
 
 ::selection {
@@ -161,6 +221,105 @@ html.has-active-room-bar main {
     height: calc(100dvh - 4rem - env(safe-area-inset-top, 0px));
     max-height: calc(100dvh - 4rem - env(safe-area-inset-top, 0px));
   }
+}
+
+/* Labs play: canvas-first first viewport on phones; document layout from lg */
+.page-shell-lab {
+  gap: 0.75rem;
+  padding-top: 0.75rem;
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom, 0px));
+  min-height: calc(100dvh - 3.5rem - env(safe-area-inset-top, 0px));
+}
+
+@media (min-width: 640px) {
+  .page-shell-lab {
+    gap: 1rem;
+    padding-top: 1rem;
+    padding-bottom: max(1rem, env(safe-area-inset-bottom, 0px));
+    min-height: calc(100dvh - 4rem - env(safe-area-inset-top, 0px));
+  }
+}
+
+@media (min-width: 1024px) {
+  .page-shell-lab {
+    gap: 2.5rem;
+    padding-block: 2.5rem;
+    padding-bottom: max(2.5rem, env(safe-area-inset-bottom, 0px));
+    min-height: 0;
+  }
+}
+
+/* Lock document scroll while a Labs stroke is in progress */
+html.lab-drawing,
+html.lab-drawing body {
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+/* /room/* hides AppHeader below md — reclaim that reserved height on phones */
+.page-shell-game-immersive {
+  height: calc(100dvh - env(safe-area-inset-top, 0px));
+  max-height: calc(100dvh - env(safe-area-inset-top, 0px));
+}
+
+@media (min-width: 768px) {
+  .page-shell-game-immersive {
+    height: calc(100dvh - 4rem - env(safe-area-inset-top, 0px));
+    max-height: calc(100dvh - 4rem - env(safe-area-inset-top, 0px));
+  }
+}
+
+/* Labs play: canvas-first on phones; document layout from lg */
+.page-shell-lab {
+  gap: 0.75rem;
+  padding-top: 0.75rem;
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom, 0px));
+  min-height: calc(100dvh - 3.5rem - env(safe-area-inset-top, 0px));
+}
+
+.page-shell-lab .lab-play-zone {
+  display: flex;
+  flex-direction: column;
+  min-height: calc(
+    100dvh - 3.5rem - env(safe-area-inset-top, 0px) - 3.25rem - 1.5rem -
+      var(--active-room-bar-offset, 0px)
+  );
+}
+
+@media (min-width: 640px) {
+  .page-shell-lab {
+    gap: 1rem;
+    padding-top: 1rem;
+    padding-bottom: max(1rem, env(safe-area-inset-bottom, 0px));
+    min-height: calc(100dvh - 4rem - env(safe-area-inset-top, 0px));
+  }
+
+  .page-shell-lab .lab-play-zone {
+    min-height: calc(
+      100dvh - 4rem - env(safe-area-inset-top, 0px) - 3.5rem - 2rem -
+        var(--active-room-bar-offset, 0px)
+    );
+  }
+}
+
+@media (min-width: 1024px) {
+  .page-shell-lab {
+    gap: 2.5rem;
+    padding-block: 2.5rem;
+    padding-bottom: max(2.5rem, env(safe-area-inset-bottom, 0px));
+    min-height: 0;
+  }
+
+  .page-shell-lab .lab-play-zone {
+    min-height: 0;
+  }
+}
+
+/* Lock page scroll while drawing a Labs stroke */
+html.lab-drawing,
+html.lab-drawing body {
+  overflow: hidden;
+  overscroll-behavior: none;
 }
 
 .safe-bottom {

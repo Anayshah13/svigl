@@ -20,7 +20,7 @@ export function MobileChatSheet({
         className="absolute inset-0 bg-ink/35"
         onClick={onClose}
       />
-      <div className="relative z-10 max-h-[55%] min-h-[14rem] overflow-hidden rounded-t-3xl border border-plum/15 bg-white shadow-lg">
+      <div className="relative z-10 max-h-[min(55%,calc(100%-2.5rem))] min-h-[14rem] overflow-hidden rounded-t-3xl border border-plum/15 bg-white pb-[env(safe-area-inset-bottom,0px)] shadow-lg">
         {children}
       </div>
     </div>

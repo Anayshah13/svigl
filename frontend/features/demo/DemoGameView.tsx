@@ -69,7 +69,7 @@ export function DemoGameView() {
   );
 
   return (
-    <div className="page-shell page-shell-game relative z-10 gap-2 overflow-hidden sm:gap-3">
+    <div className="page-shell page-shell-game page-shell-game-immersive relative z-10 gap-2 overflow-hidden sm:gap-3">
       <div className="flex shrink-0 items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="relative inline-block pr-8">

@@ -97,7 +97,7 @@ export function MobileGameMenu({
                     action.onSelect();
                   }}
                   className={cn(
-                    "flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm font-medium transition-colors",
+                    "flex min-h-11 w-full items-center gap-2 px-3 py-2.5 text-left text-sm font-medium transition-colors touch-manipulation",
                     action.tone === "danger"
                       ? "text-red-600 hover:bg-red-50"
                       : "text-ink hover:bg-plum-light/60",

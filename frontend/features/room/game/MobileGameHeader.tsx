@@ -84,7 +84,7 @@ export function MobileGameHeader({
         >
           {remaining ?? "—"}
         </span>
-        <span className="text-[10px] font-bold uppercase tracking-wider text-ink-muted">
+        <span className="text-xs font-bold uppercase tracking-wider text-ink-muted">
           R{Math.max(1, game.roundNumber)}/{game.totalRounds}
         </span>
       </div>

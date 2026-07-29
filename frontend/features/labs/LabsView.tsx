@@ -18,8 +18,12 @@ export function LabsView() {
           title={<SviglLabsLogo size="lg" link={false} />}
           description="Train your drawing precision with skill-based challenges."
           action={
-            <Link href={labsLeaderboardPath()}>
-              <Button variant="outline" size="sm">
+            <Link href={labsLeaderboardPath()} className="touch-manipulation">
+              <Button
+                variant="outline"
+                size="sm"
+                className="min-h-11 touch-manipulation sm:min-h-9"
+              >
                 All leaderboards
               </Button>
             </Link>

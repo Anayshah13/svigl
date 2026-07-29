@@ -47,7 +47,7 @@ class Room(Base):
     status: Mapped[str] = mapped_column(
         String(16), nullable=False, default=ROOM_STATUS_WAITING
     )
-    max_players: Mapped[int] = mapped_column(Integer, nullable=False, default=8)
+    max_players: Mapped[int] = mapped_column(Integer, nullable=False, default=12)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),

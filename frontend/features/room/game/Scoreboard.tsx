@@ -51,7 +51,7 @@ export function Scoreboard({
       )}
     >
       <div className="shrink-0 border-b border-plum/10 px-2.5 py-2 sm:px-4 sm:py-3">
-        <h2 className="text-[10px] font-bold uppercase tracking-wider text-ink-muted sm:text-xs">
+        <h2 className="text-xs font-bold uppercase tracking-wider text-ink-muted">
           Scores
         </h2>
       </div>
@@ -78,18 +78,18 @@ export function Scoreboard({
               <UserAvatar
                 name={name}
                 avatarUrl={player?.avatarUrl ?? null}
-                className="h-7 w-7 shrink-0 text-[10px] sm:h-8 sm:w-8 sm:text-xs"
+                className="h-8 w-8 shrink-0 text-xs sm:h-9 sm:w-9"
               />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-xs font-semibold text-ink sm:text-sm">
                   {formatDisplayName(name)}
                   {isDrawer ? (
-                    <span className="ml-1 hidden text-[10px] font-bold uppercase tracking-wide text-plum sm:inline">
+                    <span className="ml-1 hidden text-xs font-bold uppercase tracking-wide text-plum sm:inline">
                       Drawing
                     </span>
                   ) : null}
                   {guessed ? (
-                    <span className="ml-1 hidden text-[10px] font-bold uppercase tracking-wide text-green sm:inline">
+                    <span className="ml-1 hidden text-xs font-bold uppercase tracking-wide text-green sm:inline">
                       Got it
                     </span>
                   ) : null}

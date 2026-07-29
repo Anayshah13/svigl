@@ -78,7 +78,7 @@ export function ShortcutHelp({
       >
         <div className="mb-3 flex items-start justify-between gap-2">
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-plum">
+            <p className="text-xs font-bold uppercase tracking-[0.14em] text-plum">
               Shortcuts
             </p>
             <h2 className="text-base font-semibold text-ink">
@@ -96,7 +96,7 @@ export function ShortcutHelp({
         </div>
 
         <section className="mb-4">
-          <h3 className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-ink-muted">
+          <h3 className="mb-1.5 text-xs font-bold uppercase tracking-wider text-ink-muted">
             Tools
           </h3>
           <ul className="grid gap-1 sm:grid-cols-2">
@@ -122,7 +122,7 @@ export function ShortcutHelp({
         </section>
 
         <section>
-          <h3 className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-ink-muted">
+          <h3 className="mb-1.5 text-xs font-bold uppercase tracking-wider text-ink-muted">
             Editing & view
           </h3>
           <ul className="grid gap-1">

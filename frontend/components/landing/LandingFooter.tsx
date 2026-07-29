@@ -289,7 +289,7 @@ export function LandingFooter() {
                 rel="noopener noreferrer"
                 aria-label="GitHub"
                 whileHover={{ y: -2 }}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-plum/15 bg-white/70 text-ink-muted transition-colors hover:border-plum/40 hover:bg-white hover:text-plum"
+                className="inline-flex h-11 w-11 touch-manipulation items-center justify-center rounded-full border border-plum/15 bg-white/70 text-ink-muted transition-colors hover:border-plum/40 hover:bg-white hover:text-plum"
               >
                 <GitHubIcon />
               </motion.a>
@@ -299,7 +299,7 @@ export function LandingFooter() {
                 rel="noopener noreferrer"
                 aria-label="LinkedIn"
                 whileHover={{ y: -2 }}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-plum/15 bg-white/70 text-ink-muted transition-colors hover:border-plum/40 hover:bg-white hover:text-plum"
+                className="inline-flex h-11 w-11 touch-manipulation items-center justify-center rounded-full border border-plum/15 bg-white/70 text-ink-muted transition-colors hover:border-plum/40 hover:bg-white hover:text-plum"
               >
                 <LinkedInIcon />
               </motion.a>
@@ -309,7 +309,7 @@ export function LandingFooter() {
                 rel="noopener noreferrer"
                 aria-label="Portfolio"
                 whileHover={{ y: -2 }}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-plum/15 bg-white/70 text-ink-muted transition-colors hover:border-plum/40 hover:bg-white hover:text-plum"
+                className="inline-flex h-11 w-11 touch-manipulation items-center justify-center rounded-full border border-plum/15 bg-white/70 text-ink-muted transition-colors hover:border-plum/40 hover:bg-white hover:text-plum"
               >
                 <PortfolioIcon />
               </motion.a>

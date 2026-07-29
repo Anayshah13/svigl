@@ -137,14 +137,15 @@ export function AppHeader() {
 
   const isLandingHome = pathname === "/";
   const authOnLeft = isLandingHome && !mdUp;
-  // In-room pages own the full viewport on mobile (game UI has its own chrome).
-  const inRoom = pathname.startsWith("/room/");
+  // In-room / demo pages own the full viewport on mobile (game UI has its own chrome).
+  const hideHeaderOnMobile =
+    pathname.startsWith("/room/") || pathname.startsWith("/demo");
 
   return (
     <header
       className={cn(
         "sticky top-0 z-50 border-b border-white/60 bg-white/70 backdrop-blur-xl",
-        inRoom && "hidden md:block",
+        hideHeaderOnMobile && "hidden md:block",
       )}
     >
       <div className="mx-auto flex h-14 w-full max-w-7xl items-center gap-3 px-4 sm:h-16 sm:px-6">
@@ -173,7 +174,7 @@ export function AppHeader() {
           {!authOnLeft ? <AuthControls /> : null}
           <button
             type="button"
-            className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-plum/20 bg-white/80 text-ink transition-colors hover:border-plum/40 hover:bg-white md:hidden"
+            className="inline-flex h-11 w-11 touch-manipulation items-center justify-center rounded-full border border-plum/20 bg-white/80 text-ink transition-colors hover:border-plum/40 hover:bg-white md:hidden"
             aria-expanded={menuOpen}
             aria-controls="mobile-nav"
             aria-label={menuOpen ? "Close menu" : "Open menu"}
@@ -240,7 +241,7 @@ export function AppHeader() {
                           label={label}
                           active={active}
                           onNavigate={() => setMenuOpen(false)}
-                          className="w-full rounded-xl px-3 py-2.5 text-sm"
+                          className="flex min-h-11 w-full items-center rounded-xl px-3 py-2.5 text-sm"
                         />
                       </motion.div>
                     );

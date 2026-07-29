@@ -1952,7 +1952,7 @@ export function WhiteboardCanvas({
             title="Zoom to fit"
             aria-label="Zoom to fit"
             onClick={zoomToFit}
-            className="inline-flex h-11 w-11 touch-manipulation items-center justify-center rounded-xl border border-plum/20 bg-white/95 text-[10px] font-bold uppercase tracking-wide text-plum shadow-sm hover:bg-plum-light/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-plum/40"
+            className="inline-flex h-11 w-11 touch-manipulation items-center justify-center rounded-xl border border-plum/20 bg-white/95 text-xs font-bold uppercase tracking-wide text-plum shadow-sm hover:bg-plum-light/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-plum/40"
           >
             Fit
           </button>
@@ -1989,7 +1989,7 @@ export function WhiteboardCanvas({
       ) : null}
 
       {!isDrawer ? (
-        <div className="pointer-events-none absolute right-3 top-3 rounded-full bg-ink/70 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-white">
+        <div className="pointer-events-none absolute right-3 top-3 rounded-full bg-ink/70 px-2.5 py-1 text-xs font-semibold uppercase tracking-wide text-white">
           Watching
         </div>
       ) : null}

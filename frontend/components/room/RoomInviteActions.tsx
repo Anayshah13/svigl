@@ -65,7 +65,7 @@ export function RoomCodeCopyButton({
       disabled={busy}
       onClick={() => void handleCopy()}
       className={cn(
-        "inline-flex h-8 w-8 items-center justify-center rounded-md text-ink-muted transition-colors hover:bg-plum-light/80 hover:text-plum focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-plum/40 disabled:opacity-50",
+        "inline-flex h-11 w-11 touch-manipulation items-center justify-center rounded-md text-ink-muted transition-colors hover:bg-plum-light/80 hover:text-plum focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-plum/40 disabled:opacity-50",
         className,
       )}
     >
@@ -174,7 +174,7 @@ export function InviteFriendsIconButton({
       disabled={feedback === "busy"}
       onClick={() => void invite()}
       className={cn(
-        "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-plum/20 bg-plum-light text-plum shadow-sm transition-colors touch-manipulation",
+        "inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-plum/20 bg-plum-light text-plum shadow-sm transition-colors touch-manipulation",
         "hover:bg-pink-light focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-plum/40 disabled:opacity-50",
         className,
       )}
@@ -206,7 +206,7 @@ export function LeaveRoomIconButton({
       disabled={leaving}
       onClick={onLeave}
       className={cn(
-        "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-600 text-white shadow-sm transition-colors touch-manipulation",
+        "inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-red-600 text-white shadow-sm transition-colors touch-manipulation",
         "hover:bg-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/50 disabled:opacity-50",
         className,
       )}

@@ -14,7 +14,8 @@ const variants: Record<Variant, string> = {
 };
 
 const sizes: Record<Size, string> = {
-  sm: "h-9 px-4 text-sm",
+  /* min 44px touch target on mobile; slightly denser from sm up */
+  sm: "min-h-11 px-4 text-sm sm:h-9 sm:min-h-9",
   md: "h-11 px-5 text-sm",
   lg: "h-12 px-7 text-base",
 };
