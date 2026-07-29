@@ -118,7 +118,7 @@ export function WordDisplay({
       >
         {slots.map((slot, index) =>
           slot === " " ? (
-            <span key={`gap-${index}`} className="w-2" aria-hidden />
+            <span key={`gap-${index}`} className="w-2 sm:w-3" aria-hidden />
           ) : (
             <span
               key={`${index}-${slot}`}

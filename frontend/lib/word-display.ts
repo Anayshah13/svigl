@@ -23,10 +23,8 @@ export function parseHintSlots(hint: string | null | undefined): string[] {
 
   const flushEmpties = () => {
     if (emptyRun === 0) return;
-    // Server joins with " ", so one secret-space yields two empty parts.
-    // Odd runs (e.g. double-space) still count as one gap.
-    const gaps = Math.max(1, Math.floor(emptyRun / 2) + (emptyRun % 2));
-    // emptyRun=1 → max(1, 0+1)=1; emptyRun=2 → max(1, 1+0)=1; emptyRun=4 → max(1, 2+0)=2
+    // One secret-space → two empty parts after join/split; ceil covers odd runs too.
+    const gaps = Math.ceil(emptyRun / 2);
     for (let i = 0; i < gaps; i++) {
       slots.push(" ");
     }
