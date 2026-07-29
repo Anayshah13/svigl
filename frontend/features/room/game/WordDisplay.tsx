@@ -5,7 +5,26 @@ import { cn } from "@/lib/cn";
 import { parseHintSlots } from "@/lib/word-display";
 import type { RoomGameState } from "@/types/room";
 
-function letterSize(count: number) {
+function letterSize(count: number, inline = false) {
+  if (inline) {
+    if (count >= 12) {
+      return {
+        box: "h-5 min-w-[0.85rem] px-0.5 text-xs",
+        gap: "gap-0.5",
+      };
+    }
+    if (count >= 8) {
+      return {
+        box: "h-6 min-w-[1rem] px-0.5 text-sm",
+        gap: "gap-1",
+      };
+    }
+    return {
+      box: "h-7 min-w-[1.15rem] px-0.5 text-base",
+      gap: "gap-1",
+    };
+  }
+
   if (count >= 14) {
     return {
       box: "h-6 min-w-[1rem] px-0.5 text-sm sm:h-7 sm:min-w-[1.15rem] sm:text-base",
@@ -29,6 +48,8 @@ export function WordDisplay({
   isDrawer,
   hasGuessed = false,
   className,
+  /** Single-row layout for mobile header (timer · word · menu). */
+  inline = false,
 }: {
   game: RoomGameState;
   isDrawer: boolean;
@@ -36,20 +57,34 @@ export function WordDisplay({
   /** Kept for call-site compatibility; hints are server-authoritative. */
   roundDurationSeconds?: number;
   className?: string;
+  inline?: boolean;
 }) {
   if (isDrawer && game.secretWord) {
     return (
       <div
         className={cn(
-          "flex w-full max-w-full flex-col items-center gap-1 sm:items-end",
+          "flex w-full max-w-full",
+          inline
+            ? "flex-row flex-wrap items-center justify-center gap-x-2 gap-y-0.5"
+            : "flex-col items-center gap-1 sm:items-end",
           className,
         )}
       >
-        <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-plum">
+        <p
+          className={cn(
+            "font-bold uppercase tracking-[0.2em] text-plum",
+            inline ? "text-[9px] shrink-0" : "text-[10px]",
+          )}
+        >
           Draw this
         </p>
         <p
-          className="max-w-full break-words text-center font-mono text-lg font-bold uppercase tracking-[0.12em] text-ink sm:text-right sm:text-2xl sm:tracking-[0.28em]"
+          className={cn(
+            "max-w-full break-words font-mono font-bold uppercase text-ink",
+            inline
+              ? "text-center text-base tracking-[0.1em] sm:text-lg"
+              : "text-center text-lg tracking-[0.12em] sm:text-right sm:text-2xl sm:tracking-[0.28em]",
+          )}
           aria-label={`Your word: ${game.secretWord}`}
         >
           {game.secretWord.toUpperCase()}
@@ -71,7 +106,7 @@ export function WordDisplay({
   // Correct guessers see the full word filled in (server sends secret / filled hint).
   if (hasGuessed && game.secretWord) {
     const slots = game.secretWord.split("").map((ch) => (ch === " " ? " " : ch));
-    const size = letterSize(slots.filter((s) => s !== " ").length);
+    const size = letterSize(slots.filter((s) => s !== " ").length, inline);
     return (
       <div
         className={cn(
@@ -101,6 +136,7 @@ export function WordDisplay({
   }
 
   // Server-authoritative progressive hints (letters only when revealed).
+  // Slots include `" "` for word breaks so multi-word secrets show a visible gap.
   let slots = parseHintSlots(game.wordHint);
   if (slots.length === 0 && game.wordLength) {
     slots = Array.from({ length: game.wordLength }, () => "_");
@@ -115,7 +151,8 @@ export function WordDisplay({
     );
   }
 
-  const size = letterSize(slots.length);
+  const letterCount = slots.filter((s) => s !== " ").length;
+  const size = letterSize(letterCount, inline);
 
   return (
     <div
@@ -124,23 +161,24 @@ export function WordDisplay({
         size.gap,
         className,
       )}
-      aria-label={`Word hint: ${slots.join(" ")}`}
+      aria-label={`Word hint: ${slots.map((s) => (s === " " ? "·" : s)).join(" ")}`}
     >
-      {slots.map((slot, index) => {
-        const revealed = slot !== "_";
-        return (
+      {slots.map((slot, index) =>
+        slot === " " ? (
+          <span key={`gap-${index}`} className="w-2 sm:w-3" aria-hidden />
+        ) : (
           <span
             key={`${index}-${slot}`}
             className={cn(
               "inline-flex items-center justify-center border-b-2 font-mono font-bold uppercase",
               size.box,
-              revealed ? "border-green text-green" : "border-ink/70 text-ink",
+              slot !== "_" ? "border-green text-green" : "border-ink/70 text-ink",
             )}
           >
-            {revealed ? slot : "\u00A0"}
+            {slot !== "_" ? slot : "\u00A0"}
           </span>
-        );
-      })}
+        ),
+      )}
     </div>
   );
 }

@@ -1782,33 +1782,35 @@ export function WhiteboardCanvas({
         onContextMenu={onContextMenu}
       >
         <defs>
-          {snapToGrid ? (
-            <pattern
-              id={gridPatternId}
-              width={gridSize}
-              height={gridSize}
-              patternUnits="userSpaceOnUse"
-            >
-              <path
-                d={`M ${gridSize} 0 L 0 0 0 ${gridSize}`}
-                fill="none"
-                stroke="rgba(112, 63, 147, 0.18)"
-                strokeWidth={1}
-              />
-            </pattern>
-          ) : null}
+          {/*
+            Grid is always drawn for drawer + guesser (visual only independent of snap).
+            Larger cells + light stroke so it stays constant without cluttering strokes.
+          */}
+          <pattern
+            id={gridPatternId}
+            width={gridSize}
+            height={gridSize}
+            patternUnits="userSpaceOnUse"
+          >
+            <path
+              d={`M ${gridSize} 0 L 0 0 0 ${gridSize}`}
+              fill="none"
+              stroke="rgba(112, 63, 147, 0.1)"
+              strokeWidth={1}
+              vectorEffect="non-scaling-stroke"
+            />
+          </pattern>
         </defs>
         <rect x={0} y={0} width={width} height={height} fill="#ffffff" />
-        {snapToGrid ? (
-          <rect
-            x={0}
-            y={0}
-            width={width}
-            height={height}
-            fill={`url(#${gridPatternId})`}
-            style={{ pointerEvents: "none" }}
-          />
-        ) : null}
+        <rect
+          x={0}
+          y={0}
+          width={width}
+          height={height}
+          fill={`url(#${gridPatternId})`}
+          style={{ pointerEvents: "none" }}
+          aria-hidden
+        />
         <ShapeList
           shapes={shapes}
           selectedIds={selectedIds}

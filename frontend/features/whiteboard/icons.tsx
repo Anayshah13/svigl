@@ -116,6 +116,7 @@ function EllipseIcon({ className = "h-5 w-5" }: { className?: string }) {
   );
 }
 
+/** Paint-bucket fill glyph — classic tilted bucket with handle and drip. */
 function FillIcon({ className = "h-5 w-5" }: { className?: string }) {
   return (
     <svg
@@ -124,16 +125,18 @@ function FillIcon({ className = "h-5 w-5" }: { className?: string }) {
       fill="none"
       stroke="currentColor"
       strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
       aria-hidden
     >
-      <path
-        d="M8 3.5l8.5 8.5-4.5 4.5L3.5 8 8 3.5z"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M15.5 15.5c1.4 1.4 2.8 1.9 3.7 1 0.9-0.9 0.4-2.3-1-3.7"
-        strokeLinecap="round"
-      />
+      {/* Handle */}
+      <path d="M8 6.5V4.8a1.8 1.8 0 0 1 1.8-1.8H12" />
+      {/* Bucket (diamond body, open top-right) */}
+      <path d="M4.8 10.2 11 4l7.2 7.2-3.4 3.4a2.4 2.4 0 0 1-3.4 0L4.8 10.2z" />
+      {/* Opening lip */}
+      <path d="M11 4 13.2 2.8 20.4 10l-2.2 1.2" />
+      {/* Drip */}
+      <path d="M15.2 17.2c0 1.5-1.2 2.6-1.6 3.5-.4-.9-1.6-2-1.6-3.5a1.6 1.6 0 1 1 3.2 0z" />
     </svg>
   );
 }

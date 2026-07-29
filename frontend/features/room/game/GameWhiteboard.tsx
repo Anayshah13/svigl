@@ -25,6 +25,8 @@ export function GameWhiteboard({
   fill = false,
   headerInfo,
   aside,
+  /** Skip WS sync — local canvas only (demo / layout testing). */
+  localOnly = false,
 }: {
   playerId: string;
   isDrawer: boolean;
@@ -38,6 +40,7 @@ export function GameWhiteboard({
   headerInfo?: React.ReactNode;
   /** Chat (and similar) for drawer right column. */
   aside?: React.ReactNode;
+  localOnly?: boolean;
 }) {
   const controllerRef = React.useRef<WhiteboardController | null>(null);
   const syncRef = React.useRef<CanvasSyncClient | null>(null);
@@ -48,6 +51,8 @@ export function GameWhiteboard({
   }, [isDrawer]);
 
   React.useEffect(() => {
+    if (localOnly) return;
+
     const sync = createCanvasSyncClient();
     syncRef.current = sync;
     if (sessionId) sync.setExpectedSessionId(sessionId);
@@ -102,14 +107,15 @@ export function GameWhiteboard({
       sync.reset();
       syncRef.current = null;
     };
-  }, [sessionId]);
+  }, [sessionId, localOnly]);
 
   // New drawing seat: wipe local document (server also clears via CANVAS_CLEARED).
   // Use currentTurn (not display round) so overtime late-join draws still reset.
   React.useEffect(() => {
+    if (localOnly) return;
     syncRef.current?.cancelPendingUpdates();
     controllerRef.current?.loadShapes([]);
-  }, [sessionId, currentTurn]);
+  }, [sessionId, currentTurn, localOnly]);
 
   return (
     <Whiteboard
@@ -124,16 +130,34 @@ export function GameWhiteboard({
       headerInfo={headerInfo}
       aside={aside}
       controllerRef={controllerRef}
-      onShapePreview={(shape) => syncRef.current?.publishShapePreview(shape)}
-      onShapePreviewCancelled={(shapeId) =>
-        syncRef.current?.cancelShapePreview(shapeId)
+      onShapePreview={
+        localOnly
+          ? undefined
+          : (shape) => syncRef.current?.publishShapePreview(shape)
       }
-      onShapeCreated={(shape) => syncRef.current?.publishShapeCreated(shape)}
-      onShapeUpdated={(shape) => syncRef.current?.publishShapeUpdated(shape)}
-      onShapeDeleted={(shapeId) => syncRef.current?.publishShapeDeleted(shapeId)}
-      onClear={() => syncRef.current?.publishClear()}
-      onUndo={() => syncRef.current?.publishUndo()}
-      onRedo={() => syncRef.current?.publishRedo()}
+      onShapePreviewCancelled={
+        localOnly
+          ? undefined
+          : (shapeId) => syncRef.current?.cancelShapePreview(shapeId)
+      }
+      onShapeCreated={
+        localOnly
+          ? undefined
+          : (shape) => syncRef.current?.publishShapeCreated(shape)
+      }
+      onShapeUpdated={
+        localOnly
+          ? undefined
+          : (shape) => syncRef.current?.publishShapeUpdated(shape)
+      }
+      onShapeDeleted={
+        localOnly
+          ? undefined
+          : (shapeId) => syncRef.current?.publishShapeDeleted(shapeId)
+      }
+      onClear={localOnly ? undefined : () => syncRef.current?.publishClear()}
+      onUndo={localOnly ? undefined : () => syncRef.current?.publishUndo()}
+      onRedo={localOnly ? undefined : () => syncRef.current?.publishRedo()}
     />
   );
 }

@@ -17,6 +17,7 @@ type NavItem = {
 };
 
 const STATIC_NAV: NavItem[] = [
+  { href: "/", label: "Home" },
   { href: "/gallery", label: "Gallery" },
   { href: "/labs", label: "Labs" },
   { href: "/settings", label: "Settings" },
@@ -160,7 +161,10 @@ export function AppHeader() {
         <nav className="absolute left-1/2 hidden -translate-x-1/2 items-center gap-1 md:flex">
           {nav.map(({ href, label, activePrefix }) => {
             const prefix = activePrefix ?? href;
-            const active = pathname === prefix || pathname.startsWith(`${prefix}/`);
+            const active =
+              prefix === "/"
+                ? pathname === "/"
+                : pathname === prefix || pathname.startsWith(`${prefix}/`);
             return <NavLink key={label} href={href} label={label} active={active} />;
           })}
         </nav>
@@ -216,7 +220,10 @@ export function AppHeader() {
                 <nav className="flex flex-col gap-0.5 p-1.5">
                   {nav.map(({ href, label, activePrefix }, i) => {
                     const prefix = activePrefix ?? href;
-                    const active = pathname === prefix || pathname.startsWith(`${prefix}/`);
+                    const active =
+                      prefix === "/"
+                        ? pathname === "/"
+                        : pathname === prefix || pathname.startsWith(`${prefix}/`);
                     return (
                       <motion.div
                         key={label}

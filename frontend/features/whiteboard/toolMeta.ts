@@ -58,7 +58,7 @@ export const TOOL_META: ToolMeta[] = [
     id: "fill",
     label: "Fill",
     shortcut: "6",
-    tooltip: "Click a closed region to flood-fill.",
+    tooltip: "Paint bucket — click a closed region to flood-fill.",
     hint: "Click inside a region to fill.",
   },
   {

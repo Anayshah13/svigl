@@ -4,13 +4,17 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import * as React from "react";
 import { LobbyBackgroundDoodles } from "@/components/room/LobbyBackgroundDoodles";
-import { InviteFriendsPill, RoomCodeCopyButton } from "@/components/room/RoomInviteActions";
+import {
+  InviteFriendsIconButton,
+  InviteFriendsPill,
+  LeaveRoomIconButton,
+  RoomCodeCopyButton,
+} from "@/components/room/RoomInviteActions";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { UserAvatar } from "@/components/ui/UserAvatar";
 import { useRoom } from "@/hooks/useRoom";
 import { colors } from "@/lib/colors";
-import { cn } from "@/lib/cn";
 import { formatDisplayName, profilePath } from "@/lib/names";
 import { getHostName } from "@/services/room";
 import { ROOM_STATUS_LABELS, type Room } from "@/types/room";
@@ -409,66 +413,65 @@ export function RoomView() {
             : "page-shell page-shell-tight relative z-10 gap-5 sm:gap-6"
         }
       >
-      <div
-        className={
-          inGame
-            ? "flex shrink-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between"
-            : "flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between"
-        }
-      >
-        <div className="min-w-0">
-          {!inGame ? (
-            <p className="text-xs font-bold uppercase tracking-wider text-ink-muted">
-              Room
-            </p>
-          ) : null}
-          <div
-            className={cn(
-              "relative inline-block pr-8",
-              inGame ? "mt-0" : "mt-1",
-            )}
-          >
-            <h1
-              className={
-                inGame
-                  ? "break-all font-mono text-xl font-bold tracking-[0.1em] text-ink sm:text-2xl sm:tracking-[0.14em]"
-                  : "break-all font-mono text-[clamp(1.75rem,8vw,2.25rem)] font-bold tracking-[0.12em] text-ink sm:tracking-[0.2em]"
-              }
-            >
-              {room.code}
-            </h1>
-            <RoomCodeCopyButton code={room.code} className="absolute bottom-0 right-0" />
-          </div>
-          {!inGame ? (
-            <div className="mt-2 sm:mt-3">
-              <StatusBadge status={room.status} />
+      {inGame ? (
+        <div className="flex shrink-0 items-start justify-between gap-2">
+          <div className="min-w-0">
+            <div className="relative inline-block pr-8">
+              <h1 className="break-all font-mono text-xl font-bold tracking-[0.1em] text-ink sm:text-2xl sm:tracking-[0.14em]">
+                {room.code}
+              </h1>
+              <RoomCodeCopyButton
+                code={room.code}
+                className="absolute bottom-0 right-0"
+              />
             </div>
-          ) : (
             <div className="mt-1">
               <StatusBadge status={room.status} />
             </div>
-          )}
-        </div>
+          </div>
 
-        <div
-          className={
-            inGame
-              ? "flex w-full flex-wrap items-center gap-1.5 sm:w-auto sm:gap-2"
-              : "flex w-full flex-wrap items-center gap-2 sm:w-auto"
-          }
-        >
-          <InviteFriendsPill code={room.code} className="flex-1 sm:flex-none" />
-          <Button
-            type="button"
-            variant="outline"
-            disabled={leaving}
-            onClick={() => void leaveRoom()}
-            className={inGame ? "flex-1 touch-manipulation sm:w-auto" : "flex-1 sm:w-auto"}
-          >
-            {leaving ? "Leaving…" : "Leave room"}
-          </Button>
+          <div className="flex shrink-0 items-center gap-1.5 pt-0.5">
+            <InviteFriendsIconButton code={room.code} />
+            <LeaveRoomIconButton
+              leaving={leaving}
+              onLeave={() => void leaveRoom()}
+            />
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
+          <div className="min-w-0">
+            <p className="text-xs font-bold uppercase tracking-wider text-ink-muted">
+              Room
+            </p>
+            <div className="relative mt-1 inline-block pr-8">
+              <h1 className="break-all font-mono text-[clamp(1.75rem,8vw,2.25rem)] font-bold tracking-[0.12em] text-ink sm:tracking-[0.2em]">
+                {room.code}
+              </h1>
+              <RoomCodeCopyButton
+                code={room.code}
+                className="absolute bottom-0 right-0"
+              />
+            </div>
+            <div className="mt-2 sm:mt-3">
+              <StatusBadge status={room.status} />
+            </div>
+          </div>
+
+          <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+            <InviteFriendsPill code={room.code} className="flex-1 sm:flex-none" />
+            <Button
+              type="button"
+              variant="outline"
+              disabled={leaving}
+              onClick={() => void leaveRoom()}
+              className="flex-1 sm:w-auto"
+            >
+              {leaving ? "Leaving…" : "Leave room"}
+            </Button>
+          </div>
+        </div>
+      )}
 
       {error ? (
         <p role="alert" className="rounded-2xl bg-pink-light px-4 py-3 text-sm font-medium text-plum">

@@ -4,6 +4,8 @@ export const DEMO_ROOM_CODE = "DEMO";
 
 export const DEMO_SELF_ID = "player-you";
 
+export type DemoRole = "drawer" | "guesser";
+
 const DEMO_PLAYERS: RoomPlayer[] = [
   {
     id: DEMO_SELF_ID,
@@ -43,9 +45,14 @@ const DEMO_PLAYERS: RoomPlayer[] = [
   },
 ];
 
-/** Static room snapshot matching ROUND_ACTIVE drawer perspective. */
-export function createDemoRoom(remainingSeconds: number): Room {
+/** Static room snapshot for ROUND_ACTIVE layout testing. */
+export function createDemoRoom(
+  remainingSeconds: number,
+  role: DemoRole = "drawer",
+): Room {
   const you = DEMO_PLAYERS[0]!;
+  const maya = DEMO_PLAYERS[1]!;
+  const drawer = role === "drawer" ? you : maya;
 
   return {
     code: DEMO_ROOM_CODE,
@@ -73,15 +80,16 @@ export function createDemoRoom(remainingSeconds: number): Room {
       currentTurn: 1,
       totalRounds: 3,
       drawer: {
-        id: you.id,
-        name: you.name,
-        avatarUrl: you.avatarUrl,
+        id: drawer.id,
+        name: drawer.name,
+        avatarUrl: drawer.avatarUrl,
       },
       activePlayerIds: DEMO_PLAYERS.map((p) => p.id),
       waitingPlayerIds: [],
       wordHint: "_ _ _ _ _ _",
       wordLength: 6,
-      secretWord: "BANANA",
+      // Secret word only for the drawer seat (matches live game payload).
+      secretWord: role === "drawer" ? "BANANA" : null,
       wordChoices: null,
       scores: [
         {
@@ -94,8 +102,8 @@ export function createDemoRoom(remainingSeconds: number): Room {
         {
           playerId: "player-maya",
           score: 380,
-          roundPoints: 50,
-          hasGuessedCorrectly: true,
+          roundPoints: role === "drawer" ? 50 : 0,
+          hasGuessedCorrectly: role === "drawer",
           isActive: true,
         },
         {
@@ -113,48 +121,60 @@ export function createDemoRoom(remainingSeconds: number): Room {
           isActive: true,
         },
       ],
-      guessedPlayerIds: ["player-maya"],
+      guessedPlayerIds: role === "drawer" ? ["player-maya"] : [],
       winnerId: null,
       roundSummary: null,
-      drawingId: null,
-      likes: 0,
-      dislikes: 0,
+      // Fake drawing id so guesser reaction chrome shows in layout tests.
+      drawingId: role === "guesser" ? "demo-drawing" : null,
+      likes: role === "guesser" ? 3 : 0,
+      dislikes: role === "guesser" ? 1 : 0,
       myReaction: null,
     },
   };
 }
 
-export const DEMO_CHAT_SEED: ChatMessage[] = [
-  {
-    id: "msg-1",
-    kind: "system",
-    message: "Round 2 — You are drawing!",
-    playerId: null,
-    playerName: null,
-    at: Date.now() - 45_000,
-  },
-  {
-    id: "msg-2",
-    kind: "chat",
-    message: "is it a fruit?",
-    playerId: "player-leo",
-    playerName: "Leo",
-    at: Date.now() - 30_000,
-  },
-  {
-    id: "msg-3",
-    kind: "close_guess",
-    message: "apple",
-    playerId: "player-sam",
-    playerName: "Sam",
-    at: Date.now() - 18_000,
-  },
-  {
-    id: "msg-4",
-    kind: "correct_guess",
-    message: "got the word!",
-    playerId: "player-maya",
-    playerName: "Maya",
-    at: Date.now() - 8_000,
-  },
-];
+export function createDemoChatSeed(role: DemoRole): ChatMessage[] {
+  const drawerLine =
+    role === "drawer"
+      ? "Round 2 — You are drawing!"
+      : "Round 2 — Maya is drawing!";
+
+  return [
+    {
+      id: "msg-1",
+      kind: "system",
+      message: drawerLine,
+      playerId: null,
+      playerName: null,
+      at: Date.now() - 45_000,
+    },
+    {
+      id: "msg-2",
+      kind: "chat",
+      message: "is it a fruit?",
+      playerId: "player-leo",
+      playerName: "Leo",
+      at: Date.now() - 30_000,
+    },
+    {
+      id: "msg-3",
+      kind: "close_guess",
+      message: "apple",
+      playerId: "player-sam",
+      playerName: "Sam",
+      at: Date.now() - 18_000,
+    },
+    ...(role === "drawer"
+      ? [
+          {
+            id: "msg-4",
+            kind: "correct_guess" as const,
+            message: "got the word!",
+            playerId: "player-maya",
+            playerName: "Maya",
+            at: Date.now() - 8_000,
+          },
+        ]
+      : []),
+  ];
+}

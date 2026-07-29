@@ -440,16 +440,16 @@ describe("geometry", () => {
   });
 
   it("snaps coordinates to the default grid", () => {
-    expect(GRID_SIZE).toBe(16);
+    expect(GRID_SIZE).toBe(32);
     expect(snapCoord(0)).toBe(0);
-    expect(snapCoord(7)).toBe(0);
-    expect(snapCoord(8)).toBe(16);
-    expect(snapCoord(23)).toBe(16);
-    expect(snapCoord(24)).toBe(32); // 24/16 = 1.5 → rounds half up
-    expect(snapCoord(25)).toBe(32);
-    expect(snapPoint({ x: 10, y: 20 })).toEqual({ x: 16, y: 16 });
-    expect(maybeSnapPoint({ x: 10, y: 20 }, false)).toEqual({ x: 10, y: 20 });
-    expect(maybeSnapPoint({ x: 10, y: 20 }, true)).toEqual({ x: 16, y: 16 });
+    expect(snapCoord(15)).toBe(0);
+    expect(snapCoord(16)).toBe(32);
+    expect(snapCoord(47)).toBe(32);
+    expect(snapCoord(48)).toBe(64); // 48/32 = 1.5 → rounds half up
+    expect(snapCoord(49)).toBe(64);
+    expect(snapPoint({ x: 20, y: 40 })).toEqual({ x: 32, y: 32 });
+    expect(maybeSnapPoint({ x: 20, y: 40 }, false)).toEqual({ x: 20, y: 40 });
+    expect(maybeSnapPoint({ x: 20, y: 40 }, true)).toEqual({ x: 32, y: 32 });
     expect(snapCoord(13, 10)).toBe(10);
   });
 
@@ -486,8 +486,8 @@ describe("geometry", () => {
 
   it("magnetically snaps only within the threshold", () => {
     // Default half-grid threshold always snaps to nearest cell.
-    expect(maybeSnapCoord(7, true)).toBe(0);
-    expect(maybeSnapCoord(8, true)).toBe(16);
+    expect(maybeSnapCoord(15, true)).toBe(0);
+    expect(maybeSnapCoord(16, true)).toBe(32);
     // Tighter threshold: leave values farther than 4 board units.
     expect(maybeSnapCoord(7, true, 16, 4)).toBe(7);
     // x=3 → 0 (|3|≤4); y=27 stays (|32-27|=5 > 4).

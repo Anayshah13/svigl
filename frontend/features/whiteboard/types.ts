@@ -17,8 +17,8 @@ export const PRESET_COLORS = [
 export const STROKE_WIDTHS = [2, 5, 10] as const;
 export type StrokeWidth = (typeof STROKE_WIDTHS)[number];
 
-/** Default snap grid size in board units (logical SVG coords). */
-export const GRID_SIZE = 16;
+/** Default snap / display grid size in board units (logical SVG coords). */
+export const GRID_SIZE = 32;
 
 /** Which color slot the palette currently edits. */
 export type ColorTarget = "stroke" | "fill";

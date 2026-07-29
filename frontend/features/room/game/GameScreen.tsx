@@ -9,7 +9,7 @@ import { usePhaseCountdown } from "@/hooks/usePhaseCountdown";
 import { useGameChat } from "@/hooks/useGameChat";
 import { cn } from "@/lib/cn";
 import { formatDisplayName } from "@/lib/names";
-import type { Room, RoomPlayer } from "@/types/room";
+import type { ChatMessage, Room, RoomPlayer } from "@/types/room";
 import type { VoteKickTally } from "@/services/app-websocket";
 import { ChatPanel } from "./ChatPanel";
 import { getChatInputPolicy } from "./chatInputPolicy";
@@ -64,6 +64,12 @@ export function GameScreen({
   onVoteKick,
   onLeaveRoom,
   leaving,
+  /** Demo/layout: skip canvas WS sync (local drawing still works). */
+  localCanvas = false,
+  /** Demo/layout: drive chat from props instead of the live WS feed. */
+  chatMessages,
+  /** Demo/layout: hide guesser onboarding overlay. */
+  disableOnboarding = false,
 }: {
   room: Room;
   currentPlayer: RoomPlayer | null;
@@ -75,6 +81,9 @@ export function GameScreen({
   onLeaveRoom?: () => Promise<void> | void;
   /** True while a leave request is in flight (disables the menu item). */
   leaving?: boolean;
+  localCanvas?: boolean;
+  chatMessages?: ChatMessage[];
+  disableOnboarding?: boolean;
 }) {
   const { game } = room;
   const selfId = currentPlayer?.id;
@@ -82,7 +91,8 @@ export function GameScreen({
   const hasGuessed = Boolean(
     selfId && game.guessedPlayerIds.includes(selfId),
   );
-  const messages = useGameChat(room.code, game.sessionId);
+  const liveMessages = useGameChat(room.code, game.sessionId);
+  const messages = chatMessages ?? liveMessages;
   const remaining = usePhaseCountdown(
     game.phaseEndsAt,
     game.serverTime,
@@ -90,7 +100,7 @@ export function GameScreen({
   );
   const [mobileChatOpen, setMobileChatOpen] = React.useState(false);
   const guesserOnboarding = useGuesserOnboarding(
-    game.phase === "ROUND_ACTIVE" && !isDrawer,
+    !disableOnboarding && game.phase === "ROUND_ACTIVE" && !isDrawer,
   );
 
   const reactions = useDrawingReactions(room.code, game.phase, {
@@ -289,6 +299,7 @@ export function GameScreen({
                 currentTurn={game.currentTurn}
                 className="min-h-0 h-full flex-1"
                 fill
+                localOnly={localCanvas}
                 headerInfo={
                   <div className="flex min-w-0 flex-wrap items-center gap-2">
                     <GameTopBar
@@ -355,26 +366,16 @@ export function GameScreen({
     >
       <section className="order-1 flex min-h-0 min-w-0 flex-col gap-2 lg:order-2">
         {/* Desktop keeps the roomy top bar; mobile uses the compact header */}
-        <div className="hidden min-w-0 lg:flex lg:items-center lg:gap-3">
-          <div className="min-w-0 flex-1">
-            <GameTopBar
-              room={room}
-              isDrawer={isDrawer}
-              hasGuessed={hasGuessed}
-              remaining={remaining}
-              drawerName={drawerName}
-            />
-          </div>
-          {reactionControls ? (
-            <div className="shrink-0">{reactionControls}</div>
-          ) : null}
+        <div className="hidden min-w-0 lg:block">
+          <GameTopBar
+            room={room}
+            isDrawer={isDrawer}
+            hasGuessed={hasGuessed}
+            remaining={remaining}
+            drawerName={drawerName}
+          />
         </div>
-        <div className="flex flex-col gap-1.5 lg:hidden">
-          {mobileHeader}
-          {reactionControls ? (
-            <div className="flex justify-center">{reactionControls}</div>
-          ) : null}
-        </div>
+        <div className="lg:hidden">{mobileHeader}</div>
 
         <div className="relative flex min-h-0 flex-1 flex-col">
           {game.phase === "GAME_FINISHED" ? (
@@ -389,8 +390,15 @@ export function GameScreen({
               currentTurn={game.currentTurn}
               className="min-h-0 flex-1"
               fill
+              localOnly={localCanvas}
             />
           )}
+          {/* Guesser-only: float reactions on the canvas to free header space */}
+          {reactionControls ? (
+            <div className="pointer-events-none absolute inset-x-0 top-2 z-10 flex justify-center px-2 sm:top-3">
+              <div className="pointer-events-auto">{reactionControls}</div>
+            </div>
+          ) : null}
           {overlays}
           {guesserOnboarding.visible ? (
             <GuesserOnboarding onDismiss={guesserOnboarding.dismiss} />
