@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
+import { AnalyticsEvents, trackEvent } from "@/lib/analytics";
 import { redirectToSignInWithReturn } from "@/lib/post-auth-redirect";
 import { releaseRoomTab } from "@/lib/room-tab-lock";
 import { appWebSocket } from "@/services/app-websocket";
@@ -133,12 +134,17 @@ export function useActiveRoomSession() {
     setLeaving(true);
 
     try {
-      await leaveRoom(activeRoom.code);
+      const roomCode = activeRoom.code;
+      await leaveRoom(roomCode);
       appWebSocket.leaveRoom();
       if (selfId) {
-        releaseRoomTab(selfId, activeRoom.code);
+        releaseRoomTab(selfId, roomCode);
       }
       clearActiveRoom();
+      trackEvent(AnalyticsEvents.ROOM_LEFT, {
+        room_code: roomCode,
+        method: "active_bar",
+      });
     } catch (error) {
       const roomError = error as RoomError;
       if (roomError.code === "AUTH_EXPIRED") {

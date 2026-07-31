@@ -7,6 +7,11 @@ import { consumeAccessTokenFromUrl } from "@/lib/access-token";
 import { fetchAuthSession } from "@/services/auth";
 import { useSessionStore } from "@/stores/session";
 import {
+  AnalyticsEvents,
+  identifyUser,
+  trackEvent,
+} from "@/lib/analytics";
+import {
   clearStoredPostAuthRedirect,
   resolvePostAuthRedirect,
 } from "@/lib/post-auth-redirect";
@@ -45,6 +50,10 @@ export function AuthCallbackPage() {
         useSessionStore.getState().setAuth(user);
         useSessionStore.getState().setAuthReady(true);
         sessionStorage.setItem(AUTH_CALLBACK_KEY, "done");
+        if (user.provider === "google") {
+          identifyUser(user.id);
+          trackEvent(AnalyticsEvents.LOGIN_GOOGLE, { method: "google" });
+        }
         const destination = resolvePostAuthRedirect(searchParams.get("next"));
         clearStoredPostAuthRedirect();
         router.replace(destination);

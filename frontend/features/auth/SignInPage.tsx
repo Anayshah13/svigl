@@ -9,6 +9,11 @@ import { Card } from "@/components/ui/Card";
 import { LoaderScreen } from "@/features/loaders";
 import { startGoogleSignIn, startGuestSignIn } from "@/services/auth";
 import { useSessionStore } from "@/stores/session";
+import {
+  AnalyticsEvents,
+  identifyUser,
+  trackEvent,
+} from "@/lib/analytics";
 import { colors } from "@/lib/colors";
 import {
   clearStoredPostAuthRedirect,
@@ -75,6 +80,8 @@ export function SignInPage() {
       const user = await startGuestSignIn();
       useSessionStore.getState().setAuth(user);
       useSessionStore.getState().setAuthReady(true);
+      identifyUser(user.id);
+      trackEvent(AnalyticsEvents.LOGIN_GUEST, { method: "guest" });
       const destination = resolvePostAuthRedirect(searchParams.get("next"));
       clearStoredPostAuthRedirect();
       router.replace(destination);

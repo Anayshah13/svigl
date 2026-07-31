@@ -4,13 +4,18 @@ from app.config import settings
 from app.auth.post_auth_redirect import sanitize_post_auth_redirect
 
 
+def _frontend_origin() -> str:
+    """FRONTEND_URL with no trailing slash (avoids //auth/... redirects)."""
+    return settings.frontend_url.rstrip("/")
+
+
 def build_frontend_auth_success_url(
     next_path: str | None = None,
     *,
     access_token: str | None = None,
 ) -> str:
     safe_next = sanitize_post_auth_redirect(next_path)
-    base = f"{settings.frontend_url}/auth/callback"
+    base = f"{_frontend_origin()}/auth/callback"
     params: dict[str, str] = {}
     if safe_next:
         params["next"] = safe_next
@@ -25,4 +30,4 @@ def build_frontend_auth_success_url(
 
 
 def build_frontend_auth_error_url(message: str) -> str:
-    return f"{settings.frontend_url}/sign-in?{urlencode({'error': message})}"
+    return f"{_frontend_origin()}/sign-in?{urlencode({'error': message})}"

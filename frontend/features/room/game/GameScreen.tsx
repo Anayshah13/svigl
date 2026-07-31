@@ -7,11 +7,12 @@ import { DotPulseGrid } from "@/features/loaders";
 import { useDrawingReactions } from "@/hooks/useDrawingReactions";
 import { usePhaseCountdown } from "@/hooks/usePhaseCountdown";
 import { useGameChat } from "@/hooks/useGameChat";
+import { AnalyticsEvents, trackEvent } from "@/lib/analytics";
 import { cn } from "@/lib/cn";
 import { formatDisplayName } from "@/lib/names";
 import { shareRoomInvite } from "@/lib/room-invite";
-import type { ChatMessage, Room, RoomPlayer } from "@/types/room";
 import type { VoteKickTally } from "@/services/app-websocket";
+import type { ChatMessage, Room, RoomPlayer } from "@/types/room";
 import { ChatPanel } from "./ChatPanel";
 import { getChatInputPolicy } from "./chatInputPolicy";
 import { GameFinishedPanel } from "./GameFinishedPanel";
@@ -133,6 +134,20 @@ export function GameScreen({
     hasGuessed,
   });
 
+  const handleSendChat = React.useCallback(
+    (text: string) => {
+      // Intent to guess while scoring is open (not private chat / idle chat).
+      if (chatPolicy.canScoreGuess) {
+        trackEvent(AnalyticsEvents.PLAYER_GUESSED, {
+          room_code: room.code,
+          round: game.roundNumber,
+        });
+      }
+      onSendChat(text);
+    },
+    [chatPolicy.canScoreGuess, game.roundNumber, onSendChat, room.code],
+  );
+
   const drawerName = game.drawer
     ? formatDisplayName(game.drawer.name)
     : "Someone";
@@ -188,7 +203,7 @@ export function GameScreen({
       canSendChat={chatPolicy.canSendChat}
       disabledReason={chatPolicy.disabledReason}
       inputHint={chatPolicy.inputHint}
-      onSend={onSendChat}
+      onSend={handleSendChat}
       className="h-full min-h-0"
       placeholder={chatPolicy.placeholder}
     />
@@ -200,7 +215,7 @@ export function GameScreen({
       messages={messages}
       canSendChat={false}
       disabledReason={chatPolicy.disabledReason}
-      onSend={onSendChat}
+      onSend={handleSendChat}
       className="h-full min-h-0"
       hideInput
       hideHeader

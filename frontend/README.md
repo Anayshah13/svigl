@@ -39,6 +39,7 @@ Set at build time (any host):
 ```env
 NEXT_PUBLIC_API_URL=https://<your-api-host>
 NEXT_PUBLIC_WS_URL=wss://<your-api-host>
+NEXT_PUBLIC_GA_MEASUREMENT_ID=G-XXXXXXXXXX
 ```
 
 Rebuild after changing these — they are inlined at build time.

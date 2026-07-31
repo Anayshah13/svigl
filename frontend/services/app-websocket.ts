@@ -6,6 +6,7 @@
  */
 
 import { getAccessToken } from "@/lib/access-token";
+import { AnalyticsEvents, trackEvent } from "@/lib/analytics";
 import { getWsUrl } from "@/lib/api";
 import { mapRoomPayload } from "@/lib/room-payload";
 import type {
@@ -337,6 +338,10 @@ class AppWebSocketManager {
 
       if (event.code === WS_AUTH_FAILED || event.code === WS_NOT_A_MEMBER) {
         this.pendingJoinCode = null;
+        trackEvent(AnalyticsEvents.WEBSOCKET_DISCONNECTED, {
+          code: event.code,
+          reason: event.code === WS_AUTH_FAILED ? "auth_failed" : "not_a_member",
+        });
         this.emitError({
           code: event.code === WS_AUTH_FAILED ? "AUTH_EXPIRED" : "NOT_IN_ROOM",
           message: event.reason || "Connection rejected",
@@ -344,6 +349,10 @@ class AppWebSocketManager {
         return;
       }
 
+      trackEvent(AnalyticsEvents.WEBSOCKET_DISCONNECTED, {
+        code: event.code,
+        reason: "unexpected_close",
+      });
       this.scheduleReconnect();
     };
 
@@ -529,6 +538,26 @@ class AppWebSocketManager {
           });
         }
       }
+
+      // Server-authoritative lifecycle events (not host click intent).
+      if (msg.type === "GAME_STARTED") {
+        trackEvent(AnalyticsEvents.GAME_STARTED, {
+          room_code: this.joinedRoomCode ?? this.latestRoom?.code ?? undefined,
+        });
+      } else if (msg.type === "GAME_FINISHED") {
+        trackEvent(AnalyticsEvents.GAME_FINISHED, {
+          room_code: this.joinedRoomCode ?? this.latestRoom?.code ?? undefined,
+        });
+      } else if (msg.type === "ROUND_STARTED") {
+        trackEvent(AnalyticsEvents.ROUND_STARTED, {
+          room_code: this.joinedRoomCode ?? this.latestRoom?.code ?? undefined,
+        });
+      } else if (msg.type === "ROUND_ENDED") {
+        trackEvent(AnalyticsEvents.ROUND_FINISHED, {
+          room_code: this.joinedRoomCode ?? this.latestRoom?.code ?? undefined,
+        });
+      }
+
       const next = this.applyRoomPayload(msg.payload);
       if (!next && msg.payload.room_deleted) {
         this.joinedRoomCode = null;

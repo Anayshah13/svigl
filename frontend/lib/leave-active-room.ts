@@ -1,3 +1,4 @@
+import { AnalyticsEvents, trackEvent } from "@/lib/analytics";
 import { releaseRoomTab } from "@/lib/room-tab-lock";
 import { appWebSocket } from "@/services/app-websocket";
 import { fetchActiveRoom, isUserInRoom, leaveRoom } from "@/services/room";
@@ -8,15 +9,18 @@ import type { RoomError } from "@/types/room";
 export async function leaveActiveRoomIfAny(userId: string | null): Promise<void> {
   const store = useRoomStore.getState();
   let code = store.activeRoom?.code ?? readPersistedRoomCode();
+  let leftRoomCode: string | null = null;
 
   try {
     if (code) {
       await leaveRoom(code);
+      leftRoomCode = code;
     } else if (userId) {
       const room = await fetchActiveRoom();
       if (room && isUserInRoom(room, userId)) {
         code = room.code;
         await leaveRoom(code);
+        leftRoomCode = code;
       }
     }
   } catch (error) {
@@ -30,6 +34,12 @@ export async function leaveActiveRoomIfAny(userId: string | null): Promise<void>
       releaseRoomTab(userId, code);
     }
     store.clearActiveRoom();
+    if (leftRoomCode) {
+      trackEvent(AnalyticsEvents.ROOM_LEFT, {
+        room_code: leftRoomCode,
+        method: "sign_out",
+      });
+    }
   }
 }
 

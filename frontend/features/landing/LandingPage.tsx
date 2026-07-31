@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { useState, useSyncExternalStore, type FormEvent } from "react";
+import { useEffect, useState, useSyncExternalStore, type FormEvent } from "react";
 import { GameFeaturesSection } from "@/components/landing/GameFeaturesSection";
 import { LandingBackgroundDoodles } from "@/components/landing/LandingBackgroundDoodles";
 import { LandingCtaSection } from "@/components/landing/LandingCtaSection";
@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { useRoomActions } from "@/hooks/useRoom";
+import { AnalyticsEvents, trackEvent } from "@/lib/analytics";
 import { colors } from "@/lib/colors";
 import { formatRoomCodeInput } from "@/lib/room-code";
 import { useSessionStore } from "@/stores/session";
@@ -80,14 +81,22 @@ export function LandingPage() {
   const normalizedCode = code.trim().toUpperCase();
   const canJoin = normalizedCode.length === 4;
 
+  // Custom engagement event (not page_view — GA already records the route).
+  useEffect(() => {
+    trackEvent(AnalyticsEvents.LANDING_VIEW);
+  }, []);
+
   const handleJoinSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!canJoin || busy) return;
+    // Closest product CTA to "Play" on the landing hero (Join room).
+    trackEvent(AnalyticsEvents.PLAY_CLICKED, { method: "join" });
     void joinRoom(code);
   };
 
   const handleCreateRoom = () => {
     if (busy) return;
+    trackEvent(AnalyticsEvents.CREATE_ROOM_CLICKED, { source: "landing_hero" });
     void createRoom();
   };
 

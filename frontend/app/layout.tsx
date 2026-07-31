@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { GoogleAnalytics } from "@next/third-parties/google";
 import { Caveat, DM_Sans, Geist_Mono } from "next/font/google";
 import localFont from "next/font/local";
 import "./globals.css";
@@ -7,6 +8,9 @@ import { AuroraBackground } from "@/components/layout/AuroraBackground";
 import { AuthProvider } from "@/components/auth/AuthProvider";
 import { ActiveRoomBar } from "@/components/room/ActiveRoomBar";
 import { RoomPresenceKeeper } from "@/components/room/RoomPresenceKeeper";
+
+/** GA4 Measurement ID — never hardcode; omit component when unset (local/dev). */
+const gaMeasurementId = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID?.trim();
 
 const dmSans = DM_Sans({
   variable: "--font-dm-sans",
@@ -70,6 +74,11 @@ export default function RootLayout({
           <ActiveRoomBar />
         </AuthProvider>
       </body>
+      {/*
+        Loads gtag after hydration. SPA page_view is handled by GA4 Enhanced
+        Measurement (browser history) — do not add a manual pageview listener.
+      */}
+      {gaMeasurementId ? <GoogleAnalytics gaId={gaMeasurementId} /> : null}
     </html>
   );
 }

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/Button";
 import { UserAvatar } from "@/components/ui/UserAvatar";
 import { SignOutConfirmOverlay } from "@/components/auth/SignOutConfirmOverlay";
+import { AnalyticsEvents, trackEvent } from "@/lib/analytics";
 import { formatDisplayName, profilePath } from "@/lib/names";
 import { leaveActiveRoomIfAny, disconnectAppWebSocket } from "@/lib/leave-active-room";
 import { signOut } from "@/services/auth";
@@ -24,6 +25,7 @@ export function AuthControls() {
     try {
       await leaveActiveRoomIfAny(selfId);
       disconnectAppWebSocket();
+      trackEvent(AnalyticsEvents.LOGOUT);
       await signOut();
     } catch {
       setBusy(false);

@@ -1,4 +1,5 @@
 import { getAccessToken } from "@/lib/access-token";
+import { AnalyticsEvents, trackEvent } from "@/lib/analytics";
 
 /**
  * Backend HTTP base URL (no trailing slash).
@@ -62,6 +63,9 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
     headers.set("Content-Type", "application/json");
   }
 
+  // Path only (no query) — avoids leaking tokens in analytics payloads.
+  const analyticsPath = path.split("?")[0] || path;
+
   let response: Response;
 
   try {
@@ -71,6 +75,11 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
       headers,
     });
   } catch {
+    trackEvent(AnalyticsEvents.API_ERROR, {
+      status: 0,
+      path: analyticsPath,
+      reason: "network",
+    });
     throw new ApiError(0, null, "Network request failed");
   }
 
@@ -83,5 +92,9 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
 
   const payload = (await response.json().catch(() => null)) as { detail?: string } | null;
   const detail = typeof payload?.detail === "string" ? payload.detail : null;
+  trackEvent(AnalyticsEvents.API_ERROR, {
+    status: response.status,
+    path: analyticsPath,
+  });
   throw new ApiError(response.status, detail);
 }

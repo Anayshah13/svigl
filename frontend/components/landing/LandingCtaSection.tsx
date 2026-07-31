@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { useRef } from "react";
 import { FadeIn } from "@/components/motion/FadeIn";
 import { Button } from "@/components/ui/Button";
+import { AnalyticsEvents, trackEvent } from "@/lib/analytics";
 import { gsap, prefersReducedMotion, useGSAP } from "@/lib/gsap";
 import { useRoomActions } from "@/hooks/useRoom";
 import { colors } from "@/lib/colors";
@@ -177,7 +178,12 @@ export function LandingCtaSection() {
                 variant="green"
                 size="lg"
                 disabled={busy}
-                onClick={() => void createRoom()}
+                onClick={() => {
+                  trackEvent(AnalyticsEvents.CREATE_ROOM_CLICKED, {
+                    source: "landing_cta",
+                  });
+                  void createRoom();
+                }}
                 className="w-full sm:w-auto"
               >
                 {creating ? "Creating…" : "Start a room"}

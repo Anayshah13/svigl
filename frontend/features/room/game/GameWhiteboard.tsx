@@ -8,6 +8,7 @@ import {
 } from "@/features/whiteboard";
 import { createCanvasSyncClient, type CanvasSyncClient } from "@/features/whiteboard/sync";
 import { normalizeShape } from "@/features/whiteboard/serialize";
+import { AnalyticsEvents, trackEvent } from "@/lib/analytics";
 
 /**
  * Bridges the SVG whiteboard to collaborative canvas sync.
@@ -45,6 +46,8 @@ export function GameWhiteboard({
   const controllerRef = React.useRef<WhiteboardController | null>(null);
   const syncRef = React.useRef<CanvasSyncClient | null>(null);
   const isDrawerRef = React.useRef(isDrawer);
+  /** Fire `player_drew` once per drawing seat (session + turn), not per stroke. */
+  const drewKeyRef = React.useRef<string | null>(null);
 
   React.useEffect(() => {
     isDrawerRef.current = isDrawer;
@@ -143,7 +146,16 @@ export function GameWhiteboard({
       onShapeCreated={
         localOnly
           ? undefined
-          : (shape) => syncRef.current?.publishShapeCreated(shape)
+          : (shape) => {
+              syncRef.current?.publishShapeCreated(shape);
+              const key = `${sessionId ?? "none"}:${currentTurn}`;
+              if (drewKeyRef.current !== key) {
+                drewKeyRef.current = key;
+                trackEvent(AnalyticsEvents.PLAYER_DREW, {
+                  turn: currentTurn,
+                });
+              }
+            }
       }
       onShapeUpdated={
         localOnly

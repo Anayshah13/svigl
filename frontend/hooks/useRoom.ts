@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { AnalyticsEvents, trackEvent } from "@/lib/analytics";
 import { claimRoomTab, releaseRoomTab } from "@/lib/room-tab-lock";
 import { redirectToSignInWithReturn } from "@/lib/post-auth-redirect";
 import { validateRoomCode } from "@/lib/room-code";
@@ -73,6 +74,7 @@ export function useRoomActions() {
     try {
       const room = await createRoom();
       useRoomStore.getState().setActiveRoom(room);
+      trackEvent(AnalyticsEvents.ROOM_CREATED, { room_code: room.code });
       router.push(`/room/${room.code}`);
     } catch (caught) {
       const roomError = caught as RoomError;
@@ -105,6 +107,10 @@ export function useRoomActions() {
       try {
         const room = await joinRoom(rawCode);
         useRoomStore.getState().setActiveRoom(room);
+        trackEvent(AnalyticsEvents.ROOM_JOINED, {
+          room_code: room.code,
+          method: "home",
+        });
         router.push(`/room/${room.code}`);
       } catch (caught) {
         const roomError = caught as RoomError;
@@ -230,6 +236,10 @@ export function useRoom(code: string, options: UseRoomOptions = {}) {
     try {
       const nextRoom = await joinRoom(normalizedCode);
       applyRoom(nextRoom);
+      trackEvent(AnalyticsEvents.ROOM_JOINED, {
+        room_code: nextRoom.code,
+        method: "invite",
+      });
     } catch (caught) {
       const roomError = caught as RoomError;
       if (!handleAuthError(roomError)) {
@@ -257,6 +267,10 @@ export function useRoom(code: string, options: UseRoomOptions = {}) {
       if (selfId) {
         releaseRoomTab(selfId, normalizedCode);
       }
+      trackEvent(AnalyticsEvents.ROOM_LEFT, {
+        room_code: normalizedCode,
+        method: "room_page",
+      });
       router.replace("/");
     } catch (caught) {
       const roomError = caught as RoomError;
