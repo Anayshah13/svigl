@@ -72,12 +72,14 @@ export function SviglLabsLogo({
   size = "default",
   href = "/labs",
   link = true,
+  "aria-label": ariaLabel = "Svigl Labs home",
 }: {
   className?: string;
   size?: keyof typeof SIZE;
   href?: string;
   /** When false, renders a non-link mark (e.g. inside another heading). */
   link?: boolean;
+  "aria-label"?: string;
 }) {
   const s = SIZE[size];
 
@@ -128,7 +130,7 @@ export function SviglLabsLogo({
   return (
     <Link
       href={href}
-      aria-label="Svigl Labs home"
+      aria-label={ariaLabel}
       className="group inline-flex items-center"
     >
       {mark}

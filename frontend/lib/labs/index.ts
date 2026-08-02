@@ -9,12 +9,22 @@ export type {
   ScoreStatus,
 } from "./types";
 
-export { TARGET_POINTS, CLOSURE_THRESHOLD, SCORE_FLOOR } from "./config/global";
+export {
+  TARGET_POINTS,
+  CLOSURE_THRESHOLD,
+  SCORE_FLOOR,
+  LAB_CANVAS_CENTER,
+  LAB_CANVAS_WIDTH,
+  LAB_CANVAS_HEIGHT,
+} from "./config/global";
 export { GAME_CONFIGS } from "./config/games";
 
 export { preprocessStroke } from "./normalization";
 export { resampleByArcLength } from "./normalization/resample";
-export { normalizeCentroidRms } from "./normalization/normalize";
+export {
+  normalizeCentroidRms,
+  normalizeFixedOriginRms,
+} from "./normalization/normalize";
 export { applyTopologyFixes } from "./normalization/topology";
 
 export { fitCircleTaubin } from "./algorithms/taubin";

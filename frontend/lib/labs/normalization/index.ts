@@ -1,12 +1,13 @@
 import { TARGET_POINTS } from "../config/global";
 import type { NormalizedStroke, TimedPoint } from "../types";
 import { dist, polylineLength } from "../utils/math";
-import { normalizeCentroidRms } from "./normalize";
+import { normalizeFixedOriginRms } from "./normalize";
 import { resampleByArcLength } from "./resample";
 import { applyTopologyFixes } from "./topology";
 
 /**
  * Full preprocessing pipeline before shape fitting — labs.md §9 steps 3–5.
+ * Uses the fixed canvas center as the universal origin.
  */
 export function preprocessStroke(
   raw: TimedPoint[],
@@ -15,7 +16,7 @@ export function preprocessStroke(
   const targetPoints = options?.targetPoints ?? TARGET_POINTS;
   const rawArcLength = polylineLength(raw);
   const resampled = resampleByArcLength(raw, targetPoints);
-  const { points: normalized, centroid, rms } = normalizeCentroidRms(resampled);
+  const { points: normalized, centroid, rms } = normalizeFixedOriginRms(resampled);
   const { points, closureRatio } = applyTopologyFixes(normalized, {
     enforceCcw: options?.enforceCcw,
   });

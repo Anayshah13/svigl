@@ -242,18 +242,12 @@ html.has-active-room-bar .labs-cta-fixed {
 
 @media (min-width: 1024px) {
   .page-shell-lab {
-    gap: 2.5rem;
-    padding-block: 2.5rem;
-    padding-bottom: max(2.5rem, env(safe-area-inset-bottom, 0px));
+    max-width: 88rem;
+    gap: 1.5rem;
+    padding-block: 1.75rem;
+    padding-bottom: max(1.75rem, env(safe-area-inset-bottom, 0px));
     min-height: 0;
   }
-}
-
-/* Lock document scroll while a Labs stroke is in progress */
-html.lab-drawing,
-html.lab-drawing body {
-  overflow: hidden;
-  overscroll-behavior: none;
 }
 
 /* /room/* hides AppHeader below md — reclaim that reserved height on phones */
@@ -304,22 +298,16 @@ html.lab-drawing body {
 
 @media (min-width: 1024px) {
   .page-shell-lab {
-    gap: 2.5rem;
-    padding-block: 2.5rem;
-    padding-bottom: max(2.5rem, env(safe-area-inset-bottom, 0px));
+    max-width: 88rem;
+    gap: 1.5rem;
+    padding-block: 1.75rem;
+    padding-bottom: max(1.75rem, env(safe-area-inset-bottom, 0px));
     min-height: 0;
   }
 
   .page-shell-lab .lab-play-zone {
     min-height: 0;
   }
-}
-
-/* Lock page scroll while drawing a Labs stroke */
-html.lab-drawing,
-html.lab-drawing body {
-  overflow: hidden;
-  overscroll-behavior: none;
 }
 
 .safe-bottom {

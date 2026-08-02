@@ -72,3 +72,35 @@ describe("circle metric breakdown labels", () => {
     expect(labels).toContain("Confidence");
   });
 });
+
+describe("fixed center rejection", () => {
+  it("zeros a circle drawn away from the canvas center", () => {
+    // Small circle in the corner — does not enclose the celestial axis.
+    const pts = sampleFor("perfect-circle", "perfect").map((p) => ({
+      ...p,
+      x: p.x - 220,
+      y: p.y - 140,
+    }));
+    const result = evaluateLabStroke("perfect-circle", pts);
+    expect(result.final_score).toBe(0);
+  });
+
+  it("zeros a square that does not enclose the center", () => {
+    const pts = sampleFor("perfect-square", "perfect").map((p) => ({
+      ...p,
+      x: p.x - 200,
+      y: p.y - 120,
+    }));
+    const result = evaluateLabStroke("perfect-square", pts);
+    expect(result.final_score).toBe(0);
+  });
+
+  it("zeros an infinity stroke with no origin crossing", () => {
+    // A circle around the center has no lemniscate self-crossing at the origin.
+    const result = evaluateLabStroke(
+      "infinity-loop",
+      sampleFor("perfect-circle", "perfect"),
+    );
+    expect(result.final_score).toBe(0);
+  });
+});

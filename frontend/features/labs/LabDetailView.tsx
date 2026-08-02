@@ -1,16 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
-import { FadeIn, FadeInItem, FadeInStagger } from "@/components/motion/FadeIn";
+import { FadeIn } from "@/components/motion/FadeIn";
 import type { LabScoreResult } from "@/lib/labs";
 import { fetchLabLeaderboard, submitLabScore } from "@/services/labs";
 import { useSessionStore } from "@/stores/session";
-import { labPath } from "./config";
 import type { LabConfig } from "./types";
 import { LabChallengeCanvas } from "./components/LabChallengeCanvas";
 import { LabHeader } from "./components/LabHeader";
 import { LabStatsCard } from "./components/LabStatsCard";
+import { ScoreBreakdown } from "./components/ScoreBreakdown";
 
 type Attempt = {
   id: string;
@@ -26,7 +25,7 @@ export function LabDetailView({ lab }: { lab: LabConfig }) {
   const [bestScore, setBestScore] = useState<number | null>(null);
   const [myRank, setMyRank] = useState<number | null>(null);
   const [lastRejected, setLastRejected] = useState(false);
-  const [boardMessage, setBoardMessage] = useState<string | null>(null);
+  const [lastResult, setLastResult] = useState<LabScoreResult | null>(null);
 
   const refreshMine = useCallback(async () => {
     try {
@@ -39,14 +38,21 @@ export function LabDetailView({ lab }: { lab: LabConfig }) {
   }, [lab.slug]);
 
   useEffect(() => {
+    setAttempts([]);
+    setLastResult(null);
+    setLastRejected(false);
+  }, [lab.slug]);
+
+  useEffect(() => {
     if (!authReady) return;
     void refreshMine();
   }, [authReady, refreshMine]);
 
   const onScored = async (result: LabScoreResult) => {
+    setLastResult(result);
+
     if (result.status !== "VALID") {
       setLastRejected(true);
-      setBoardMessage(null);
       return;
     }
     setLastRejected(false);
@@ -54,11 +60,10 @@ export function LabDetailView({ lab }: { lab: LabConfig }) {
       [
         { id: `${Date.now()}`, score: result.final_score, at: Date.now() },
         ...prev,
-      ].slice(0, 8),
+      ].slice(0, 12),
     );
 
     if (!authUser) {
-      setBoardMessage("Sign in to post your score on the global leaderboard.");
       setBestScore((prev) =>
         prev == null ? result.final_score : Math.max(prev, result.final_score),
       );
@@ -69,18 +74,9 @@ export function LabDetailView({ lab }: { lab: LabConfig }) {
       const saved = await submitLabScore(lab.slug, result.final_score);
       setBestScore(saved.score);
       setMyRank(saved.rank);
-      setBoardMessage(
-        saved.is_personal_best
-          ? saved.rank != null
-            ? `New personal best — you’re #${saved.rank} worldwide.`
-            : "New personal best saved to the global board."
-          : "Score recorded. Not a new personal best.",
-      );
       void refreshMine();
-    } catch (err) {
-      setBoardMessage(
-        err instanceof Error ? err.message : "Could not save score to the leaderboard.",
-      );
+    } catch {
+      // Score UI still shows locally; leaderboard sync is best-effort.
     }
   };
 
@@ -93,104 +89,79 @@ export function LabDetailView({ lab }: { lab: LabConfig }) {
         <LabHeader lab={lab} />
       </FadeIn>
 
-      <div className="flex flex-col gap-5 lg:grid lg:grid-cols-[minmax(0,1.6fr)_minmax(16rem,0.9fr)] lg:gap-8">
-        {/* Play zone owns the first mobile viewport; stats sit below it. */}
-        <div className="lab-play-zone min-h-0">
-          <FadeIn delay={0.05} className="flex min-h-0 flex-1 flex-col">
-            <section className="flex min-h-0 flex-1 flex-col rounded-3xl border border-gray-200/80 bg-white p-3 shadow-(--shadow-soft) sm:p-5 lg:p-6">
-              <div className="mb-5 hidden lg:block">
-                <p className="text-xs font-bold uppercase tracking-widest text-plum">
-                  Challenge
-                </p>
-                <h2 className="mt-1 text-xl font-bold tracking-tight text-ink">
-                  {lab.name}
-                </h2>
-                <p className="mt-1 text-sm text-ink-muted">{lab.description}</p>
-              </div>
+      {/* Drawing left · stats + score right */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1.65fr)_minmax(18rem,0.9fr)] lg:items-start lg:gap-6">
+        <FadeIn delay={0.04} className="min-w-0">
+          <section className="rounded-3xl border border-gray-200/80 bg-white p-3.5 shadow-(--shadow-soft) sm:p-5 lg:p-6">
+            <LabChallengeCanvas lab={lab} onScored={onScored} />
+          </section>
+        </FadeIn>
 
-              <LabChallengeCanvas lab={lab} onScored={onScored} fillHeight />
-              {boardMessage ? (
-                <p className="mt-3 shrink-0 text-center text-xs font-medium text-ink-muted lg:mt-4">
-                  {boardMessage}
-                </p>
-              ) : null}
-            </section>
-          </FadeIn>
-        </div>
+        <FadeIn delay={0.08} className="flex min-w-0 flex-col gap-3.5">
+          <div className="grid grid-cols-3 gap-2.5">
+            <LabStatsCard
+              label="High score"
+              value={bestScore == null ? "—" : `${bestScore.toFixed(1)}%`}
+              compact
+            />
+            <LabStatsCard
+              label="Attempts"
+              value={attempts.length === 0 ? "—" : String(attempts.length)}
+              compact
+            />
+            <LabStatsCard
+              label="Your rank"
+              value={myRank == null ? "—" : `#${myRank}`}
+              compact
+            />
+          </div>
 
-        <div className="flex flex-col gap-5">
-          <FadeInStagger
-            className="grid grid-cols-1 gap-3 sm:grid-cols-3 lg:grid-cols-1"
-            stagger={0.06}
-          >
-            <FadeInItem>
-              <LabStatsCard
-                label="High score"
-                value={bestScore == null ? "—" : `${bestScore.toFixed(1)}%`}
-                hint="Your global personal best"
-              />
-            </FadeInItem>
-            <FadeInItem>
-              <LabStatsCard
-                label="Attempts"
-                value={attempts.length === 0 ? "—" : String(attempts.length)}
-                hint="Valid scores this session"
-              />
-            </FadeInItem>
-            <FadeInItem>
-              <LabStatsCard
-                label="Your rank"
-                value={myRank == null ? "—" : `#${myRank}`}
-                hint="Among all players on this board"
-              />
-            </FadeInItem>
-          </FadeInStagger>
-
-          <FadeIn delay={0.15}>
-            <section className="rounded-2xl border border-gray-200/80 bg-white p-5 shadow-(--shadow-soft)">
-              <div className="flex items-center justify-between gap-3">
-                <h3 className="text-sm font-bold uppercase tracking-wider text-ink">
-                  Recent attempts
-                </h3>
-                <Link
-                  href={labPath(lab.slug)}
-                  className="inline-flex min-h-11 touch-manipulation items-center text-xs font-semibold text-plum transition-opacity hover:opacity-80 sm:min-h-0"
-                >
-                  Refresh
-                </Link>
-              </div>
-              {attempts.length === 0 ? (
-                <p className="mt-4 text-sm text-ink-muted">
-                  {lastRejected
-                    ? "Last stroke was rejected — try again."
-                    : "No valid attempts yet. Draw a stroke to score."}
-                </p>
-              ) : (
-                <ul className="mt-4 space-y-2.5">
-                  {attempts.map((attempt) => (
-                    <li
-                      key={attempt.id}
-                      className="flex items-center justify-between rounded-xl border border-plum/10 bg-plum-light/30 px-3.5 py-3"
-                    >
-                      <div>
-                        <p className="text-sm font-semibold text-ink">
-                          {attempt.score.toFixed(1)}%
-                        </p>
-                        <p className="text-xs text-ink-muted">
-                          {new Date(attempt.at).toLocaleTimeString()}
-                        </p>
-                      </div>
-                      <span className="text-xs font-semibold uppercase tracking-wider text-plum">
-                        Valid
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </section>
-          </FadeIn>
-        </div>
+          {lastResult ? (
+            <ScoreBreakdown result={lastResult} compact />
+          ) : (
+            <div className="flex min-h-36 flex-1 items-center justify-center rounded-2xl border border-dashed border-gray-200/90 bg-white/70 px-4 py-8 text-center shadow-(--shadow-soft)">
+              <p className="text-sm text-ink-muted">
+                Your score breakdown appears here after you release.
+              </p>
+            </div>
+          )}
+        </FadeIn>
       </div>
+
+      {/* Full-width past results under the whole grid */}
+      <FadeIn delay={0.12}>
+        <section className="flex w-full flex-col gap-2.5 rounded-2xl border border-gray-200/80 bg-white px-4 py-3 shadow-(--shadow-soft) sm:px-5 sm:py-3.5">
+          <p className="text-xs font-bold uppercase tracking-wider text-ink-muted">
+            Past results
+          </p>
+          {attempts.length === 0 ? (
+            <p className="text-sm text-ink-muted">
+              {lastRejected
+                ? "Last stroke was rejected — try again."
+                : "No valid attempts yet."}
+            </p>
+          ) : (
+            <ul className="flex flex-wrap content-start items-center gap-2.5">
+              {attempts.map((attempt) => (
+                <li
+                  key={attempt.id}
+                  className="flex items-center gap-2 rounded-full border border-plum/10 bg-plum-light/35 px-3 py-1.5"
+                >
+                  <span className="text-sm font-semibold tabular-nums text-ink">
+                    {attempt.score.toFixed(1)}%
+                  </span>
+                  <span className="text-xs text-ink-muted">
+                    {new Date(attempt.at).toLocaleTimeString([], {
+                      hour: "numeric",
+                      minute: "2-digit",
+                    })}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      </FadeIn>
     </div>
   );
 }

@@ -5,16 +5,83 @@ import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/cn";
 import {
   evaluateLabStroke,
+  LAB_CANVAS_CENTER,
+  LAB_CANVAS_HEIGHT,
+  LAB_CANVAS_WIDTH,
   type LabGameId,
   type LabScoreResult,
   type TimedPoint,
 } from "@/lib/labs";
-import { ACCENT_BG_SOFT, ACCENT_TEXT } from "../accents";
 import type { LabConfig } from "../types";
-import { LabIcon } from "./LabIcon";
-import { ScoreBreakdown } from "./ScoreBreakdown";
 
-type Phase = "idle" | "drawing" | "scored";
+const CX = LAB_CANVAS_CENTER.x;
+const CY = LAB_CANVAS_CENTER.y;
+
+/** Faint target silhouette so the idle board reads as “draw this around the mark”. */
+function IdleGhost({ slug }: { slug: string }) {
+  const common = {
+    fill: "none" as const,
+    stroke: "var(--plum)",
+    strokeWidth: 1.75,
+    strokeDasharray: "6 7",
+    strokeLinecap: "round" as const,
+    strokeLinejoin: "round" as const,
+    opacity: 0.22,
+  };
+
+  if (slug === "perfect-circle") {
+    return <circle cx={CX} cy={CY} r={88} {...common} />;
+  }
+
+  if (slug === "perfect-square") {
+    const s = 150;
+    return (
+      <rect
+        x={CX - s / 2}
+        y={CY - s / 2}
+        width={s}
+        height={s}
+        rx={2}
+        {...common}
+      />
+    );
+  }
+
+  if (slug === "perfect-triangle") {
+    const r = 95;
+    const verts = [0, 1, 2].map((k) => {
+      const a = -Math.PI / 2 + (k * 2 * Math.PI) / 3;
+      return `${CX + r * Math.cos(a)},${CY + r * Math.sin(a)}`;
+    });
+    return <polygon points={verts.join(" ")} {...common} />;
+  }
+
+  if (slug === "infinity-loop") {
+    // Compact lemniscate of Bernoulli around the origin
+    const scale = 110;
+    const parts: string[] = [];
+    const n = 64;
+    for (let i = 0; i <= n; i++) {
+      const t = (2 * Math.PI * i) / n;
+      const s = Math.sin(t);
+      const c = Math.cos(t);
+      const denom = 1 + s * s;
+      const x = CX + (scale * Math.SQRT2 * c) / denom;
+      const y = CY + (scale * Math.SQRT2 * c * s) / denom;
+      parts.push(`${i === 0 ? "M" : "L"} ${x.toFixed(1)} ${y.toFixed(1)}`);
+    }
+    return <path d={`${parts.join(" ")} Z`} {...common} />;
+  }
+
+  return null;
+}
+
+function idleHint(slug: string): string {
+  if (slug === "infinity-loop") {
+    return "Trace the figure-eight · cross at the origin";
+  }
+  return "Draw around the center mark · one continuous stroke";
+}
 
 export function LabChallengeCanvas({
   lab,
@@ -23,7 +90,7 @@ export function LabChallengeCanvas({
 }: {
   lab: LabConfig;
   onScored?: (result: LabScoreResult) => void | Promise<void>;
-  /** When true, canvas grows to fill the play shell instead of a fixed aspect ratio. */
+  /** When true, canvas grows to fill available height (mobile play shell). */
   fillHeight?: boolean;
 }) {
   const svgRef = useRef<SVGSVGElement>(null);
@@ -31,30 +98,16 @@ export function LabChallengeCanvas({
   const drawingRef = useRef(false);
   const activePointerIdRef = useRef<number | null>(null);
 
-  const [phase, setPhase] = useState<Phase>("idle");
   const [pathD, setPathD] = useState("");
-  const [result, setResult] = useState<LabScoreResult | null>(null);
+
+  const showAxes = lab.slug === "infinity-loop";
 
   useEffect(() => {
     pointsRef.current = [];
     drawingRef.current = false;
     activePointerIdRef.current = null;
-    setPhase("idle");
     setPathD("");
-    setResult(null);
   }, [lab.slug]);
-
-  useEffect(() => {
-    const root = document.documentElement;
-    if (phase === "drawing") {
-      root.classList.add("lab-drawing");
-    } else {
-      root.classList.remove("lab-drawing");
-    }
-    return () => {
-      root.classList.remove("lab-drawing");
-    };
-  }, [phase]);
 
   const clientToLocal = (clientX: number, clientY: number) => {
     const svg = svgRef.current;
@@ -86,14 +139,11 @@ export function LabChallengeCanvas({
     activePointerIdRef.current = null;
     const pts = pointsRef.current;
     if (pts.length < 8) {
-      setPhase("idle");
       setPathD("");
       pointsRef.current = [];
       return;
     }
     const scored = evaluateLabStroke(lab.slug as LabGameId, pts);
-    setResult(scored);
-    setPhase("scored");
     void Promise.resolve(onScored?.(scored));
   };
 
@@ -105,8 +155,6 @@ export function LabChallengeCanvas({
     activePointerIdRef.current = e.pointerId;
     e.currentTarget.setPointerCapture(e.pointerId);
     drawingRef.current = true;
-    setPhase("drawing");
-    setResult(null);
     const next = [{ x: local.x, y: local.y, t: e.timeStamp }];
     pointsRef.current = next;
     rebuildPath(next);
@@ -137,102 +185,106 @@ export function LabChallengeCanvas({
     pointsRef.current = [];
     drawingRef.current = false;
     activePointerIdRef.current = null;
-    setPhase("idle");
     setPathD("");
-    setResult(null);
   };
+
+  const idle = !pathD;
 
   return (
     <div
       className={cn(
-        "flex flex-col gap-3 sm:gap-4",
-        fillHeight && "min-h-0 flex-1 lg:flex-none",
+        "relative mx-auto w-full overflow-hidden rounded-2xl border border-gray-200/80 bg-white shadow-(--shadow-soft) overscroll-contain",
+        fillHeight
+          ? "min-h-44 max-h-[min(52vh,440px)] flex-1 lg:aspect-video lg:max-h-[min(54vh,460px)] lg:flex-none"
+          : "aspect-16/11 max-h-[min(52vh,440px)] sm:aspect-video sm:max-h-[min(54vh,460px)]",
       )}
     >
-      <div
-        className={cn(
-          "relative overflow-hidden rounded-2xl border border-gray-200/80 bg-white shadow-(--shadow-soft) overscroll-contain",
-          fillHeight
-            ? "min-h-48 flex-1 lg:aspect-16/10 lg:flex-none lg:min-h-0"
-            : "aspect-4/3 sm:aspect-16/10",
-        )}
+      <svg
+        ref={svgRef}
+        viewBox={`0 0 ${LAB_CANVAS_WIDTH} ${LAB_CANVAS_HEIGHT}`}
+        preserveAspectRatio="xMidYMid meet"
+        className="dot-grid block h-full w-full touch-none select-none cursor-crosshair bg-white"
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
       >
-        <svg
-          ref={svgRef}
-          viewBox="0 0 640 400"
-          preserveAspectRatio="xMidYMid meet"
-          className="dot-grid block h-full w-full touch-none select-none cursor-crosshair bg-white"
-          onPointerDown={onPointerDown}
-          onPointerMove={onPointerMove}
-          onPointerUp={onPointerUp}
-          onPointerCancel={onPointerUp}
-        >
-          {pathD ? (
-            <path
-              d={pathD}
-              fill="none"
-              stroke="var(--plum)"
-              strokeWidth="3"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          ) : (
-            <g pointerEvents="none">
-              <foreignObject x="0" y="0" width="640" height="400">
-                <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
-                  <div
-                    className={cn(
-                      "flex h-14 w-14 items-center justify-center rounded-3xl",
-                      ACCENT_BG_SOFT[lab.accent],
-                      ACCENT_TEXT[lab.accent],
-                    )}
-                  >
-                    <LabIcon id={lab.icon} className="h-7 w-7" />
-                  </div>
-                  <p className="text-sm font-semibold text-ink">Draw in one stroke</p>
-                  <p className="max-w-xs text-xs text-ink-muted">
-                    Drag with one finger to draw {lab.name.toLowerCase()}. Release to
-                    score.
-                  </p>
-                </div>
-              </foreignObject>
-            </g>
-          )}
-        </svg>
+        <g pointerEvents="none" aria-hidden="true">
+          {showAxes ? (
+            <>
+              <line
+                x1={0}
+                y1={CY}
+                x2={LAB_CANVAS_WIDTH}
+                y2={CY}
+                stroke="var(--ink-muted, #94a3b8)"
+                strokeWidth="1.25"
+                strokeDasharray="5 6"
+                opacity="0.7"
+              />
+              <line
+                x1={CX}
+                y1={0}
+                x2={CX}
+                y2={LAB_CANVAS_HEIGHT}
+                stroke="var(--ink-muted, #94a3b8)"
+                strokeWidth="1.25"
+                strokeDasharray="5 6"
+                opacity="0.7"
+              />
+            </>
+          ) : null}
+          <circle cx={CX} cy={CY} r="4.5" fill="var(--plum)" opacity="0.9" />
+          <circle
+            cx={CX}
+            cy={CY}
+            r="10"
+            fill="none"
+            stroke="var(--plum)"
+            strokeWidth="1"
+            opacity="0.28"
+          />
+        </g>
 
-        {phase === "drawing" ? (
-          <p className="pointer-events-none absolute left-3 top-3 rounded-full bg-white/90 px-3 py-1 text-xs font-semibold text-plum shadow-sm">
-            Drawing…
-          </p>
+        <g
+          pointerEvents="none"
+          opacity={idle ? 1 : 0}
+          style={{ transition: "opacity 120ms linear" }}
+          aria-hidden="true"
+        >
+          <IdleGhost slug={lab.slug} />
+          <text
+            x={CX}
+            y={LAB_CANVAS_HEIGHT - 36}
+            textAnchor="middle"
+            fill="var(--ink-muted)"
+            fontSize="13"
+            fontFamily="var(--font-sans, system-ui, sans-serif)"
+          >
+            {idleHint(lab.slug)}
+          </text>
+        </g>
+
+        {pathD ? (
+          <path
+            d={pathD}
+            fill="none"
+            stroke="var(--plum)"
+            strokeWidth="3"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
         ) : null}
-      </div>
+      </svg>
 
-      <div className="sticky bottom-[max(0.5rem,env(safe-area-inset-bottom,0px))] z-10 -mx-1 flex flex-wrap items-center gap-2 bg-white/95 px-1 py-2 backdrop-blur-sm supports-backdrop-filter:bg-white/85 lg:static lg:bottom-auto lg:mx-0 lg:bg-transparent lg:px-0 lg:py-0 lg:backdrop-blur-none">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={reset}
-          className="min-h-11 touch-manipulation sm:min-h-9"
-        >
-          Try again
-        </Button>
-        {phase === "idle" ? (
-          <p className="text-xs text-ink-muted">
-            One continuous stroke. Scoring runs on release.
-          </p>
-        ) : null}
-      </div>
-
-      {result ? (
-        <div
-          className={cn(
-            fillHeight &&
-              "max-h-[40%] overflow-y-auto overscroll-contain lg:max-h-none lg:overflow-visible",
-          )}
-        >
-          <ScoreBreakdown result={result} compact={fillHeight} />
-        </div>
-      ) : null}
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={reset}
+        className="absolute bottom-3 right-3 z-10 min-h-9 touch-manipulation bg-white/95 shadow-sm backdrop-blur-sm"
+      >
+        Try again
+      </Button>
     </div>
   );
 }

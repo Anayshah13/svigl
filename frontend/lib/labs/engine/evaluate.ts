@@ -1,5 +1,5 @@
 import { TARGET_POINTS } from "../config/global";
-import { normalizeCentroidRms } from "../normalization/normalize";
+import { normalizeFixedOriginRms } from "../normalization/normalize";
 import { resampleByArcLength } from "../normalization/resample";
 import { applyTopologyFixes } from "../normalization/topology";
 import {
@@ -14,6 +14,7 @@ import { scorePerfectSquare, scorePerfectTriangle } from "./games/polygon";
 
 /**
  * Top-level Labs scoring engine — labs.md §9 recommended pipeline.
+ * All games normalize against the fixed canvas center (celestial axis).
  */
 export function evaluateLabStroke(
   game: LabGameId,
@@ -28,7 +29,7 @@ export function evaluateLabStroke(
   const mid = runResampledSecurityChecks(resampled, game, early.flags);
   if (!mid.ok) return mid.result;
 
-  const { points: normalized, centroid, rms } = normalizeCentroidRms(resampled);
+  const { points: normalized, centroid, rms } = normalizeFixedOriginRms(resampled);
   const enforceCcw = game !== "infinity-loop";
   const { points, closureRatio } = applyTopologyFixes(normalized, { enforceCcw });
   const closureGap = dist(points[0]!, points[points.length - 1]!);

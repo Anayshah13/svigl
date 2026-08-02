@@ -110,3 +110,40 @@ export function round2(n: number): number {
 export function asSpatial(points: TimedPoint[]): Vec2[] {
   return points.map((p) => ({ x: p.x, y: p.y }));
 }
+
+/**
+ * Winding number of a closed polyline around the origin.
+ * |w| ≈ 1 means the stroke encircles (0,0) once.
+ */
+export function windingAroundOrigin(points: ArrayLike<Vec2>): number {
+  const n = points.length;
+  if (n < 3) return 0;
+  let accum = 0;
+  for (let i = 0; i < n; i++) {
+    const a = points[i]!;
+    const b = points[(i + 1) % n]!;
+    const a1 = Math.atan2(a.y, a.x);
+    const a2 = Math.atan2(b.y, b.x);
+    let d = a2 - a1;
+    if (d > Math.PI) d -= 2 * Math.PI;
+    if (d < -Math.PI) d += 2 * Math.PI;
+    accum += d;
+  }
+  return accum / (2 * Math.PI);
+}
+
+/** Ray-cast point-in-polygon test for the origin (0,0). */
+export function originInsidePolygon(points: ArrayLike<Vec2>): boolean {
+  const n = points.length;
+  if (n < 3) return false;
+  let inside = false;
+  for (let i = 0, j = n - 1; i < n; j = i++) {
+    const pi = points[i]!;
+    const pj = points[j]!;
+    const intersects =
+      pi.y > 0 !== pj.y > 0 &&
+      0 < ((pj.x - pi.x) * -pi.y) / (pj.y - pi.y) + pi.x;
+    if (intersects) inside = !inside;
+  }
+  return inside;
+}

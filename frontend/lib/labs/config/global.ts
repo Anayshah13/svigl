@@ -2,6 +2,34 @@
 
 export const TARGET_POINTS = 1000;
 
+/** Lab canvas SVG viewBox size — must match LabChallengeCanvas. */
+export const LAB_CANVAS_WIDTH = 640;
+export const LAB_CANVAS_HEIGHT = 400;
+
+/** Fixed celestial / universal origin at the canvas center. */
+export const LAB_CANVAS_CENTER = {
+  x: LAB_CANVAS_WIDTH / 2,
+  y: LAB_CANVAS_HEIGHT / 2,
+} as const;
+
+/**
+ * Minimum |winding| around the fixed origin for closed shapes.
+ * Below this the stroke does not encircle the center → score 0.
+ */
+export const CENTER_WINDING_MIN = 0.55;
+
+/**
+ * Max |centroid| of the stroke (unit-RMS, fixed-origin space).
+ * Larger means the drawing is not centered on the celestial axis → score 0.
+ */
+export const CENTER_OFFSET_MAX = 0.42;
+
+/**
+ * Max distance of an infinity self-crossing from the origin before reject.
+ * Lemniscate of Bernoulli must collide near (0,0) on the x-axis form.
+ */
+export const INFINITY_INTERSECTION_MAX = 0.35;
+
 /** Max gap (ratio to total arc length) permitted for synthetic closure. */
 export const CLOSURE_THRESHOLD = 0.05;
 

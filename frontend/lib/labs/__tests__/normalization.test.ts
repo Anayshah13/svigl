@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { normalizeCentroidRms } from "../normalization/normalize";
+import {
+  normalizeCentroidRms,
+  normalizeFixedOriginRms,
+} from "../normalization/normalize";
 import { resampleByArcLength } from "../normalization/resample";
 import { applyTopologyFixes } from "../normalization/topology";
-import { TARGET_POINTS } from "../config/global";
+import { LAB_CANVAS_CENTER, TARGET_POINTS } from "../config/global";
 import { makeCircle } from "./fixtures";
 import { centroidOf, rmsFromOrigin } from "../utils/math";
 
@@ -26,7 +29,7 @@ describe("resampleByArcLength", () => {
 });
 
 describe("normalizeCentroidRms", () => {
-  it("centers at origin and scales RMS to 1", () => {
+  it("centers at stroke centroid and scales RMS to 1", () => {
     const raw = makeCircle("perfect", 120);
     const resampled = resampleByArcLength(raw, 200);
     const { points } = normalizeCentroidRms(resampled);
@@ -37,13 +40,25 @@ describe("normalizeCentroidRms", () => {
   });
 });
 
+describe("normalizeFixedOriginRms", () => {
+  it("translates by canvas center and scales RMS to 1", () => {
+    const raw = makeCircle("perfect", 120);
+    const resampled = resampleByArcLength(raw, 200);
+    const { points, centroid } = normalizeFixedOriginRms(resampled);
+    expect(centroid).toEqual(LAB_CANVAS_CENTER);
+    expect(Math.abs(rmsFromOrigin(points) - 1)).toBeLessThan(1e-9);
+    const c = centroidOf(points);
+    expect(Math.hypot(c.x, c.y)).toBeLessThan(0.05);
+  });
+});
+
 describe("applyTopologyFixes", () => {
   it("closes near-closed loops and enforces CCW", () => {
     const raw = makeCircle("perfect", 100);
     // Force clockwise by reversing.
     const cw = [...raw].reverse();
     const resampled = resampleByArcLength(cw, 200);
-    const { points } = normalizeCentroidRms(resampled);
+    const { points } = normalizeFixedOriginRms(resampled);
     const fixed = applyTopologyFixes(points, { enforceCcw: true });
     expect(fixed.wasClosed).toBe(true);
     expect(fixed.closureRatio).toBeLessThan(0.05);

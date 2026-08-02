@@ -1,4 +1,8 @@
+import { LAB_CANVAS_CENTER } from "../config/global";
 import type { LabGameId, TimedPoint } from "../types";
+
+const CX = LAB_CANVAS_CENTER.x;
+const CY = LAB_CANVAS_CENTER.y;
 
 /** Build timed samples with mild human-like speed variation (anti-bot). */
 function withTiming(points: Array<{ x: number; y: number }>): TimedPoint[] {
@@ -33,12 +37,12 @@ export function makeCircle(
   n = 180,
 ): TimedPoint[] {
   if (quality === "invalid") {
-    // Chaotic scribble
+    // Chaotic scribble far from the canvas center (must score ~0).
     const pts: Array<{ x: number; y: number }> = [];
     for (let i = 0; i < n; i++) {
       pts.push({
-        x: 100 + Math.sin(i * 0.7) * 40 + (i % 17),
-        y: 100 + Math.cos(i * 1.3) * 30 + ((i * 3) % 23),
+        x: 80 + Math.sin(i * 0.7) * 40 + (i % 17),
+        y: 60 + Math.cos(i * 1.3) * 30 + ((i * 3) % 23),
       });
     }
     return withTiming(pts);
@@ -52,8 +56,8 @@ export function makeCircle(
         : quality === "average"
           ? 4
           : 12;
-  const cx = 200;
-  const cy = 180;
+  const cx = CX;
+  const cy = CY;
   const r = 80;
   const pts: Array<{ x: number; y: number }> = [];
   for (let i = 0; i < n; i++) {
@@ -78,10 +82,10 @@ export function makeSquare(
           ? 3.5
           : 10;
 
-  // Axis-aligned square, start at top-left, go clockwise then we rely on CCW fix.
-  const x0 = 120;
-  const y0 = 120;
+  // Axis-aligned square centered on the canvas origin.
   const s = 140;
+  const x0 = CX - s / 2;
+  const y0 = CY - s / 2;
   const perSide = Math.floor(n / 4);
   const pts: Array<{ x: number; y: number }> = [];
   const pushEdge = (ax: number, ay: number, bx: number, by: number, count: number) => {
@@ -113,12 +117,10 @@ export function makeTriangle(
           ? 3.5
           : 10;
 
-  const cx = 200;
-  const cy = 200;
   const r = 90;
   const verts = [0, 1, 2].map((k) => {
     const a = -Math.PI / 2 + (k * 2 * Math.PI) / 3;
-    return { x: cx + r * Math.cos(a), y: cy + r * Math.sin(a) };
+    return { x: CX + r * Math.cos(a), y: CY + r * Math.sin(a) };
   });
   const perSide = Math.floor(n / 3);
   const pts: Array<{ x: number; y: number }> = [];
@@ -150,8 +152,6 @@ export function makeInfinity(
           : 14;
 
   const scale = 90;
-  const cx = 200;
-  const cy = 180;
   const pts: Array<{ x: number; y: number }> = [];
   for (let i = 0; i < n; i++) {
     const t = (2 * Math.PI * i) / n;
@@ -159,8 +159,8 @@ export function makeInfinity(
     const c = Math.cos(t);
     const denom = 1 + s * s;
     pts.push({
-      x: cx + (scale * Math.SQRT2 * c) / denom,
-      y: cy + (scale * Math.SQRT2 * c * s) / denom,
+      x: CX + (scale * Math.SQRT2 * c) / denom,
+      y: CY + (scale * Math.SQRT2 * c * s) / denom,
     });
   }
   return withTiming(noise > 0 ? jitter(pts, noise, 19) : pts);

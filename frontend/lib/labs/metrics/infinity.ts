@@ -46,14 +46,18 @@ export function lobeSymmetryError(points: ArrayLike<Vec2>): number {
 }
 
 /**
- * Self-intersection nearest the origin.
- * Spec: Euclidean distance of the crossing to (0,0).
+ * Self-intersection nearest the origin on the fixed x-axis form.
+ * Lemniscate of Bernoulli crosses at (0,0); penalize distance to origin
+ * and vertical drift off the x-axis (|y| of the crossing).
  */
 export function intersectionOriginError(points: ArrayLike<Vec2>): number {
   const hit = findSelfIntersection(points);
   if (!hit) {
-    // No crossing found — penalize by nearest approach of non-adjacent segments to origin
-    // is wrong; use distance of the point closest to origin among mid-stroke samples.
+    // No crossing — also check where the stroke crosses the x-axis near origin.
+    const axisHit = nearestXAxisCrossing(points);
+    if (axisHit) {
+      return Math.hypot(axisHit.x, axisHit.y) + Math.abs(axisHit.y);
+    }
     let best = Infinity;
     const n = points.length;
     const lo = Math.floor(n * 0.2);
@@ -65,10 +69,41 @@ export function intersectionOriginError(points: ArrayLike<Vec2>): number {
     }
     return best;
   }
-  return Math.hypot(hit.x, hit.y);
+  // Distance to origin + |y| keeps the collision on the mathematical x-axis form.
+  return Math.hypot(hit.x, hit.y) + Math.abs(hit.y);
 }
 
-function findSelfIntersection(points: ArrayLike<Vec2>): Vec2 | null {
+/** Nearest place the polyline crosses y=0 (the x-axis). */
+function nearestXAxisCrossing(points: ArrayLike<Vec2>): Vec2 | null {
+  const n = points.length;
+  let best: Vec2 | null = null;
+  let bestD = Infinity;
+  for (let i = 0; i < n - 1; i++) {
+    const a = points[i]!;
+    const b = points[i + 1]!;
+    if (a.y === 0) {
+      const d = Math.abs(a.x);
+      if (d < bestD) {
+        bestD = d;
+        best = { x: a.x, y: 0 };
+      }
+      continue;
+    }
+    if (a.y * b.y > 0) continue;
+    const t = a.y / (a.y - b.y);
+    if (t < 0 || t > 1) continue;
+    const x = a.x + t * (b.x - a.x);
+    const d = Math.abs(x);
+    if (d < bestD) {
+      bestD = d;
+      best = { x, y: 0 };
+    }
+  }
+  return best;
+}
+
+/** Nearest self-intersection to the origin, or null if none. */
+export function findSelfIntersection(points: ArrayLike<Vec2>): Vec2 | null {
   const n = points.length;
   let best: Vec2 | null = null;
   let bestD = Infinity;

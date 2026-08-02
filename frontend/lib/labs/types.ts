@@ -74,7 +74,7 @@ export type NormalizedStroke = {
   closureRatio: number;
   /** Absolute gap after RMS normalization. */
   closureGap: number;
-  /** Centroid of resampled (pre-translate) points in original space. */
+  /** Fixed canvas origin used for normalization (celestial axis), in raw space. */
   centroid: Vec2;
   /** RMS scale applied. */
   rms: number;
