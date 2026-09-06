@@ -2,11 +2,18 @@
 
 const RATE = 24_000;
 
-function concat(a: Uint8Array, b: Uint8Array): Uint8Array {
+function concat(
+  a: Uint8Array<ArrayBufferLike>,
+  b: Uint8Array<ArrayBufferLike>,
+): Uint8Array<ArrayBufferLike> {
   const out = new Uint8Array(a.byteLength + b.byteLength);
   out.set(a, 0);
   out.set(b, a.byteLength);
   return out;
+}
+
+function toArrayBuffer(bytes: Uint8Array<ArrayBufferLike>): ArrayBuffer {
+  return new Uint8Array(bytes).buffer;
 }
 
 function pcm16ToBuffer(ctx: AudioContext, pcm: ArrayBuffer): AudioBuffer {
@@ -114,7 +121,7 @@ export async function playSpeechResponse(
   }
 
   const reader = body.getReader();
-  let leftover = new Uint8Array(0);
+  let leftover: Uint8Array<ArrayBufferLike> = new Uint8Array();
   let started = false;
   try {
     while (!signal.aborted) {
@@ -127,16 +134,12 @@ export async function playSpeechResponse(
         leftover = merged;
         continue;
       }
-      const chunk = merged.buffer.slice(
-        merged.byteOffset,
-        merged.byteOffset + even,
-      );
       leftover = merged.subarray(even);
       if (!started) {
         player.stop();
         started = true;
       }
-      player.enqueue(chunk);
+      player.enqueue(toArrayBuffer(merged.subarray(0, even)));
     }
   } finally {
     reader.releaseLock();
