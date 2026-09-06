@@ -94,6 +94,9 @@ class GameRuntime:
                     await task
                 except asyncio.CancelledError:
                     pass
+        from app.services.bot_coordinator import bot_coordinator
+
+        bot_coordinator.cancel_room(room_code)
 
     async def recover_active_sessions(self) -> None:
         rows = await asyncio.to_thread(_load_session_ticks)

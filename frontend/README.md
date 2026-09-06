@@ -6,7 +6,7 @@ Next.js 16 app for the Svigl multiplayer drawing game.
 
 ```bash
 npm install
-cp .env.example .env.local   # set NEXT_PUBLIC_API_URL + NEXT_PUBLIC_WS_URL
+cp .env.example .env.local   # set NEXT_PUBLIC_API_URL + NEXT_PUBLIC_WS_URL (optional: NEXT_PUBLIC_GA_MEASUREMENT_ID)
 npm run dev
 ```
 
@@ -30,6 +30,7 @@ npm run dev      # development server
 npm run build    # production build
 npm run start    # serve production build
 npm run lint     # ESLint
+npm test         # Vitest unit tests
 ```
 
 ## Production
@@ -39,7 +40,10 @@ Set at build time (any host):
 ```env
 NEXT_PUBLIC_API_URL=https://<your-api-host>
 NEXT_PUBLIC_WS_URL=wss://<your-api-host>
-NEXT_PUBLIC_GA_MEASUREMENT_ID=G-XXXXXXXXXX
+NEXT_PUBLIC_GA_MEASUREMENT_ID=G-XXXXXXXXXX          # optional
+NEXT_PUBLIC_EMAILJS_SERVICE_ID=                     # optional (/feedback form)
+NEXT_PUBLIC_EMAILJS_TEMPLATE_ID=
+NEXT_PUBLIC_EMAILJS_PUBLIC_KEY=
 ```
 
-Rebuild after changing these — they are inlined at build time.
+These are inlined into the public client bundle — never put a private key here. Rebuild after changing them.

@@ -51,6 +51,64 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("CORS_ORIGINS", "cors_origins"),
     )
 
+    # --- AI Guesser (experimental /ai-guesser demo) ---
+    # Unset disables the feature: the endpoint reports it as unavailable
+    # instead of failing, so the demo page still lets the player draw.
+    gemini_api_key: str | None = None
+    # Keep this a low-cost multimodal Flash/Lite tier — it runs once every
+    # few seconds per player. Never hardcode the model name in call sites.
+    gemini_ai_guesser_model: str = "gemini-3.5-flash-lite"
+    gemini_timeout_seconds: float = 18.0
+    # Gemini 3.x uses thinkingLevel (minimal/low/medium/high). Blank omits it.
+    gemini_thinking_level: str = "minimal"
+    # Legacy Gemini 2.5 knob. Ignored when thinking_level is set. -1 omits it.
+    gemini_thinking_budget: int = -1
+    # Abuse guard + Gemini free-tier headroom (Flash-Lite is often ~15 RPM).
+    # One client at MIN_CALL_INTERVAL_MS=4000 already tops out at 15/min.
+    ai_guesser_rate_limit_per_minute: int = 15
+    ai_guesser_daily_limit_per_ip: int = 150
+    ai_guesser_daily_global_limit: int = 800
+    # Only honor X-Forwarded-For / X-Real-IP when a proxy overwrites them.
+    ai_guesser_trust_forwarded_for: bool = False
+    ai_guesser_max_image_bytes: int = 200_000
+    # TTS uses the same Gemini key. A dedicated model; never send the key west.
+    gemini_tts_model: str = "gemini-3.1-flash-tts-preview"
+    gemini_tts_voice: str = "Puck"
+    gemini_tts_timeout_seconds: float = 12.0
+    ai_guesser_tts_rate_limit_per_minute: int = 15
+    ai_guesser_tts_daily_limit_per_ip: int = 150
+
+    # --- Multiplayer system bot (regular rooms, not /ai-guesser) ---
+    bot_word_select_delay_seconds: float = 0.8
+    bot_draw_step_delay_seconds: float = 1.1
+    bot_guess_debounce_seconds: float = 4.0
+    bot_guess_interval_seconds: float = 5.0
+    bot_guess_timeout_seconds: float = 18.0
+    bot_max_guess_calls_per_turn: int = 8
+    bot_global_ai_concurrency: int = 4
+    bot_guess_min_confidence: float = 0.22
+
+    # Same EmailJS template as /feedback. Unset disables limit-alert mail.
+    emailjs_service_id: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices(
+            "EMAILJS_SERVICE_ID", "NEXT_PUBLIC_EMAILJS_SERVICE_ID"
+        ),
+    )
+    emailjs_template_id: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices(
+            "EMAILJS_TEMPLATE_ID", "NEXT_PUBLIC_EMAILJS_TEMPLATE_ID"
+        ),
+    )
+    emailjs_public_key: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices(
+            "EMAILJS_PUBLIC_KEY", "NEXT_PUBLIC_EMAILJS_PUBLIC_KEY"
+        ),
+    )
+    emailjs_alert_to: str = "anayshah10@gmail.com"
+
     model_config = SettingsConfigDict(
         env_file=("../.env", ".env.local"),
         env_file_encoding="utf-8",

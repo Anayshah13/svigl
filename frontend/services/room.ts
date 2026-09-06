@@ -174,6 +174,24 @@ export function isUserInRoom(room: Room, userId: string | null): boolean {
   return room.players.some((player) => player.id === userId);
 }
 
+/** Host adds the system robot to the lobby. */
+export async function addRoomBot(code: string): Promise<Room> {
+  const normalized = normalizeRoomCode(code);
+  const data = await roomRequest<unknown>(`/rooms/${normalized}/bot`, {
+    method: "POST",
+  });
+  return requireRoom(data);
+}
+
+/** Host removes the system robot from the lobby. */
+export async function removeRoomBot(code: string): Promise<Room> {
+  const normalized = normalizeRoomCode(code);
+  const data = await roomRequest<unknown>(`/rooms/${normalized}/bot`, {
+    method: "DELETE",
+  });
+  return requireRoom(data);
+}
+
 export function getHostName(room: Room): string {
   const host = room.players.find((player) => player.id === room.hostId);
   return host?.name ?? "Unknown";

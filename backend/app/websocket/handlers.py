@@ -509,20 +509,9 @@ async def _handle_set_reaction(client: ConnectedClient, message: WSMessage) -> N
 
 
 async def _broadcast_canvas(result: CanvasBroadcast) -> None:
-    event_type = EventType(result.event)
-    if result.exclude_user_id is not None:
-        await room_manager.broadcast_except(
-            result.room_code,
-            result.exclude_user_id,
-            event_type,
-            **result.payload,
-        )
-    else:
-        await room_manager.broadcast(
-            result.room_code,
-            event_type,
-            **result.payload,
-        )
+    from app.websocket.notify import broadcast_canvas_async
+
+    await broadcast_canvas_async(result)
 
 
 async def _mutate_canvas(client: ConnectedClient, mutate_fn):  # noqa: ANN001

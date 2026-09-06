@@ -1,5 +1,6 @@
 "use client";
 
+import { BotBadge } from "@/components/ui/RobotAvatar";
 import { UserAvatar } from "@/components/ui/UserAvatar";
 import { cn } from "@/lib/cn";
 import { formatDisplayName } from "@/lib/names";
@@ -78,11 +79,13 @@ export function Scoreboard({
               <UserAvatar
                 name={name}
                 avatarUrl={player?.avatarUrl ?? null}
+                isBot={player?.isBot}
                 className="h-8 w-8 shrink-0 text-xs sm:h-9 sm:w-9"
               />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-xs font-semibold text-ink sm:text-sm">
                   {formatDisplayName(name)}
+                  {player?.isBot ? <BotBadge className="align-middle" /> : null}
                   {isDrawer ? (
                     <span className="ml-1 hidden text-xs font-bold uppercase tracking-wide text-plum sm:inline">
                       Drawing

@@ -12,6 +12,7 @@ import {
 } from "@/components/room/RoomInviteActions";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { BotBadge } from "@/components/ui/RobotAvatar";
 import { UserAvatar } from "@/components/ui/UserAvatar";
 import { useRoom } from "@/hooks/useRoom";
 import { colors } from "@/lib/colors";
@@ -72,11 +73,13 @@ function ErrorPanel({
 function PlayerActions({
   playerId,
   playerName,
+  isBot,
   onKick,
   onMakeHost,
 }: {
   playerId: string;
   playerName: string;
+  isBot?: boolean;
   onKick: (id: string) => Promise<void>;
   onMakeHost: (id: string) => Promise<void>;
 }) {
@@ -138,6 +141,7 @@ function PlayerActions({
 
       {open ? (
         <div className="absolute right-0 top-full z-20 mt-1 w-48 overflow-hidden rounded-xl border border-plum/15 bg-white shadow-lg">
+          {isBot ? null : (
           <button
             type="button"
             disabled={busy}
@@ -149,6 +153,7 @@ function PlayerActions({
             </svg>
             Make host
           </button>
+          )}
           <button
             type="button"
             disabled={busy}
@@ -207,16 +212,22 @@ function PlayerList({
               <UserAvatar
                 name={player.name}
                 avatarUrl={player.avatarUrl}
+                isBot={player.isBot}
                 className="h-9 w-9 shrink-0 text-sm"
               />
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold text-ink">
+                  {player.isBot ? (
+                    <span>{formatDisplayName(player.name)}</span>
+                  ) : (
                   <Link
                     href={profilePath(player.name)}
                     className="hover:text-plum hover:underline"
                   >
                     {formatDisplayName(player.name)}
                   </Link>
+                  )}
+                  {player.isBot ? <BotBadge /> : null}
                   {isPlayerHost ? (
                     <span className="ml-2 text-xs font-medium text-plum">Host</span>
                   ) : null}
@@ -235,6 +246,7 @@ function PlayerList({
                 <PlayerActions
                   playerId={player.id}
                   playerName={player.name}
+                  isBot={player.isBot}
                   onKick={onKick}
                   onMakeHost={onMakeHost}
                 />
@@ -326,6 +338,8 @@ export function RoomView() {
     leaveRoom,
     kickPlayer,
     transferHost,
+    addBot,
+    removeBot,
     setReady,
     updateSettings,
     startGame,
@@ -500,14 +514,25 @@ export function RoomView() {
                   {isReady ? "Unready" : "Ready"}
                 </Button>
                 {isHost ? (
-                  <Button
-                    type="button"
-                    disabled={!room.canStart}
-                    onClick={startGame}
-                    aria-describedby="start-game-requirements"
-                  >
-                    Start game
-                  </Button>
+                  <>
+                    {room.players.some((player) => player.isBot) ? (
+                      <Button type="button" variant="outline" onClick={() => void removeBot()}>
+                        Remove robot
+                      </Button>
+                    ) : room.players.length < room.maxPlayers ? (
+                      <Button type="button" variant="outline" onClick={() => void addBot()}>
+                        Add robot
+                      </Button>
+                    ) : null}
+                    <Button
+                      type="button"
+                      disabled={!room.canStart}
+                      onClick={startGame}
+                      aria-describedby="start-game-requirements"
+                    >
+                      Start game
+                    </Button>
+                  </>
                 ) : null}
               </div>
             </div>

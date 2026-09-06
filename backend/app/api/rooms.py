@@ -10,6 +10,12 @@ from app.services.game_runtime import (
     game_runtime,
     reconcile_room_session,
 )
+from app.services.bot import (
+    BOT_DISPLAY_NAME,
+    add_room_bot,
+    remove_room_bot,
+    room_bot_membership,
+)
 from app.services.room import (
     _load_room,
     create_room,
@@ -127,6 +133,49 @@ def kick(
         )
     apply_mutation_side_effects(change.game_mutation)
     notify_player_kicked(change.room, body.player_id, target_name)
+    notify_game_mutation(change.game_mutation, change.room)
+    if change.host_changed and change.previous_host_id is not None:
+        notify_host_changed(change.room, change.previous_host_id)
+    return RoomResponse.from_room(change.room, viewer_id=current_user.id)
+
+
+@router.post("/{code}/bot", response_model=RoomResponse)
+def add_bot(
+    code: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> RoomResponse:
+    change = add_room_bot(db, code=code, host_id=current_user.id)
+    assert change.room is not None
+    bot = room_bot_membership(change.room)
+    if bot is not None:
+        notify_player_joined(change.room, bot.user_id, bot.user.name)
+    else:
+        notify_room_updated(change.room)
+    return RoomResponse.from_room(change.room, viewer_id=current_user.id)
+
+
+@router.delete("/{code}/bot", response_model=RoomResponse)
+def remove_bot(
+    code: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> RoomResponse:
+    room_row = _load_room(db, code=code)
+    bot = room_bot_membership(room_row) if room_row is not None else None
+    bot_id = bot.user_id if bot is not None else None
+    bot_name = bot.user.name if bot is not None else BOT_DISPLAY_NAME
+
+    change = remove_room_bot(db, code=code, host_id=current_user.id)
+    if change.room is None:
+        if bot_id is not None:
+            notify_player_left(code.upper(), bot_id, bot_name)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Room not found.",
+        )
+    if bot_id is not None:
+        notify_player_left(change.room.code, bot_id, bot_name, change.room)
     notify_game_mutation(change.game_mutation, change.room)
     if change.host_changed and change.previous_host_id is not None:
         notify_host_changed(change.room, change.previous_host_id)

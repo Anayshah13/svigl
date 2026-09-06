@@ -11,6 +11,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.responses import Response
 
+from app.api.ai_guesser import router as ai_guesser_router
 from app.api.auth import router as auth_router
 from app.api.gallery import router as gallery_router
 from app.api.games import router as games_router
@@ -56,7 +57,15 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         await sweeper_task
 
 
-app = FastAPI(title=settings.app_name, debug=settings.debug, lifespan=lifespan)
+app = FastAPI(
+    title=settings.app_name,
+    debug=settings.debug,
+    lifespan=lifespan,
+    # Keep the schema off the public internet; it maps every route and payload.
+    docs_url="/docs" if settings.debug else None,
+    redoc_url="/redoc" if settings.debug else None,
+    openapi_url="/openapi.json" if settings.debug else None,
+)
 
 
 @app.exception_handler(Exception)
@@ -131,4 +140,5 @@ app.include_router(rooms_router)
 app.include_router(gallery_router)
 app.include_router(labs_router)
 app.include_router(games_router)
+app.include_router(ai_guesser_router)
 app.include_router(ws_router)

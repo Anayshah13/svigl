@@ -27,6 +27,7 @@ const snapshot = {
       avatar_url: null,
       is_ready: false,
       is_waiting: true,
+      is_bot: true,
       score: 40,
     },
   ],
@@ -69,6 +70,13 @@ const snapshot = {
 describe("mapRoomPayload", () => {
   it("maps an authoritative lifecycle snapshot", () => {
     const room = mapRoomPayload(snapshot);
+
+    expect(room?.players[1]).toMatchObject({
+      id: "bob",
+      name: "Bob",
+      isBot: true,
+    });
+    expect(room?.game.drawer?.isBot).toBeFalsy();
 
     expect(room).toMatchObject({
       code: "TEST",

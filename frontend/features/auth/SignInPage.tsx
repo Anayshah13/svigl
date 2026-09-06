@@ -172,8 +172,22 @@ export function SignInPage() {
           Play as Guest
         </Button>
 
-        <p className="mt-6 text-xs text-ink-muted">
-          By continuing, you agree to our terms for this demo environment.
+        <p className="mt-6 text-xs leading-relaxed text-ink-muted">
+          By continuing, you agree to the{" "}
+          <Link
+            href="/termsandconditions"
+            className="font-semibold text-plum underline-offset-2 transition-colors hover:text-ink hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-plum/40"
+          >
+            Terms &amp; Conditions
+          </Link>{" "}
+          and acknowledge the{" "}
+          <Link
+            href="/policies"
+            className="font-semibold text-plum underline-offset-2 transition-colors hover:text-ink hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-plum/40"
+          >
+            Privacy Policy
+          </Link>
+          .
         </p>
 
         <Link

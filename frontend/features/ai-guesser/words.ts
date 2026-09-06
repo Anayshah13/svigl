@@ -1,0 +1,533 @@
+/**
+ * Secret-word vocabulary and matching for the AI Guesser game.
+ *
+ * The player is shown one of these. Gemini guesses freely from the
+ * drawing — this list is never sent to the model. Scoring is exact
+ * after normalize (case, hyphens/spaces, a leading article).
+ */
+
+export const AI_GUESSER_WORDS: readonly string[] = [
+  "dog",
+  "cat",
+  "fish",
+  "bird",
+  "owl",
+  "duck",
+  "swan",
+  "frog",
+  "snake",
+  "turtle",
+  "rabbit",
+  "mouse",
+  "horse",
+  "cow",
+  "pig",
+  "sheep",
+  "chicken",
+  "lion",
+  "tiger",
+  "bear",
+  "wolf",
+  "fox",
+  "elephant",
+  "giraffe",
+  "monkey",
+  "penguin",
+  "dolphin",
+  "whale",
+  "shark",
+  "octopus",
+  "butterfly",
+  "bee",
+  "spider",
+  "snail",
+  "crab",
+  "dinosaur",
+  "dragon",
+  "unicorn",
+  "house",
+  "castle",
+  "tent",
+  "igloo",
+  "lighthouse",
+  "bridge",
+  "skyscraper",
+  "pyramid",
+  "tree",
+  "flower",
+  "cactus",
+  "mushroom",
+  "leaf",
+  "sun",
+  "moon",
+  "star",
+  "rainbow",
+  "cloud",
+  "lightning",
+  "snowman",
+  "volcano",
+  "mountain",
+  "island",
+  "car",
+  "bus",
+  "truck",
+  "train",
+  "airplane",
+  "helicopter",
+  "boat",
+  "submarine",
+  "rocket",
+  "bicycle",
+  "motorcycle",
+  "scooter",
+  "hot air balloon",
+  "traffic light",
+  "pizza",
+  "hamburger",
+  "hot dog",
+  "taco",
+  "sushi",
+  "ice cream",
+  "cake",
+  "cookie",
+  "donut",
+  "apple",
+  "banana",
+  "watermelon",
+  "grape",
+  "carrot",
+  "coffee",
+  "guitar",
+  "piano",
+  "drum",
+  "trumpet",
+  "microphone",
+  "headphones",
+  "camera",
+  "phone",
+  "laptop",
+  "television",
+  "clock",
+  "lamp",
+  "chair",
+  "table",
+  "bed",
+  "door",
+  "key",
+  "umbrella",
+  "glasses",
+  "hat",
+  "shoe",
+  "backpack",
+  "book",
+  "pencil",
+  "scissors",
+  "hammer",
+  "sword",
+  "shield",
+  "crown",
+  "trophy",
+  "football",
+  "basketball",
+  "tennis",
+  "baseball",
+  "soccer ball",
+  "golf",
+  "skateboard",
+  "surfboard",
+  "skiing",
+  "swimming",
+  "birthday party",
+  "christmas tree",
+  "halloween",
+  "haunted house",
+  "ghost",
+  "robot",
+  "alien",
+  "astronaut",
+  "pirate",
+  "ninja",
+  "wizard",
+  "mermaid",
+  "superhero",
+  "iron man",
+  "spider-man",
+  "batman",
+  "harry potter",
+  "star wars",
+  "pokemon",
+  "minecraft",
+  "among us",
+];
+
+export const AI_GUESSER_CANDIDATES = AI_GUESSER_WORDS;
+
+/**
+ * Never used as a secret. Kept for buildAiCandidateList tests; the live
+ * game no longer sends a vocabulary to the model.
+ */
+export const AI_GUESSER_DECOYS: readonly string[] = [
+  "puppy",
+  "kitten",
+  "husky",
+  "coyote",
+  "goldfish",
+  "eagle",
+  "pigeon",
+  "chick",
+  "lizard",
+  "worm",
+  "hamster",
+  "deer",
+  "zebra",
+  "hippo",
+  "camel",
+  "panda",
+  "koala",
+  "seal",
+  "jellyfish",
+  "moth",
+  "ant",
+  "scorpion",
+  "beetle",
+  "triceratops",
+  "pegasus",
+  "cabin",
+  "barn",
+  "church",
+  "hut",
+  "apartment",
+  "tower",
+  "palace",
+  "fence",
+  "forest",
+  "bush",
+  "rose",
+  "pine tree",
+  "sunset",
+  "planet",
+  "comet",
+  "tornado",
+  "iceberg",
+  "desert",
+  "van",
+  "taxi",
+  "ambulance",
+  "fire truck",
+  "tractor",
+  "jet",
+  "blimp",
+  "canoe",
+  "yacht",
+  "spaceship",
+  "unicycle",
+  "sandwich",
+  "fries",
+  "pretzel",
+  "muffin",
+  "pear",
+  "orange",
+  "strawberry",
+  "tea",
+  "violin",
+  "flute",
+  "radio",
+  "tablet",
+  "flashlight",
+  "sofa",
+  "window",
+  "lock",
+  "raincoat",
+  "boot",
+  "scarf",
+  "watch",
+  "paintbrush",
+  "axe",
+  "bow and arrow",
+  "helmet",
+  "medal",
+  "volleyball",
+  "hockey",
+  "bowling",
+  "boxing",
+  "wedding",
+  "easter egg",
+  "pumpkin",
+  "zombie",
+  "vampire",
+  "cyborg",
+  "ufo",
+  "cowboy",
+  "knight",
+  "witch",
+  "fairy",
+  "wonder woman",
+  "captain america",
+  "hulk",
+  "star trek",
+  "marvel",
+  "lord of the rings",
+  "frozen",
+  "fortnite",
+];
+
+const EMOJI: Record<string, string> = {
+  dog: "🐕",
+  cat: "🐈",
+  fish: "🐟",
+  bird: "🐦",
+  owl: "🦉",
+  duck: "🦆",
+  frog: "🐸",
+  snake: "🐍",
+  turtle: "🐢",
+  rabbit: "🐇",
+  mouse: "🐭",
+  horse: "🐴",
+  cow: "🐄",
+  pig: "🐷",
+  sheep: "🐑",
+  chicken: "🐔",
+  lion: "🦁",
+  tiger: "🐯",
+  bear: "🐻",
+  wolf: "🐺",
+  fox: "🦊",
+  elephant: "🐘",
+  giraffe: "🦒",
+  monkey: "🐵",
+  penguin: "🐧",
+  dolphin: "🐬",
+  whale: "🐋",
+  shark: "🦈",
+  octopus: "🐙",
+  butterfly: "🦋",
+  bee: "🐝",
+  spider: "🕷️",
+  snail: "🐌",
+  crab: "🦀",
+  dinosaur: "🦕",
+  dragon: "🐉",
+  unicorn: "🦄",
+  house: "🏠",
+  castle: "🏰",
+  tent: "⛺",
+  igloo: "🧊",
+  lighthouse: "🗼",
+  bridge: "🌉",
+  tree: "🌳",
+  flower: "🌸",
+  cactus: "🌵",
+  mushroom: "🍄",
+  leaf: "🍃",
+  sun: "☀️",
+  moon: "🌙",
+  star: "⭐",
+  rainbow: "🌈",
+  cloud: "☁️",
+  lightning: "⚡",
+  snowman: "⛄",
+  volcano: "🌋",
+  mountain: "⛰️",
+  island: "🏝️",
+  car: "🚗",
+  bus: "🚌",
+  truck: "🚚",
+  train: "🚂",
+  airplane: "✈️",
+  helicopter: "🚁",
+  boat: "⛵",
+  submarine: "🛳️",
+  rocket: "🚀",
+  bicycle: "🚲",
+  motorcycle: "🏍️",
+  "hot air balloon": "🎈",
+  "traffic light": "🚦",
+  pizza: "🍕",
+  hamburger: "🍔",
+  "hot dog": "🌭",
+  taco: "🌮",
+  sushi: "🍣",
+  "ice cream": "🍦",
+  cake: "🎂",
+  cookie: "🍪",
+  donut: "🍩",
+  apple: "🍎",
+  banana: "🍌",
+  watermelon: "🍉",
+  grape: "🍇",
+  carrot: "🥕",
+  coffee: "☕",
+  guitar: "🎸",
+  piano: "🎹",
+  drum: "🥁",
+  trumpet: "🎺",
+  microphone: "🎤",
+  headphones: "🎧",
+  camera: "📷",
+  phone: "📱",
+  laptop: "💻",
+  television: "📺",
+  clock: "🕐",
+  lamp: "💡",
+  chair: "🪑",
+  key: "🔑",
+  umbrella: "☂️",
+  glasses: "👓",
+  hat: "🎩",
+  shoe: "👟",
+  backpack: "🎒",
+  book: "📚",
+  pencil: "✏️",
+  scissors: "✂️",
+  hammer: "🔨",
+  sword: "⚔️",
+  shield: "🛡️",
+  crown: "👑",
+  trophy: "🏆",
+  football: "🏈",
+  basketball: "🏀",
+  tennis: "🎾",
+  baseball: "⚾",
+  "soccer ball": "⚽",
+  golf: "⛳",
+  skateboard: "🛹",
+  surfboard: "🏄",
+  skiing: "⛷️",
+  swimming: "🏊",
+  "birthday party": "🎉",
+  "christmas tree": "🎄",
+  halloween: "🎃",
+  "haunted house": "👻",
+  ghost: "👻",
+  robot: "🤖",
+  alien: "👽",
+  astronaut: "🧑‍🚀",
+  pirate: "🏴‍☠️",
+  ninja: "🥷",
+  wizard: "🧙",
+  mermaid: "🧜",
+  superhero: "🦸",
+  "iron man": "🤖",
+  "spider-man": "🕷️",
+  batman: "🦇",
+  "harry potter": "⚡",
+  "star wars": "🌌",
+  pokemon: "🔴",
+  minecraft: "🟩",
+  "among us": "👾",
+};
+
+export function emojiFor(answer: string): string {
+  return EMOJI[answer.toLowerCase()] ?? "✨";
+}
+
+export function normalizeAnswer(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/&/g, " and ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
+const LEADING_ARTICLE = /^(a|an|the)\s+/;
+
+/** True when a model answer names the secret word. */
+export function answersMatch(guess: string, secret: string): boolean {
+  const a = normalizeAnswer(guess).replace(LEADING_ARTICLE, "");
+  const b = normalizeAnswer(secret).replace(LEADING_ARTICLE, "");
+  return Boolean(a) && a === b;
+}
+
+export function guessesMatchSecret(
+  guesses: readonly { answer: string }[],
+  secret: string,
+): boolean {
+  return guesses.some((guess) => answersMatch(guess.answer, secret));
+}
+
+function shuffleInPlace<T>(items: T[], random: () => number): T[] {
+  for (let i = items.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(random() * (i + 1));
+    const swap = items[i];
+    items[i] = items[j]!;
+    items[j] = swap!;
+  }
+  return items;
+}
+
+/**
+ * Vocabulary sent to Gemini: a shuffled mix that always includes the secret.
+ * Capped so each request does not ship the entire word list as input tokens.
+ * Decoys are never themselves secrets.
+ */
+export const AI_GUESSER_CANDIDATE_LIMIT = 48;
+
+export function buildAiCandidateList(
+  secret: string,
+  words: readonly string[] = AI_GUESSER_WORDS,
+  decoys: readonly string[] = AI_GUESSER_DECOYS,
+  random: () => number = Math.random,
+  limit: number = AI_GUESSER_CANDIDATE_LIMIT,
+): string[] {
+  const playable = new Set(words.map((word) => normalizeAnswer(word)));
+  const merged = new Map<string, string>();
+  const cap = Math.max(1, limit);
+
+  const add = (raw: string) => {
+    const key = normalizeAnswer(raw);
+    if (!key || merged.has(key)) return;
+    merged.set(key, raw);
+  };
+
+  const leftover: string[] = [];
+  const otherWords: string[] = [];
+  for (const word of words) {
+    if (normalizeAnswer(word) === normalizeAnswer(secret)) continue;
+    otherWords.push(word);
+  }
+  const decoyPool = decoys.filter(
+    (decoy) => !playable.has(normalizeAnswer(decoy)),
+  );
+
+  add(secret);
+
+  const remaining = cap - merged.size;
+  const decoySlots = Math.min(decoyPool.length, Math.floor(remaining / 3));
+  const wordSlots = remaining - decoySlots;
+
+  for (const word of shuffleInPlace([...otherWords], random).slice(0, wordSlots)) {
+    add(word);
+  }
+  for (const decoy of shuffleInPlace([...decoyPool], random).slice(0, decoySlots)) {
+    add(decoy);
+  }
+
+  if (merged.size < cap) {
+    leftover.push(
+      ...otherWords.filter((word) => !merged.has(normalizeAnswer(word))),
+      ...decoyPool.filter((decoy) => !merged.has(normalizeAnswer(decoy))),
+    );
+    for (const extra of leftover) {
+      if (merged.size >= cap) break;
+      add(extra);
+    }
+  }
+
+  return shuffleInPlace([...merged.values()], random);
+}
+
+export function pickNextWord(
+  words: readonly string[],
+  exclude: string | null = null,
+  random: () => number = Math.random,
+): string {
+  const pool = exclude ? words.filter((word) => word !== exclude) : words;
+  const source = pool.length > 0 ? pool : words;
+  const index = Math.min(
+    source.length - 1,
+    Math.max(0, Math.floor(random() * source.length)),
+  );
+  return source[index] ?? "dog";
+}

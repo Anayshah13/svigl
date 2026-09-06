@@ -197,6 +197,10 @@ export function GameScreen({
     return null;
   }
 
+  const botPlayerIds = room.players
+    .filter((player) => player.isBot)
+    .map((player) => player.id);
+
   const chatPanel = (
     <ChatPanel
       messages={messages}
@@ -206,6 +210,7 @@ export function GameScreen({
       onSend={handleSendChat}
       className="h-full min-h-0"
       placeholder={chatPolicy.placeholder}
+      botPlayerIds={botPlayerIds}
     />
   );
 
@@ -219,6 +224,7 @@ export function GameScreen({
       className="h-full min-h-0"
       hideInput
       hideHeader
+      botPlayerIds={botPlayerIds}
     />
   );
 

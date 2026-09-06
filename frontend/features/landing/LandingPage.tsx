@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { useEffect, useState, useSyncExternalStore, type FormEvent } from "react";
 import { GameFeaturesSection } from "@/components/landing/GameFeaturesSection";
+import { HeroMascot } from "@/components/landing/HeroMascot";
 import { LandingBackgroundDoodles } from "@/components/landing/LandingBackgroundDoodles";
 import { LandingCtaSection } from "@/components/landing/LandingCtaSection";
 import { LandingFooter } from "@/components/landing/LandingFooter";
@@ -105,6 +106,15 @@ export function LandingPage() {
       <LandingBackgroundDoodles />
       <div className="relative z-10">
         <section className="relative flex min-h-[calc(100dvh-3.5rem)] flex-col items-center justify-center px-5 py-16 sm:min-h-[calc(100dvh-4rem)] sm:px-6 sm:py-20 lg:py-24">
+          <div className="pointer-events-none absolute inset-0 z-10 hidden lg:block">
+            <div className="pointer-events-auto absolute top-[calc(50%+2.25rem)] left-[max(1.75rem,9%)] w-48 -translate-y-1/2 xl:left-[max(2.25rem,11%)] xl:w-52">
+              <HeroMascot />
+            </div>
+            <div className="pointer-events-auto absolute top-1/2 right-[max(1.75rem,9%)] -translate-y-1/2 scale-110 xl:right-[max(2.25rem,11%)]">
+              <LabsCtaOverlapShapes />
+            </div>
+          </div>
+
           <div className="relative mx-auto flex w-full max-w-2xl flex-col items-center text-center sm:max-w-3xl lg:-translate-y-3vh lg:max-w-4xl">
             <FadeIn className="mb-8 flex w-full justify-center md:hidden">
               <SviglLogo size="hero" className="justify-center text-center" />
@@ -211,7 +221,7 @@ export function LandingPage() {
                     </form>
                   </div>
 
-                  <div className="flex flex-col gap-2.5 sm:flex-row sm:flex-wrap">
+                  <div className="flex flex-col gap-2.5 sm:flex-row sm:flex-wrap sm:items-center">
                     <Button
                       size="md"
                       disabled={busy}
@@ -229,6 +239,26 @@ export function LandingPage() {
                     >
                       View gallery
                     </Button>
+                    <div className="grid grid-cols-2 gap-2.5 sm:ml-auto sm:flex sm:w-auto">
+                      <Button
+                        variant="pink"
+                        size="md"
+                        disabled={busy}
+                        onClick={() => router.push("/ai-guesser")}
+                        className="h-12 w-full whitespace-nowrap px-3 sm:w-auto sm:px-5"
+                      >
+                        Play vs AI
+                      </Button>
+                      <Button
+                        variant="chartreuse"
+                        size="md"
+                        disabled={busy}
+                        onClick={() => router.push("/labs")}
+                        className="h-12 w-full whitespace-nowrap px-3 sm:w-auto sm:px-5"
+                      >
+                        Labs
+                      </Button>
+                    </div>
                   </div>
 
                   <p className="script-accent text-center text-lg leading-snug sm:text-left sm:text-xl md:text-2xl">
@@ -245,14 +275,6 @@ export function LandingPage() {
         <LandingCtaSection />
         <LandingFooter />
       </div>
-
-      {/* Labs CTA — fixed bottom-right; lifts above ActiveRoomBar via .labs-cta-fixed */}
-      <FadeIn
-        delay={0.28}
-        className="labs-cta-fixed pointer-events-auto fixed z-40"
-      >
-        <LabsCtaOverlapShapes />
-      </FadeIn>
     </div>
   );
 }

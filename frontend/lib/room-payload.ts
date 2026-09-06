@@ -52,7 +52,12 @@ function mapDrawer(value: unknown, players: RoomPlayer[]): GameDrawer | null {
   if (typeof value === "string") {
     const player = players.find((candidate) => candidate.id === value);
     return player
-      ? { id: player.id, name: player.name, avatarUrl: player.avatarUrl }
+      ? {
+          id: player.id,
+          name: player.name,
+          avatarUrl: player.avatarUrl,
+          isBot: player.isBot,
+        }
       : { id: value, name: "Unknown", avatarUrl: null };
   }
 
@@ -65,6 +70,7 @@ function mapDrawer(value: unknown, players: RoomPlayer[]): GameDrawer | null {
     name: stringValue(drawer.name, drawer.player_name, player?.name) ?? "Unknown",
     avatarUrl:
       stringValue(drawer.avatarUrl, drawer.avatar_url, player?.avatarUrl) ?? null,
+    isBot: booleanValue(drawer.isBot, drawer.is_bot) ?? player?.isBot,
   };
 }
 
@@ -192,6 +198,7 @@ export function mapRoomPayload(value: unknown, previous?: Room | null): Room | n
         isWaiting:
           booleanValue(player.isWaiting, player.is_waiting, player.waiting) ??
           waitingIds.includes(id),
+        isBot: booleanValue(player.isBot, player.is_bot) ?? false,
         isConnected: booleanValue(player.isConnected, player.is_connected),
         score: numberValue(player.score),
       } satisfies RoomPlayer;

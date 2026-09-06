@@ -70,32 +70,6 @@ html.has-active-room-bar main {
   padding-bottom: var(--active-room-bar-offset, 7rem);
 }
 
-/* Fixed Labs CTA — clear home indicator; lift above ActiveRoomBar when present */
-.labs-cta-fixed {
-  bottom: max(1.25rem, env(safe-area-inset-bottom, 0px));
-  right: max(0.75rem, env(safe-area-inset-right, 0px));
-}
-
-@media (min-width: 640px) {
-  .labs-cta-fixed {
-    bottom: max(2rem, env(safe-area-inset-bottom, 0px));
-    right: max(1.25rem, env(safe-area-inset-right, 0px));
-  }
-}
-
-@media (min-width: 1024px) {
-  .labs-cta-fixed {
-    bottom: max(2.5rem, env(safe-area-inset-bottom, 0px));
-    right: max(2rem, env(safe-area-inset-right, 0px));
-  }
-}
-
-html.has-active-room-bar .labs-cta-fixed {
-  bottom: calc(
-    var(--active-room-bar-offset, 7rem) + max(0.75rem, env(safe-area-inset-bottom, 0px))
-  );
-}
-
 .text-fluid-xs {
   font-size: var(--text-fluid-xs);
 }
@@ -321,6 +295,55 @@ html.has-active-room-bar .labs-cta-fixed {
 
 .scroll-fade-x::-webkit-scrollbar {
   display: none;
+}
+
+/* Long-form legal documents */
+.legal-prose {
+  display: flex;
+  flex-direction: column;
+  gap: 2.5rem;
+}
+
+.legal-prose p,
+.legal-prose li {
+  max-width: 65ch;
+}
+
+.legal-prose ul {
+  list-style: disc;
+  padding-left: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.legal-prose ol {
+  list-style: decimal;
+  padding-left: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.legal-prose a {
+  color: var(--plum);
+  font-weight: 600;
+  text-underline-offset: 0.15em;
+}
+
+.legal-prose a:hover {
+  text-decoration: underline;
+}
+
+.legal-prose a:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--plum) 45%, transparent);
+  outline-offset: 2px;
+  border-radius: 0.2rem;
+}
+
+.legal-prose strong {
+  color: var(--ink);
+  font-weight: 600;
 }
 
 @media (max-width: 639px) {

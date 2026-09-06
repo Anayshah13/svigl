@@ -7,8 +7,6 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 import { AuthControls } from "@/components/auth/AuthControls";
 import { SviglLogo } from "@/components/layout/SviglLogo";
 import { cn } from "@/lib/cn";
-import { profilePath } from "@/lib/names";
-import { useSessionStore } from "@/stores/session";
 
 type NavItem = {
   href: string;
@@ -103,7 +101,6 @@ function NavLink({
 
 export function AppHeader() {
   const pathname = usePathname();
-  const authUser = useSessionStore((s) => s.authUser);
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuPathname, setMenuPathname] = useState(pathname);
   const mdUp = useMdUp();
@@ -111,9 +108,9 @@ export function AppHeader() {
   const nav: NavItem[] = [
     STATIC_NAV[0],
     {
-      href: authUser ? profilePath(authUser.username) : "/profile",
-      label: "Profile",
-      activePrefix: "/profile",
+      href: "/ai-guesser",
+      label: "AI Guesser",
+      activePrefix: "/ai-guesser",
     },
     ...STATIC_NAV.slice(1),
   ];

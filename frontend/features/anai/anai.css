@@ -1,0 +1,122 @@
+.anai-svg {
+  overflow: visible;
+}
+
+/* ── antenna ball blink ── */
+@keyframes anai-blink {
+  0%, 70%, 100% { opacity: 1; }
+  80% { opacity: 0.2; }
+  90% { opacity: 1; }
+}
+
+/* ── wheel rotation ── */
+@keyframes anai-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* ── left arm wave (up pose) ── */
+@keyframes anai-arm-left {
+  0%, 100% { transform: rotate(0deg); }
+  50% { transform: rotate(-8deg); }
+}
+
+/* ── right arm swing (down pose) ── */
+@keyframes anai-arm-right {
+  0%, 100% { transform: rotate(0deg); }
+  50% { transform: rotate(6deg); }
+}
+
+/* ── gentle body bob ── */
+@keyframes anai-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .anai-antenna-ball {
+    animation: anai-blink 2.4s ease-in-out infinite;
+  }
+
+  .anai-wheel-left,
+  .anai-wheel-right {
+    animation: anai-spin 4s linear infinite;
+  }
+
+  .anai-arm-left {
+    animation: anai-arm-left 2.8s ease-in-out infinite;
+  }
+
+  .anai-arm-right {
+    animation: anai-arm-right 2.8s ease-in-out infinite;
+  }
+
+  .anai-svg {
+    animation: anai-bob 3s ease-in-out infinite;
+  }
+
+  .anai-duel-thinking .anai-svg {
+    animation-duration: 1.1s;
+  }
+
+  .anai-duel-speaking .anai-svg {
+    animation-duration: 0.9s;
+  }
+
+  .anai-duel-solved .anai-svg {
+    animation-duration: 0.55s;
+  }
+
+  .anai-hero-link:hover .anai-svg,
+  .anai-hero-link:focus-visible .anai-svg {
+    animation-duration: 0.7s;
+  }
+
+  .anai-hero-link:hover .anai-wheel-left,
+  .anai-hero-link:hover .anai-wheel-right,
+  .anai-hero-link:focus-visible .anai-wheel-left,
+  .anai-hero-link:focus-visible .anai-wheel-right {
+    animation-duration: 0.55s;
+  }
+
+  .anai-hero-link:hover .anai-antenna-ball,
+  .anai-hero-link:focus-visible .anai-antenna-ball {
+    animation-duration: 0.45s;
+  }
+
+  .anai-hero-link:hover .anai-arm-left,
+  .anai-hero-link:focus-visible .anai-arm-left {
+    animation-duration: 0.7s;
+  }
+
+  .anai-hero-link:hover .anai-arm-right,
+  .anai-hero-link:focus-visible .anai-arm-right {
+    animation-duration: 0.65s;
+  }
+
+  .anai-hero-orbit {
+    animation: anai-hero-spin 3.2s linear infinite;
+  }
+
+  .anai-hero-spark {
+    box-shadow: 0 0 10px currentColor;
+  }
+
+  .anai-hero-spark-delay {
+    animation: anai-hero-pulse 1.4s ease-in-out infinite;
+  }
+
+  .anai-hero-spark-delay-2 {
+    animation: anai-hero-pulse 1.4s ease-in-out 0.4s infinite;
+  }
+}
+
+@keyframes anai-hero-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes anai-hero-pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.45); opacity: 0.65; }
+}

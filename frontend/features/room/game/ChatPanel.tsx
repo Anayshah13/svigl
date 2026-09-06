@@ -53,6 +53,7 @@ export function ChatPanel({
   placeholder = "Type your guess here...",
   hideInput = false,
   hideHeader = false,
+  botPlayerIds,
 }: {
   messages: ChatMessage[];
   canSendChat: boolean;
@@ -66,6 +67,8 @@ export function ChatPanel({
   hideInput?: boolean;
   /** Suppress the "Chat" header row (compact contexts). */
   hideHeader?: boolean;
+  /** Player ids that should show a small Bot marker in chat. */
+  botPlayerIds?: string[];
 }) {
   const [draft, setDraft] = React.useState("");
   const [inputFocused, setInputFocused] = React.useState(false);
@@ -145,7 +148,11 @@ export function ChatPanel({
                 ) : null}
                 {!isSystem && msg.playerName ? (
                   <span className="font-semibold text-plum">
-                    {formatDisplayName(msg.playerName)}:{" "}
+                    {formatDisplayName(msg.playerName)}
+                    {msg.playerId && botPlayerIds?.includes(msg.playerId)
+                      ? " (Bot)"
+                      : ""}
+                    :{" "}
                   </span>
                 ) : null}
                 {msg.message}

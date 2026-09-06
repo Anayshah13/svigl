@@ -18,6 +18,11 @@ const CONNECT_LINKS: FooterLink[] = [
   { label: "Portfolio", href: "https://anay13.tech", external: true },
 ];
 
+const LEGAL_LINKS: FooterLink[] = [
+  { label: "Privacy Policy", href: "/policies" },
+  { label: "Terms & Conditions", href: "/termsandconditions" },
+];
+
 function GitHubIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4">
@@ -232,7 +237,7 @@ export function LandingFooter() {
       >
         <PrimitiveDoodles />
 
-        <div className="grid gap-10 sm:gap-12 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)]">
+        <div className="grid gap-10 sm:gap-12 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)]">
           {/* Brand block */}
           <motion.div
             variants={{
@@ -260,6 +265,23 @@ export function LandingFooter() {
             <h3 className="text-xs font-bold uppercase tracking-[0.18em] text-ink">Explore</h3>
             <ul className="mt-4 space-y-2.5">
               {exploreLinks.map((link) => (
+                <li key={link.label}>
+                  <LinkItem link={link} />
+                </li>
+              ))}
+            </ul>
+          </motion.div>
+
+          {/* Legal column */}
+          <motion.div
+            variants={{
+              hidden: { opacity: 0, y: 12 },
+              visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: [0.22, 1, 0.36, 1] } },
+            }}
+          >
+            <h3 className="text-xs font-bold uppercase tracking-[0.18em] text-ink">Legal</h3>
+            <ul className="mt-4 space-y-2.5">
+              {LEGAL_LINKS.map((link) => (
                 <li key={link.label}>
                   <LinkItem link={link} />
                 </li>
@@ -325,7 +347,20 @@ export function LandingFooter() {
             visible: { opacity: 1, y: 0, transition: { duration: 0.4, ease: "easeOut" } },
           }}
         >
-          <p className="text-xs text-ink-muted">© 2026 Svigl · Built with SVG primitives.</p>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
+            <p className="text-xs text-ink-muted">© 2026 Svigl · Built with SVG primitives.</p>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+              {LEGAL_LINKS.map((link) => (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className="text-ink-muted transition-colors hover:text-plum"
+                >
+                  {link.label}
+                </Link>
+              ))}
+            </div>
+          </div>
           <p className="flex items-center gap-1.5 text-xs text-ink-muted">
             <span>Crafted by</span>
             <a

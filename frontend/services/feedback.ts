@@ -15,19 +15,20 @@ const FEEDBACK_TYPE_LABELS: Record<FeedbackType, string> = {
   feature: "Feature request",
 };
 
-/** Public EmailJS IDs — safe in the client; env vars override when set. */
-const EMAILJS_DEFAULTS = {
-  serviceId: "service_qg6wlnj",
-  templateId: "template_6qt1p4g",
-  publicKey: "njyoVpHP53ybOwPRm",
-} as const;
-
+/**
+ * EmailJS IDs are inlined into the client bundle, so they are not secret — but they
+ * are account-scoped and abusable, so they stay in build-time env vars rather than
+ * in source. Restrict allowed origins in the EmailJS dashboard as well.
+ */
 function getEmailJsConfig() {
-  return {
-    serviceId: process.env.NEXT_PUBLIC_EMAILJS_SERVICE_ID || EMAILJS_DEFAULTS.serviceId,
-    templateId: process.env.NEXT_PUBLIC_EMAILJS_TEMPLATE_ID || EMAILJS_DEFAULTS.templateId,
-    publicKey: process.env.NEXT_PUBLIC_EMAILJS_PUBLIC_KEY || EMAILJS_DEFAULTS.publicKey,
-  };
+  const serviceId = process.env.NEXT_PUBLIC_EMAILJS_SERVICE_ID?.trim();
+  const templateId = process.env.NEXT_PUBLIC_EMAILJS_TEMPLATE_ID?.trim();
+  const publicKey = process.env.NEXT_PUBLIC_EMAILJS_PUBLIC_KEY?.trim();
+
+  if (!serviceId || !templateId || !publicKey) {
+    return null;
+  }
+  return { serviceId, templateId, publicKey };
 }
 
 function getEmailJsErrorMessage(error: unknown): string {
@@ -45,6 +46,9 @@ function getEmailJsErrorMessage(error: unknown): string {
 
 export async function sendFeedback(payload: FeedbackPayload): Promise<void> {
   const config = getEmailJsConfig();
+  if (!config) {
+    throw new Error("Feedback is not configured. Please try again later.");
+  }
 
   const email = payload.email.trim();
   const templateParams: Record<string, string> = {
@@ -64,5 +68,38 @@ export async function sendFeedback(payload: FeedbackPayload): Promise<void> {
     });
   } catch (error) {
     throw new Error(getEmailJsErrorMessage(error));
+  }
+}
+
+const LIMIT_ALERT_MESSAGE = "LIMIT REACHED / POTENTIAL LIMIT BREAKER SPOTTED";
+const LIMIT_ALERT_TO = "anayshah10@gmail.com";
+const LIMIT_ALERT_COOLDOWN_MS = 30 * 60 * 1000;
+
+let lastLimitAlertAt = 0;
+
+/** Same EmailJS template as /feedback. Silent if unset or recently sent. */
+export async function sendLimitAlert(_reason?: string): Promise<void> {
+  const config = getEmailJsConfig();
+  if (!config) return;
+
+  const now = Date.now();
+  if (now - lastLimitAlertAt < LIMIT_ALERT_COOLDOWN_MS) return;
+  lastLimitAlertAt = now;
+
+  try {
+    await emailjs.send(
+      config.serviceId,
+      config.templateId,
+      {
+        feedback_type: "Bug report",
+        from_name: "Svigl AI Guesser",
+        from_email: LIMIT_ALERT_TO,
+        reply_to: LIMIT_ALERT_TO,
+        message: LIMIT_ALERT_MESSAGE,
+      },
+      { publicKey: config.publicKey },
+    );
+  } catch {
+    lastLimitAlertAt = 0;
   }
 }

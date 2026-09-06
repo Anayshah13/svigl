@@ -12,8 +12,10 @@ import {
   fetchRoom,
   isUserInRoom,
   joinRoom,
+  addRoomBot as addRoomBotApi,
   kickPlayer as kickPlayerApi,
   leaveRoom,
+  removeRoomBot as removeRoomBotApi,
   transferHost as transferHostApi,
 } from "@/services/room";
 import { appWebSocket } from "@/services/app-websocket";
@@ -299,6 +301,32 @@ export function useRoom(code: string, options: UseRoomOptions = {}) {
     [applyRoom, handleAuthError, normalizedCode],
   );
 
+  const addBot = useCallback(async () => {
+    setError(null);
+    try {
+      const nextRoom = await addRoomBotApi(normalizedCode);
+      applyRoom(nextRoom);
+    } catch (caught) {
+      const roomError = caught as RoomError;
+      if (!handleAuthError(roomError)) {
+        setError(roomError);
+      }
+    }
+  }, [applyRoom, handleAuthError, normalizedCode]);
+
+  const removeBot = useCallback(async () => {
+    setError(null);
+    try {
+      const nextRoom = await removeRoomBotApi(normalizedCode);
+      applyRoom(nextRoom);
+    } catch (caught) {
+      const roomError = caught as RoomError;
+      if (!handleAuthError(roomError)) {
+        setError(roomError);
+      }
+    }
+  }, [applyRoom, handleAuthError, normalizedCode]);
+
   const makeHost = useCallback(
     async (targetId: string) => {
       setError(null);
@@ -501,6 +529,8 @@ export function useRoom(code: string, options: UseRoomOptions = {}) {
     leaveRoom: leave,
     kickPlayer: kick,
     transferHost: makeHost,
+    addBot,
+    removeBot,
     setReady,
     updateSettings,
     startGame,

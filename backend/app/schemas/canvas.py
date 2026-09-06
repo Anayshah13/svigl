@@ -2,10 +2,34 @@
 
 from __future__ import annotations
 
+import re
 from typing import Annotated, Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
+
+# Paint values are written straight into SVG `stroke` / `fill` attributes by every
+# client, so only literal colours are allowed. Notably this rejects
+# `url(https://attacker.example/x)`, which would otherwise make every viewer's
+# browser fetch an attacker-controlled URL when the shape renders.
+_SAFE_PAINT_RE = re.compile(
+    r"""^(?:
+        none
+        | transparent
+        | currentColor
+        | \#[0-9A-Fa-f]{3,8}
+        | rgba?\([\d.,%\s/]+\)
+        | hsla?\([\d.,%\s/a-z]+\)
+        | [A-Za-z]{3,20}
+    )$""",
+    re.VERBOSE,
+)
+
+
+def _validate_paint(value: str) -> str:
+    if not _SAFE_PAINT_RE.match(value.strip()):
+        raise ValueError("Unsupported paint value")
+    return value.strip()
 
 
 class PointModel(BaseModel):
@@ -88,7 +112,15 @@ class ArrowGeometry(BaseModel):
 
 class FillGeometry(BaseModel):
     kind: Literal["fill"]
-    d: str
+    d: str = Field(min_length=1, max_length=100_000)
+
+    @field_validator("d")
+    @classmethod
+    def d_must_be_path(cls, value: str) -> str:
+        trimmed = value.strip()
+        if not trimmed.startswith(("M", "m")):
+            raise ValueError("fill path d must start with moveto (M/m)")
+        return trimmed
 
 
 ShapeGeometry = Annotated[
@@ -119,12 +151,10 @@ class WhiteboardShape(BaseModel):
     createdBy: str = Field(min_length=1, max_length=64)
     createdAt: float
 
-    @field_validator("fill")
+    @field_validator("stroke", "fill")
     @classmethod
-    def fill_ok(cls, value: str) -> str:
-        if value != "none" and not value.startswith("#") and len(value) > 64:
-            raise ValueError("Invalid fill")
-        return value
+    def paint_ok(cls, value: str) -> str:
+        return _validate_paint(value)
 
     @model_validator(mode="after")
     def stroke_width_ok(self) -> WhiteboardShape:

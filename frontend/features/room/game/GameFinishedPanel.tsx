@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { BotBadge } from "@/components/ui/RobotAvatar";
 import { UserAvatar } from "@/components/ui/UserAvatar";
 import { ResultReveal } from "@/features/loaders";
 import { ReplayPlayer } from "@/features/replay";
@@ -45,10 +46,12 @@ export function GameFinishedPanel({ room }: { room: Room }) {
               <UserAvatar
                 name={winner.name}
                 avatarUrl={winner.avatarUrl}
+                isBot={winner.isBot}
                 className="h-16 w-16 text-xl"
               />
               <h2 className="text-3xl font-bold text-ink">
-                {formatDisplayName(winner.name)} wins!
+                {formatDisplayName(winner.name)}
+                {winner.isBot ? <BotBadge /> : null} wins!
               </h2>
             </div>
           ) : (
@@ -66,6 +69,7 @@ export function GameFinishedPanel({ room }: { room: Room }) {
                   <span className="flex items-center gap-3 text-sm font-semibold text-ink">
                     <span className="w-5 text-ink-muted">{index + 1}</span>
                     {formatDisplayName(player?.name ?? "Player")}
+                    {player?.isBot ? <BotBadge /> : null}
                   </span>
                   <span className="font-mono text-sm font-bold tabular-nums text-ink">
                     {entry.score}

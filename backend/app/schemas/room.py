@@ -30,6 +30,7 @@ class PlayerResponse(BaseModel):
     avatar_url: str | None
     is_ready: bool = False
     is_waiting: bool = False
+    is_bot: bool = False
     score: int = 0
 
 
@@ -386,6 +387,7 @@ class RoomResponse(BaseModel):
                     is_waiting=session is not None
                     and session.phase != GAME_PHASE_LOBBY
                     and rp.user_id not in active_ids,
+                    is_bot=bool(getattr(rp.user, "is_bot", False)),
                     score=score_by_user.get(rp.user_id, 0),
                 )
                 for rp in room.players

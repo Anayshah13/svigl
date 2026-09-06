@@ -563,7 +563,7 @@ def _return_to_lobby(room: Room, session: GameSession) -> None:
     _clear_round_word_state(session)
     room.status = ROOM_STATUS_WAITING
     for player in room.players:
-        player.is_ready = False
+        player.is_ready = bool(getattr(player.user, "is_bot", False))
     for frozen in list(session.players):
         frozen.is_active = False
         frozen.has_guessed_correctly = False

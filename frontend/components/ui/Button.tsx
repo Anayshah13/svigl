@@ -1,7 +1,7 @@
 import * as React from "react";
 import { cn } from "@/lib/cn";
 
-type Variant = "primary" | "secondary" | "ghost" | "outline" | "pink" | "green";
+type Variant = "primary" | "secondary" | "ghost" | "outline" | "pink" | "green" | "chartreuse";
 type Size = "sm" | "md" | "lg";
 
 const variants: Record<Variant, string> = {
@@ -9,6 +9,7 @@ const variants: Record<Variant, string> = {
   secondary: "bg-plum-light text-plum hover:bg-pink-light",
   pink: "bg-pink text-ink shadow-md hover:brightness-105",
   green: "bg-green text-white shadow-md hover:brightness-110",
+  chartreuse: "bg-chartreuse text-ink shadow-md hover:brightness-105",
   ghost: "bg-transparent text-ink hover:bg-plum-light/60",
   outline: "border border-plum/25 bg-white/80 text-ink hover:border-plum/50 hover:bg-white",
 };

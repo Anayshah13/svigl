@@ -24,15 +24,16 @@
 svigl/
 ├── backend/                 # FastAPI app (Python 3.12)
 │   ├── app/
-│   │   ├── api/             # HTTP routes (auth, rooms, gallery, session, …)
+│   │   ├── api/             # HTTP routes (auth, rooms, gallery, labs, games, users, session, …)
 │   │   ├── auth/            # Google OAuth, JWT, cookies, guests
 │   │   ├── data/            # Static data (e.g. words.json)
 │   │   ├── db/              # Engine / session
 │   │   ├── models/          # SQLAlchemy models
 │   │   ├── schemas/         # Pydantic schemas
-│   │   ├── services/        # Game, room, canvas, drawings, …
+│   │   ├── services/        # Game, room, canvas, drawings, labs, replay, …
 │   │   └── websocket/       # Connection / room managers + handlers
 │   ├── alembic/             # DB migrations
+│   ├── scripts/
 │   ├── tests/
 │   ├── Dockerfile
 │   ├── alembic.ini
@@ -40,12 +41,15 @@ svigl/
 │   ├── .env.example
 │   └── .env.local           # ← create this (never commit)
 ├── frontend/                # Next.js app (feature-oriented)
-│   ├── app/                 # App Router pages (landing, room, gallery, …)
+│   ├── app/                 # App Router pages (see routes below)
 │   ├── features/            # Domain UI + logic
 │   │   ├── whiteboard/      # SVG canvas, tools, sync, history
 │   │   ├── room/            # Lobby + in-game shell
 │   │   ├── landing/
 │   │   ├── gallery/
+│   │   ├── labs/            # Precision drawing challenges
+│   │   ├── legal/           # Privacy Policy + Terms
+│   │   ├── replay/
 │   │   └── …
 │   ├── components/          # Shared UI (layout, landing, room chrome, …)
 │   ├── services/            # API + WebSocket clients
@@ -60,6 +64,21 @@ svigl/
 ├── .env                     # ← create this (never commit)
 └── docker-compose.yml
 ```
+
+### Public routes
+
+| Path | Page |
+|------|------|
+| `/` | Landing |
+| `/sign-in` | Google OAuth + guest sign-in |
+| `/room/[code]` | Multiplayer lobby + game |
+| `/gallery` | Saved drawings + replay |
+| `/labs` | Precision drawing challenges + leaderboards |
+| `/profile`, `/profile/[username]` | Player profiles |
+| `/feedback` | Feedback form |
+| `/policies` | Privacy Policy |
+| `/termsandconditions` | Terms & Conditions |
+| `/demo` | Offline demo game |
 
 ---
 
@@ -84,7 +103,7 @@ The board is an 800×800 logical SVG viewBox. Shapes are structured objects (not
 ## Prerequisites
 
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/) (includes Docker Compose)
-- [Node.js](https://nodejs.org/) ≥ 18 and npm (for the frontend)
+- [Node.js](https://nodejs.org/) ≥ 20.9 and npm (Next.js 16)
 - Python 3.12 + pip (only if running the backend outside Docker)
 
 ---
@@ -102,7 +121,7 @@ cp .env.example .env
 ```env
 # .env (root)
 APP_NAME=API
-DEBUG=false
+DEBUG=true
 BACKEND_PORT=8000
 
 POSTGRES_USER=postgres
@@ -111,6 +130,10 @@ POSTGRES_DB=app
 POSTGRES_HOST=postgres
 POSTGRES_PORT=5432
 POSTGRES_HOST_PORT=5433   # host-side port; change if 5433 is taken
+
+# Local cookie defaults (production: COOKIE_SECURE=true, COOKIE_SAMESITE=none)
+COOKIE_SECURE=false
+COOKIE_SAMESITE=lax
 ```
 
 ### 2. `backend/.env.local` — Secrets (never commit)
@@ -135,6 +158,9 @@ JWT_EXPIRE_MINUTES=10080
 # Local cookie defaults (production: COOKIE_SECURE=true, COOKIE_SAMESITE=none)
 COOKIE_SECURE=false
 COOKIE_SAMESITE=lax
+
+# Optional: extra CORS origins in addition to FRONTEND_URL
+# CORS_ORIGINS=http://localhost:3000,https://staging.example.com
 ```
 
 > **Safari / iPad note:** When the frontend and API are on different sites, Safari may block cross-site cookies (ITP). The app falls back to a Bearer token in `sessionStorage` (guest login response body, Google OAuth hash) and passes it on HTTP + WebSocket. Cookies still work in Chrome. For a cleaner production setup, put both on the same site (e.g. `app.example.com` + `api.example.com`) and use `COOKIE_SAMESITE=lax`.
@@ -151,6 +177,14 @@ cp frontend/.env.example frontend/.env.local
 # frontend/.env.local
 NEXT_PUBLIC_API_URL=http://localhost:8000
 NEXT_PUBLIC_WS_URL=ws://localhost:8000
+
+# Optional — leave unset locally to disable analytics
+# NEXT_PUBLIC_GA_MEASUREMENT_ID=G-XXXXXXXXXX
+
+# Optional — EmailJS credentials for the /feedback form (unset disables it)
+# NEXT_PUBLIC_EMAILJS_SERVICE_ID=
+# NEXT_PUBLIC_EMAILJS_TEMPLATE_ID=
+# NEXT_PUBLIC_EMAILJS_PUBLIC_KEY=
 ```
 
 ---
@@ -242,6 +276,10 @@ npm run build        # production build
 npm run start        # serve production build
 npm run lint         # ESLint
 npm test             # Vitest unit tests
+
+# ── Backend tests ───────────────────────────────────────────
+cd backend
+pytest               # requires pytest installed in the local Python env
 ```
 
 ---
@@ -250,7 +288,7 @@ npm test             # Vitest unit tests
 
 ```bash
 # 1. Clone
-git clone <repo-url>
+git clone https://github.com/Anayshah13/svigl.git
 cd svigl
 
 # 2. Create env files
@@ -293,7 +331,7 @@ Global UI state lives in two small stores under `frontend/stores/`:
 
 Both use a tiny in-house store helper (`frontend/lib/create-store.ts`) built on React’s `useSyncExternalStore` — no Zustand or other state library.
 
-Feature modules under `frontend/features/` own domain UI (whiteboard, room game shell, gallery, landing, etc.). Shared chrome and primitives live in `frontend/components/`; HTTP/WS clients in `frontend/services/`.
+Feature modules under `frontend/features/` own domain UI (whiteboard, room game shell, gallery, labs, legal, replay, landing, etc.). Shared chrome and primitives live in `frontend/components/`; HTTP/WS clients in `frontend/services/`.
 
 ---
 
@@ -317,11 +355,12 @@ Or use the container image built from `backend/Dockerfile` (entrypoint runs migr
 
 Required variables (see `backend/.env.example`):
 
-- `FRONTEND_URL` — e.g. `https://app.example.com`
+- `FRONTEND_URL` — live site origin, e.g. `https://svigl.com` (also the primary CORS origin)
 - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`
 - `JWT_SECRET`, `JWT_EXPIRE_MINUTES`, `SESSION_SECRET_KEY`
 - `COOKIE_SECURE`, `COOKIE_SAMESITE`, `DEBUG=false`
 - `DATABASE_URL` — e.g. `postgresql://user:pass@host:5432/dbname`
+- `CORS_ORIGINS` — optional comma-separated extra origins (preview/staging)
 
 Health check: `GET /health`
 
@@ -339,9 +378,15 @@ Set at **build** time:
 ```env
 NEXT_PUBLIC_API_URL=https://<your-api-host>
 NEXT_PUBLIC_WS_URL=wss://<your-api-host>
+NEXT_PUBLIC_GA_MEASUREMENT_ID=G-XXXXXXXXXX   # optional; omit to disable analytics
+
+# Optional — EmailJS for the /feedback form; omit to disable it
+NEXT_PUBLIC_EMAILJS_SERVICE_ID=
+NEXT_PUBLIC_EMAILJS_TEMPLATE_ID=
+NEXT_PUBLIC_EMAILJS_PUBLIC_KEY=
 ```
 
-Rebuild after changing these — they are inlined at build time.
+These values are inlined into the public client bundle — never put a private key here. Rebuild after changing them.
 
 ### Google Cloud Console
 

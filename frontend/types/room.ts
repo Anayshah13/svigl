@@ -20,6 +20,7 @@ export interface RoomPlayer {
   avatarUrl: string | null;
   isReady: boolean;
   isWaiting: boolean;
+  isBot?: boolean;
   isConnected?: boolean;
   score?: number;
 }
@@ -28,6 +29,7 @@ export interface GameDrawer {
   id: string;
   name: string;
   avatarUrl: string | null;
+  isBot?: boolean;
 }
 
 export interface ScoreEntry {

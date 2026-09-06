@@ -1,13 +1,19 @@
 import { avatarBackgroundColor, avatarInitial, avatarTextColor } from "@/lib/avatar";
 import { cn } from "@/lib/cn";
+import { RobotAvatar } from "./RobotAvatar";
 
 interface UserAvatarProps {
   name: string;
   avatarUrl?: string | null;
   className?: string;
+  isBot?: boolean;
 }
 
-export function UserAvatar({ name, avatarUrl, className }: UserAvatarProps) {
+export function UserAvatar({ name, avatarUrl, className, isBot }: UserAvatarProps) {
+  if (isBot) {
+    return <RobotAvatar name={name} className={className} />;
+  }
+
   if (avatarUrl) {
     return (
       // eslint-disable-next-line @next/next/no-img-element

@@ -45,7 +45,11 @@ def authenticate_websocket(ws: WebSocket, db: Session) -> User | None:
     except (KeyError, TypeError, ValueError):
         return None
 
-    user = db.get(User, user_id)
+    try:
+        user = db.get(User, user_id)
+    except Exception:
+        logger.exception("WS auth failed: user lookup error")
+        return None
     if user is None:
         logger.debug("WS auth failed: user not found %s", user_id)
         return None

@@ -48,7 +48,6 @@ const HERO_MARGIN_DOODLES: Doodle[] = [
   { kind: "ring", x: "8%", y: "72%", size: 72, stroke: 2, color: colors.green, delay: 0.4, duration: 18, opacity: 0.28 },
   { kind: "triangle", x: "94%", y: "8%", size: 36, rotate: 25, color: colors.plum, delay: 0.6, duration: 12, opacity: 0.24 },
   { kind: "diamond", x: "14%", y: "8%", size: 32, rotate: -8, color: colors.green, delay: 0.3, duration: 14, opacity: 0.26 },
-  // bottom-right cleared for Labs CTA
 ];
 
 /** Dense field — hero through footer */
@@ -102,7 +101,7 @@ const DOODLES: Doodle[] = [
   { kind: "circle", x: "8%", y: "92%", size: 42, color: colors.chartreuse, delay: 0.75 },
   { kind: "triangle", x: "36%", y: "96%", size: 38, rotate: 18, color: colors.plum, delay: 0.35, duration: 23 },
   { kind: "circle", x: "52%", y: "95%", size: 26, color: colors.plum, delay: 0.85 },
-  // bottom-right cleared for Labs CTA
+  { kind: "diamond", x: "88%", y: "90%", size: 34, rotate: 18, color: colors.chartreuse, delay: 0.4, duration: 20 },
 ];
 
 const SCATTER_DOTS = [
@@ -140,7 +139,7 @@ const SCATTER_DOTS = [
   { x: 58, y: 88, size: 9, color: palette[4] },
   { x: 20, y: 92, size: 11, color: palette[2] },
   { x: 46, y: 94, size: 10, color: palette[1] },
-  // bottom-right cleared for Labs CTA
+  { x: 90, y: 88, size: 12, color: palette[3] },
 ];
 
 export type BezierConfig = {

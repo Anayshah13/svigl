@@ -250,6 +250,39 @@ def test_fill_shape_accepts_zero_stroke_width() -> None:
     assert parse_shape(shape).strokeWidth == 0
 
 
+@pytest.mark.parametrize("paint", ["none", "#000", "#2C2C2C", "#ffffff", "currentColor", "red"])
+def test_shape_accepts_literal_colours(paint: str) -> None:
+    shape = _rect_shape(shape_id="paint-ok", created_by=str(uuid.uuid4()))
+    shape.update({"stroke": paint, "fill": paint})
+    assert parse_shape(shape).fill == paint
+
+
+@pytest.mark.parametrize("field", ["stroke", "fill"])
+@pytest.mark.parametrize(
+    "paint",
+    ["url(https://attacker.example/track)", "url(#gradient)", "javascript:alert(1)"],
+)
+def test_shape_rejects_non_colour_paint(field: str, paint: str) -> None:
+    """Paint lands in SVG stroke/fill on every client, so url() must never persist."""
+    shape = _rect_shape(shape_id="paint-bad", created_by=str(uuid.uuid4()))
+    shape[field] = paint
+    with pytest.raises(ValueError):
+        parse_shape(shape)
+
+
+def test_fill_geometry_rejects_oversized_path() -> None:
+    shape = _rect_shape(shape_id="fill-big", created_by=str(uuid.uuid4()))
+    shape.update(
+        {
+            "tool": "fill",
+            "strokeWidth": 0,
+            "geometry": {"kind": "fill", "d": "M0 0" + "L1 1" * 100_000},
+        }
+    )
+    with pytest.raises(ValueError):
+        parse_shape(shape)
+
+
 def test_pencil_shape_accepts_path_d() -> None:
     """Pencil strokes sync as smoothed SVG path `d`, not raw point lists."""
     shape = _rect_shape(shape_id="pencil-1", created_by=str(uuid.uuid4()))

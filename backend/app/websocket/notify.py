@@ -288,7 +288,10 @@ def notify_game_mutation(mutation: GameMutation | None, room: Room | None) -> No
 
 
 async def broadcast_game_events_async(
-    mutation: GameMutation, snapshot: dict[str, Any]
+    mutation: GameMutation,
+    snapshot: dict[str, Any],
+    *,
+    notify_bot: bool = True,
 ) -> None:
     for event_name in mutation.events:
         event_type = _EVENT_MAP.get(event_name)
@@ -447,6 +450,26 @@ async def broadcast_game_events_async(
             phase=mutation.phase,
             **extras,
         )
+
+    if notify_bot:
+        from app.services.bot_coordinator import bot_coordinator
+
+        bot_coordinator.notify_mutation(mutation)
+
+
+async def broadcast_canvas_async(result: Any) -> None:
+    """Broadcast a persisted canvas mutation and nudge the robot guesser."""
+    event_type = _EVENT_MAP.get(getattr(result, "event", ""), EventType.SHAPE_CREATED)
+    payload = getattr(result, "payload", None) or {}
+    room_code = getattr(result, "room_code", "")
+    exclude = getattr(result, "exclude_user_id", None)
+    if exclude is not None:
+        await room_manager.broadcast_except(room_code, exclude, event_type, **payload)
+    else:
+        await room_manager.broadcast(room_code, event_type, **payload)
+    from app.services.bot_coordinator import bot_coordinator
+
+    bot_coordinator.notify_canvas(room_code)
 
 
 async def _clear_and_broadcast_canvas(room_code: str) -> None:

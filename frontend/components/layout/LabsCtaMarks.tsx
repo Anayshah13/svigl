@@ -66,50 +66,104 @@ function CtaShell({ href = "/labs", className, children, label = "Try Svigl Labs
 
 /* ─── 01 · Overlapping Soft Shapes (kept) ───────────────────── */
 
+const freeze = {
+  x: 0,
+  y: 0,
+  rotate: 0,
+  scale: 1,
+  transition: { duration: 0.25 },
+};
+
 export function LabsCtaOverlapShapes({ href }: { href?: string }) {
   return (
     <CtaShell href={href}>
       <motion.span
-        className="relative flex h-40 w-42 items-center justify-center sm:h-44 sm:w-46"
-        whileHover={{ scale: 1.04 }}
-        transition={{ type: "spring", stiffness: 300, damping: 22 }}
+        className="relative flex h-40 w-42 items-center justify-center overflow-visible sm:h-44 sm:w-46"
+        initial="rest"
+        animate="rest"
+        whileHover="hover"
+        whileTap={{ scale: 0.97 }}
       >
         <motion.span
           aria-hidden
-          className="absolute left-[6%] top-[18%] h-[4.6rem] w-[4.6rem] rounded-full"
-          style={{ background: `${colors.pink}C8` }}
-          animate={{ x: [0, 6, 0], y: [0, -8, 0], rotate: [0, 8, 0] }}
-          transition={{ duration: 6.5, repeat: Infinity, ease: "easeInOut" }}
-        />
-        <motion.span
-          aria-hidden
-          className="absolute bottom-[12%] right-[4%] h-[4.2rem] w-[4.2rem] rounded-[1.15rem]"
-          style={{ background: `${colors.chartreuse}D0` }}
-          animate={{ x: [0, -7, 0], y: [0, 6, 0], rotate: [12, -4, 12] }}
-          transition={{ duration: 7.2, repeat: Infinity, ease: "easeInOut", delay: 0.3 }}
-        />
-        <motion.span
-          aria-hidden
-          className="absolute right-[18%] top-[8%] h-0 w-0"
-          style={{
-            borderLeft: "28px solid transparent",
-            borderRight: "28px solid transparent",
-            borderBottom: `48px solid ${colors.plum}B8`,
+          className="absolute inset-0"
+          variants={{
+            rest: { rotate: 0 },
+            hover: {
+              rotate: -360,
+              transition: { duration: 2.6, repeat: Infinity, ease: "linear" },
+            },
           }}
-          animate={{ y: [0, 7, 0], rotate: [-10, 6, -10] }}
-          transition={{ duration: 5.8, repeat: Infinity, ease: "easeInOut", delay: 0.5 }}
-        />
-        <motion.span
-          aria-hidden
-          className="absolute left-[22%] bottom-[10%] h-3.5 w-3.5 rounded-full"
-          style={{ background: colors.green }}
-          animate={{ scale: [1, 1.35, 1], opacity: [0.85, 1, 0.85] }}
-          transition={{ duration: 3.2, repeat: Infinity, ease: "easeInOut" }}
-        />
+        >
+          <motion.span
+            className="absolute left-[6%] top-[18%] h-[4.6rem] w-[4.6rem] rounded-full"
+            style={{ background: `${colors.pink}C8` }}
+            variants={{
+              rest: {
+                x: [0, 6, 0],
+                y: [0, -8, 0],
+                rotate: [0, 8, 0],
+                transition: { duration: 6.5, repeat: Infinity, ease: "easeInOut" },
+              },
+              hover: freeze,
+            }}
+          />
+          <motion.span
+            className="absolute bottom-[12%] right-[4%] h-[4.2rem] w-[4.2rem] rounded-[1.15rem]"
+            style={{ background: `${colors.chartreuse}D0` }}
+            variants={{
+              rest: {
+                x: [0, -7, 0],
+                y: [0, 6, 0],
+                rotate: [12, -4, 12],
+                transition: { duration: 7.2, repeat: Infinity, ease: "easeInOut", delay: 0.3 },
+              },
+              hover: freeze,
+            }}
+          />
+          <motion.span
+            className="absolute right-[18%] top-[8%] h-0 w-0"
+            style={{
+              borderLeft: "28px solid transparent",
+              borderRight: "28px solid transparent",
+              borderBottom: `48px solid ${colors.plum}B8`,
+            }}
+            variants={{
+              rest: {
+                y: [0, 7, 0],
+                rotate: [-10, 6, -10],
+                transition: { duration: 5.8, repeat: Infinity, ease: "easeInOut", delay: 0.5 },
+              },
+              hover: freeze,
+            }}
+          />
+          <motion.span
+            className="absolute left-[22%] bottom-[10%] h-3.5 w-3.5 rounded-full"
+            style={{ background: colors.green }}
+            variants={{
+              rest: {
+                scale: [1, 1.35, 1],
+                opacity: [0.85, 1, 0.85],
+                transition: { duration: 3.2, repeat: Infinity, ease: "easeInOut" },
+              },
+              hover: freeze,
+            }}
+          />
+        </motion.span>
+
         <motion.span
           className="relative z-10 rounded-2xl bg-white px-3 py-2 shadow-[0_12px_28px_-12px_rgba(44,44,44,0.28)]"
-          animate={{ y: [0, -3, 0] }}
-          transition={{ duration: 4.8, repeat: Infinity, ease: "easeInOut" }}
+          variants={{
+            rest: {
+              y: [0, -3, 0],
+              transition: { duration: 4.8, repeat: Infinity, ease: "easeInOut" },
+            },
+            hover: {
+              y: 0,
+              scale: 1.05,
+              transition: { type: "spring", stiffness: 320, damping: 20 },
+            },
+          }}
         >
           <StackLockup
             sviglClassName="-translate-x-[4px] text-[2.35rem] sm:text-[2.6rem]"

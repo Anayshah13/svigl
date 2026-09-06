@@ -164,7 +164,9 @@ def _remove_player(db: Session, room: Room, user_id: UUID) -> MembershipChange:
         .order_by(RoomPlayer.joined_at)
     ).all()
 
-    if not remaining:
+    humans = [rp for rp in remaining if not bool(getattr(rp.user, "is_bot", False))]
+    if not remaining or not humans:
+        db.expire(room, ["players"])
         db.delete(room)
         db.commit()
         clear_room_votes(room_code)
@@ -176,8 +178,8 @@ def _remove_player(db: Session, room: Room, user_id: UUID) -> MembershipChange:
         )
 
     host_changed = False
-    if was_host:
-        room.host_id = remaining[0].user_id
+    if was_host or room.host_id not in {rp.user_id for rp in humans}:
+        room.host_id = humans[0].user_id
         host_changed = True
 
     db.commit()
@@ -227,7 +229,8 @@ def evict_stale_players(db: Session, room: Room) -> tuple[MembershipChange, list
     stale_user_ids = [
         rp.user_id
         for rp in list(room.players)
-        if _aware(rp.last_seen_at) < cutoff
+        if not bool(getattr(rp.user, "is_bot", False))
+        and _aware(rp.last_seen_at) < cutoff
     ]
 
     current = MembershipChange(room=room)
@@ -460,7 +463,12 @@ def transfer_host(
             detail="You are already the host.",
         )
 
-    _get_member_or_409(room, new_host_id)
+    target = _get_member_or_409(room, new_host_id)
+    if bool(getattr(target.user, "is_bot", False)):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="A robot cannot become the host.",
+        )
 
     previous_host_id = room.host_id
     room.host_id = new_host_id
