@@ -83,7 +83,8 @@ export function AiGuessPanel({
       ? null
       : Math.max(0, (now - state.lastAnalyzedAt) / 1000);
 
-  const topConfidence = state.guesses[0]?.confidence ?? 0;
+  const latest = state.guesses[state.guesses.length - 1];
+  const topConfidence = latest?.confidence ?? 0;
   const mood: AnaiMood = disabled
     ? "idle"
     : solved
@@ -184,22 +185,20 @@ export function AiGuessPanel({
         {state.guesses.length === 0 ? (
           <p className="text-sm text-ink-muted">
             {status === "idle"
-              ? "Start drawing the word. The AI will guess as you go."
-              : "No confident guess yet."}
+              ? "Start drawing. AnAI shouts one guess at a time, like in a real game."
+              : "No shout yet — waiting for a confident look."}
           </p>
         ) : (
           <>
-            {!solved && state.uncertain ? (
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-muted">
-                Not sure yet
-              </p>
-            ) : null}
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-muted">
+              Shouted in chat
+            </p>
             <ol className="flex flex-col gap-2">
               <AnimatePresence initial={false}>
                 {state.guesses.map((guess, index) => {
                   const pct = Math.round(guess.confidence * 100);
                   const hit = answersMatch(guess.answer, secret);
-                  const leading = index === 0 && (solved || hit || !state.uncertain);
+                  const leading = index === state.guesses.length - 1;
                   return (
                     <motion.li
                       key={guess.answer.toLowerCase()}
@@ -279,8 +278,8 @@ export function AiGuessPanel({
         {solved
           ? `Correct. The AI guessed ${secret}.`
           : `${STATUS_LABEL[status]}${
-              state.guesses[0]
-                ? `. Top guess ${state.guesses[0].answer} at ${Math.round(
+              latest
+                ? `. Guessed ${latest.answer} at ${Math.round(
                     topConfidence * 100,
                   )} percent.`
                 : ""

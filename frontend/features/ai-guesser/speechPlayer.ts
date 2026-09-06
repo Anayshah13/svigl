@@ -1,6 +1,8 @@
 /** Play 24 kHz s16le PCM as it arrives, or a complete WAV. */
 
 const RATE = 24_000;
+/** Lead-in so the first phonemes are not eaten by AudioContext spin-up. */
+const LEAD_IN_SECONDS = 0.08;
 
 function concat(
   a: Uint8Array<ArrayBufferLike>,
@@ -33,6 +35,7 @@ export class PcmPlayer {
   private ctx: AudioContext | null = null;
   private next = 0;
   private sources: AudioBufferSourceNode[] = [];
+  private needsLeadIn = true;
 
   private ensure(): AudioContext {
     if (!this.ctx) {
@@ -57,37 +60,43 @@ export class PcmPlayer {
     }
     this.sources = [];
     if (this.ctx) this.next = this.ctx.currentTime;
+    this.needsLeadIn = true;
+  }
+
+  private playBuffer(buffer: AudioBuffer): void {
+    const ctx = this.ensure();
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    source.connect(ctx.destination);
+    const startAt = Math.max(ctx.currentTime + 0.04, this.next);
+    source.start(startAt);
+    this.next = startAt + buffer.duration;
+    this.sources.push(source);
+    source.onended = () => {
+      this.sources = this.sources.filter((item) => item !== source);
+    };
+  }
+
+  private leadInIfNeeded(): void {
+    if (!this.needsLeadIn) return;
+    this.needsLeadIn = false;
+    const ctx = this.ensure();
+    const samples = Math.max(1, Math.floor(RATE * LEAD_IN_SECONDS));
+    this.playBuffer(ctx.createBuffer(1, samples, RATE));
   }
 
   enqueue(pcm: ArrayBuffer): void {
     if (pcm.byteLength < 2) return;
     const ctx = this.ensure();
-    const buffer = pcm16ToBuffer(ctx, pcm);
-    const source = ctx.createBufferSource();
-    source.buffer = buffer;
-    source.connect(ctx.destination);
-    const startAt = Math.max(ctx.currentTime, this.next);
-    source.start(startAt);
-    this.next = startAt + buffer.duration;
-    this.sources.push(source);
-    source.onended = () => {
-      this.sources = this.sources.filter((item) => item !== source);
-    };
+    this.leadInIfNeeded();
+    this.playBuffer(pcm16ToBuffer(ctx, pcm));
   }
 
   async enqueueWav(wav: ArrayBuffer): Promise<void> {
     const ctx = this.ensure();
+    this.leadInIfNeeded();
     const buffer = await ctx.decodeAudioData(wav.slice(0));
-    const source = ctx.createBufferSource();
-    source.buffer = buffer;
-    source.connect(ctx.destination);
-    const startAt = Math.max(ctx.currentTime, this.next);
-    source.start(startAt);
-    this.next = startAt + buffer.duration;
-    this.sources.push(source);
-    source.onended = () => {
-      this.sources = this.sources.filter((item) => item !== source);
-    };
+    this.playBuffer(buffer);
   }
 
   dispose(): void {

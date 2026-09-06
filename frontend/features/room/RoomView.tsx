@@ -501,8 +501,11 @@ export function RoomView() {
               <div>
                 <h2 className="text-lg font-bold text-ink">Ready for a game?</h2>
                 <p className="mt-1 text-sm text-ink-muted">
-                  {room.settings.rounds} rounds (everyone draws each round) ·{" "}
-                  {room.settings.roundDurationSeconds}s per turn
+                  {`${room.settings.rounds} rounds (${
+                    room.players.some((player) => player.isBot)
+                      ? "humans draw; AnAI only guesses"
+                      : "everyone draws each round"
+                  }) · ${room.settings.roundDurationSeconds}s per turn`}
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">

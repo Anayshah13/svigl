@@ -396,6 +396,11 @@ def start_game(db: Session, room_code: str, user_id: UUID) -> GameMutation:
     ordered_ids = [player.user_id for player in room.players]
     offset = secrets.randbelow(len(ordered_ids))
     rotated_ids = ordered_ids[offset:] + ordered_ids[:offset]
+    bot_ids = {
+        player.user_id
+        for player in room.players
+        if bool(getattr(player.user, "is_bot", False))
+    }
     draw_target = settings.total_rounds
     for index, player_id in enumerate(rotated_ids):
         db.add(
@@ -408,7 +413,7 @@ def start_game(db: Session, room_code: str, user_id: UUID) -> GameMutation:
                 has_guessed_correctly=False,
                 round_points=0,
                 draws_done=0,
-                draw_target=draw_target,
+                draw_target=0 if player_id in bot_ids else draw_target,
             )
         )
 
@@ -420,7 +425,8 @@ def start_game(db: Session, room_code: str, user_id: UUID) -> GameMutation:
     session.rotation_start_offset = offset
     session.total_rounds = settings.total_rounds
     session.round_duration_seconds = settings.round_duration_seconds
-    session.drawer_user_id = rotated_ids[0]
+    human_ids = [player_id for player_id in rotated_ids if player_id not in bot_ids]
+    session.drawer_user_id = human_ids[0] if human_ids else rotated_ids[0]
     session.winner_user_id = None
     _clear_round_word_state(session)
     room.status = ROOM_STATUS_PLAYING
@@ -457,6 +463,8 @@ def display_round_number(session: GameSession) -> int:
 
 
 def _player_needs_draw(player: GameSessionPlayer) -> bool:
+    if bool(getattr(getattr(player, "user", None), "is_bot", False)):
+        return False
     return player.is_active and player.draws_done < player.draw_target
 
 
@@ -524,6 +532,7 @@ def _admit_waiting_players(db: Session, room: Room, session: GameSession) -> lis
     for membership in room.players:
         if membership.user_id in existing:
             continue
+        is_bot = bool(getattr(membership.user, "is_bot", False))
         db.add(
             GameSessionPlayer(
                 session_id=session.id,
@@ -534,7 +543,7 @@ def _admit_waiting_players(db: Session, room: Room, session: GameSession) -> lis
                 has_guessed_correctly=False,
                 round_points=0,
                 draws_done=0,
-                draw_target=draw_target,
+                draw_target=0 if is_bot else draw_target,
             )
         )
         admitted.append(membership.user_id)
@@ -1030,7 +1039,12 @@ def advance_due_session(db: Session, session_id: UUID) -> GameMutation | None:
             events.append("GAME_STATE_UPDATED")
             stop_timer = True
         else:
-            # Keep the drawer chosen at start_game; late joiners append after.
+            # Keep the human drawer chosen at start_game; skip guess-only seats.
+            current = _drawer_player(session)
+            if current is not None and not _player_needs_draw(current):
+                replacement = _next_drawer(session)
+                if replacement is not None:
+                    session.drawer_user_id = replacement.user_id
             private = _begin_word_selection(session)
             events.extend(
                 ("WORD_CHOICES_OFFERED", "GAME_STATE_UPDATED", "CANVAS_CLEAR")

@@ -1,50 +1,38 @@
 /**
- * Pure calling policy for the AI Guesser.
+ * Calling policy for the AI Guesser — same rules as the in-game AnAI bot.
  *
- * Given the current drawing signature and timing state, decide whether one
- * more AI call is justified. No side effects, no timers, no network — the
- * engine owns those so this stays exhaustively testable.
+ * First look waits out a debounce. After that, a call happens only when the
+ * board is dirty. Unchanged ink is never re-sent. No side effects here; the
+ * engine owns timers and the network.
  */
 
-import { changeScore, isEmptySignature } from "./changeDetector";
 import type { AiGuesserConfig } from "./config";
-import type { DrawingSignature } from "./types";
 
 export type SkipReason =
   | "empty"
   | "in-flight"
   | "error-backoff"
   | "unchanged"
-  | "cooldown"
-  | "below-threshold";
+  | "debounce"
+  | "max-calls";
 
-export type CallReason =
-  | "significant-change"
-  | "target-cadence"
-  | "settled"
-  | "idle-refresh";
+export type CallReason = "first-look" | "canvas-dirty";
 
 export type DecisionReason = SkipReason | CallReason;
 
 export interface CallDecision {
   call: boolean;
   reason: DecisionReason;
-  /** Change score against the signature the model last actually saw. */
-  score: number;
 }
 
 export interface CallDecisionInput {
   now: number;
-  /** Newest drawing signature. */
-  signature: DrawingSignature;
-  /** Signature of the snapshot sent on the most recent call, if any. */
-  lastSentSignature: DrawingSignature | null;
-  /** When the most recent call *started* (not finished). */
-  lastCallStartedAt: number | null;
+  hasInk: boolean;
+  dirty: boolean;
   inFlight: boolean;
-  /** Last time the drawing mutated at all. */
-  lastDrawActivityAt: number | null;
-  /** Set after a failure; blocks calls until it passes. */
+  callsThisDrawing: number;
+  /** When the first ink of this drawing appeared. */
+  turnStartedAt: number | null;
   blockedUntil: number | null;
   config: AiGuesserConfig;
 }
@@ -52,65 +40,42 @@ export interface CallDecisionInput {
 export function decideCall(input: CallDecisionInput): CallDecision {
   const {
     now,
-    signature,
-    lastSentSignature,
-    lastCallStartedAt,
+    hasInk,
+    dirty,
     inFlight,
-    lastDrawActivityAt,
+    callsThisDrawing,
+    turnStartedAt,
     blockedUntil,
     config,
   } = input;
 
-  if (isEmptySignature(signature)) {
-    return { call: false, reason: "empty", score: 0 };
+  if (!hasInk) {
+    return { call: false, reason: "empty" };
   }
 
-  // Single-flight: one request at a time, no exceptions.
   if (inFlight) {
-    return { call: false, reason: "in-flight", score: 0 };
+    return { call: false, reason: "in-flight" };
   }
 
   if (blockedUntil !== null && now < blockedUntil) {
-    return { call: false, reason: "error-backoff", score: 0 };
+    return { call: false, reason: "error-backoff" };
   }
 
-  const score = changeScore(lastSentSignature, signature, config);
-  if (score <= 0) {
-    return { call: false, reason: "unchanged", score: 0 };
+  if (callsThisDrawing >= config.MAX_CALLS_PER_TURN) {
+    return { call: false, reason: "max-calls" };
   }
 
-  const elapsed = lastCallStartedAt === null ? null : now - lastCallStartedAt;
-
-  if (elapsed !== null && elapsed < config.MIN_CALL_INTERVAL_MS) {
-    return { call: false, reason: "cooldown", score };
+  if (!dirty) {
+    return { call: false, reason: "unchanged" };
   }
 
-  // A big new chunk of drawing earns an early look (floor already cleared).
-  if (score >= config.SIGNIFICANT_CHANGE_SCORE) {
-    return { call: true, reason: "significant-change", score };
-  }
-
-  if (score >= config.MIN_CHANGE_SCORE) {
-    if (elapsed === null || elapsed >= config.TARGET_CALL_INTERVAL_MS) {
-      return { call: true, reason: "target-cadence", score };
+  if (callsThisDrawing === 0) {
+    const elapsed = turnStartedAt === null ? 0 : now - turnStartedAt;
+    if (elapsed < config.DEBOUNCE_MS) {
+      return { call: false, reason: "debounce" };
     }
-    // Player paused: analyze the settled drawing rather than waiting out
-    // the full target interval.
-    const quietFor =
-      lastDrawActivityAt === null ? null : now - lastDrawActivityAt;
-    if (quietFor !== null && quietFor >= config.IDLE_SETTLE_MS) {
-      return { call: true, reason: "settled", score };
-    }
+    return { call: true, reason: "first-look" };
   }
 
-  // Only a trickle of change, but the panel has been cold for a while.
-  if (
-    elapsed !== null &&
-    elapsed >= config.MAX_IDLE_INTERVAL_MS &&
-    score >= config.TINY_CHANGE_SCORE
-  ) {
-    return { call: true, reason: "idle-refresh", score };
-  }
-
-  return { call: false, reason: "below-threshold", score };
+  return { call: true, reason: "canvas-dirty" };
 }

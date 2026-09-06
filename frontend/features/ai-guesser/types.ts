@@ -74,11 +74,11 @@ export interface DrawingSnapshot {
 
 export interface AiGuesserState {
   status: AiGuesserStatus;
-  /** Smoothed, ranked guesses for display. */
+  /** Shouted guesses in order, one per model call that cleared the floor. */
   guesses: GuessItem[];
-  /** Latest spoken aside. Cleared on reset; left alone when a response is stale. */
+  /** Latest spoken aside. Cleared on reset. */
   line: string | null;
-  /** True when the leader is weak or the top two are close. */
+  /** Unused — kept so older UI does not branch on a missing field. */
   uncertain: boolean;
   drawingVersion: number;
   analyzedVersion: number | null;
@@ -86,12 +86,11 @@ export interface AiGuesserState {
   latencyMs: number | null;
   callsThisDrawing: number;
   callsThisSession: number;
-  /** Responses discarded because the drawing had moved on. */
+  /** Always 0; the in-game bot does not drop in-flight answers. */
   staleDropped: number;
   errorMessage: string | null;
   usage: AiGuessUsage | null;
   model: string | null;
-  lastChangeScore: number;
 }
 
 export function createInitialState(): AiGuesserState {
@@ -110,7 +109,6 @@ export function createInitialState(): AiGuesserState {
     errorMessage: null,
     usage: null,
     model: null,
-    lastChangeScore: 0,
   };
 }
 
@@ -118,6 +116,6 @@ export const STATUS_LABEL: Record<AiGuesserStatus, string> = {
   idle: "Waiting for drawing...",
   watching: "Watching...",
   thinking: "Thinking...",
-  updated: "Guess updated",
+  updated: "Guessed",
   unavailable: "AI unavailable",
 };

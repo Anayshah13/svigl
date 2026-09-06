@@ -79,8 +79,6 @@ class Settings(BaseSettings):
     ai_guesser_tts_daily_limit_per_ip: int = 150
 
     # --- Multiplayer system bot (regular rooms, not /ai-guesser) ---
-    bot_word_select_delay_seconds: float = 0.8
-    bot_draw_step_delay_seconds: float = 1.1
     bot_guess_debounce_seconds: float = 4.0
     bot_guess_interval_seconds: float = 5.0
     bot_guess_timeout_seconds: float = 18.0

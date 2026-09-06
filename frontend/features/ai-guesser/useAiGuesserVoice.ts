@@ -1,9 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { requestAiSpeech } from "@/services/ai-guesser";
-import { resolveSpokenAudio, sameSpeech } from "./speech";
-import { PcmPlayer, playSpeechResponse } from "./speechPlayer";
+import { resolveSpokenAudio } from "./speech";
+import { canUseLocalSpeech, speakLocally } from "./speechLocal";
 import type { GuessItem } from "./types";
 
 const MUTE_KEY = "svigl.ai-guesser.mute";
@@ -20,7 +19,9 @@ function readMuted(): boolean {
 export interface UseAiGuesserVoiceOptions {
   line: string | null;
   guesses: readonly GuessItem[];
-  enabled: boolean;
+  enabled?: boolean;
+  solved?: boolean;
+  secret?: string;
 }
 
 export interface UseAiGuesserVoiceResult {
@@ -28,34 +29,33 @@ export interface UseAiGuesserVoiceResult {
   speaking: boolean;
   spokenText: string;
   toggleMuted: () => void;
+  /** Prime voices on a pointer gesture so the first shout is allowed. */
+  unlock: () => void;
 }
 
 /**
- * Speaks each new understanding as the guesser updates.
- *
- * Audio is a short streamed clip so playback can start before Gemini finishes.
- * The previous clip keeps playing until the first new samples arrive.
+ * Speaks each new shout with the browser voice. Gemini TTS is not used —
+ * its quota and our /speak limiter were killing clips every few guesses.
  */
 export function useAiGuesserVoice(
   options: UseAiGuesserVoiceOptions,
 ): UseAiGuesserVoiceResult {
-  const { line, guesses, enabled } = options;
-  const topAnswer = guesses[0]?.answer ?? "";
-  const text = resolveSpokenAudio(line, topAnswer);
+  const { line, guesses, enabled = true, solved = false, secret = "" } = options;
+  const latestAnswer = solved
+    ? secret || guesses[guesses.length - 1]?.answer || ""
+    : (guesses[guesses.length - 1]?.answer ?? "");
+  const text = resolveSpokenAudio(line, latestAnswer, { solved });
   const [muted, setMuted] = React.useState(readMuted);
   const [speaking, setSpeaking] = React.useState(false);
 
-  const playerRef = React.useRef<PcmPlayer | null>(null);
-  const lastSpokenRef = React.useRef("");
-
-  const player = (): PcmPlayer => {
-    playerRef.current ??= new PcmPlayer();
-    return playerRef.current;
-  };
-
   const stop = React.useCallback(() => {
-    playerRef.current?.stop();
+    if (canUseLocalSpeech()) window.speechSynthesis.cancel();
     setSpeaking(false);
+  }, []);
+
+  const unlock = React.useCallback(() => {
+    if (!canUseLocalSpeech()) return;
+    window.speechSynthesis.getVoices();
   }, []);
 
   const toggleMuted = React.useCallback(() => {
@@ -75,43 +75,30 @@ export function useAiGuesserVoice(
   }, [muted, stop]);
 
   React.useEffect(() => {
-    if (!enabled || muted) return;
+    if (!enabled || muted || !canUseLocalSpeech()) return;
 
     if (!text) {
-      lastSpokenRef.current = "";
       stop();
       return;
     }
-    if (sameSpeech(text, lastSpokenRef.current)) return;
 
-    lastSpokenRef.current = text;
-    const controller = new AbortController();
-    let active = true;
     setSpeaking(true);
-    void player()
-      .resume()
-      .then(() => requestAiSpeech(text, controller.signal))
-      .then((response) => playSpeechResponse(response, player(), controller.signal))
-      .catch(() => {
-        /* keep the last clip; guesses still show */
-      })
-      .finally(() => {
-        if (active) setSpeaking(false);
-      });
+    const cancel = speakLocally(text, {
+      onEnd: () => setSpeaking(false),
+    });
 
     return () => {
-      active = false;
-      controller.abort();
+      cancel();
+      setSpeaking(false);
     };
   }, [enabled, muted, stop, text]);
 
   React.useEffect(
     () => () => {
-      playerRef.current?.dispose();
-      playerRef.current = null;
+      if (canUseLocalSpeech()) window.speechSynthesis.cancel();
     },
     [],
   );
 
-  return { muted, speaking, spokenText: text, toggleMuted };
+  return { muted, speaking, spokenText: text, toggleMuted, unlock };
 }

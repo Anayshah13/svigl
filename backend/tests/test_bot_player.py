@@ -35,7 +35,6 @@ from app.models.room import (
     GAME_PHASE_WORD_SELECTION,
 )
 from app.models.user import User
-from app.schemas.canvas import parse_shape
 from app.schemas.room import RoomResponse
 from app.services.ai_guesser import AiGuesserError
 from app.config import settings
@@ -50,9 +49,9 @@ from app.services.bot import (
     room_has_bot,
 )
 from app.services.bot_coordinator import BotCoordinator
-from app.services.bot_draw import build_bot_drawing
-from app.services.canvas import apply_shape_created, get_canvas_snapshot
+from app.services.canvas import apply_shape_created
 from app.services.game import (
+    _next_drawer,
     advance_due_session,
     select_word,
     set_player_ready,
@@ -100,6 +99,20 @@ def _add_bot(db: Session, room, host: User):
     assert change.room is not None
     db.refresh(change.room)
     return change.room
+
+
+def _ink(drawer_id) -> dict:
+    return {
+        "id": str(uuid.uuid4()),
+        "tool": "ellipse",
+        "stroke": "#1f2937",
+        "fill": "#93c5fd",
+        "strokeWidth": 5,
+        "transform": "",
+        "geometry": {"kind": "ellipse", "cx": 400, "cy": 400, "rx": 80, "ry": 80},
+        "createdBy": str(drawer_id),
+        "createdAt": 0,
+    }
 
 
 def _force_deadline(db: Session, room) -> object:
@@ -258,7 +271,47 @@ def test_duplicate_bot_rejected(db: Session) -> None:
     assert exc.value.status_code == 409
 
 
-def test_bot_rotation_drawing_and_guess_scoring(db: Session) -> None:
+def test_bot_never_gets_a_drawing_turn(db: Session) -> None:
+    host = _user(db, "Host")
+    guest = _user(db, "Guest")
+    room = create_room(db, host_id=host.id, max_players=8)
+    join_room(db, code=room.code, user_id=guest.id)
+    room = _add_bot(db, room, host)
+    bot = room_bot_membership(room)
+    assert bot is not None
+    set_player_ready(db, room.code, host.id, ready=True)
+    set_player_ready(db, room.code, guest.id, ready=True)
+    start_game(db, room.code, host.id)
+    db.refresh(room)
+    session = room.game_session
+    assert session is not None
+    assert session.drawer_user_id != bot.user_id
+
+    by_id = {player.user_id: player for player in session.players}
+    assert by_id[bot.user_id].draw_target == 0
+    assert by_id[host.id].draw_target == session.total_rounds
+    assert by_id[guest.id].draw_target == session.total_rounds
+    assert _next_drawer(session) is not None
+    assert _next_drawer(session).user_id != bot.user_id
+
+    drawers: list = []
+    current = next(p for p in session.players if p.user_id == session.drawer_user_id)
+    while current is not None:
+        assert current.user_id != bot.user_id
+        drawers.append(current.user_id)
+        current.draws_done += 1
+        nxt = _next_drawer(session)
+        if nxt is None:
+            break
+        session.drawer_user_id = nxt.user_id
+        current = nxt
+
+    assert bot.user_id not in drawers
+    assert drawers.count(host.id) == session.total_rounds
+    assert drawers.count(guest.id) == session.total_rounds
+
+
+def test_bot_rotation_guess_scoring(db: Session) -> None:
     host = _user(db, "Host")
     room = create_room(db, host_id=host.id, max_players=8)
     room = _add_bot(db, room, host)
@@ -275,7 +328,8 @@ def test_bot_rotation_drawing_and_guess_scoring(db: Session) -> None:
     session = room.game_session
     assert session is not None
     drawer_id = session.drawer_user_id
-    assert drawer_id in {host.id, bot.user_id}
+    assert drawer_id == host.id
+    assert drawer_id != bot.user_id
     choices = json.loads(session.word_choices_json)
     pick = choices[0]
     select_word(db, room.code, drawer_id, word=pick)
@@ -289,41 +343,12 @@ def test_bot_rotation_drawing_and_guess_scoring(db: Session) -> None:
     dumped = json.dumps(public.model_dump(mode="json"))
     assert pick not in dumped
 
-    guesser_id = host.id if drawer_id == bot.user_id else bot.user_id
-    guessed = submit_chat(db, room.code, guesser_id, text=pick)
+    guessed = submit_chat(db, room.code, bot.user_id, text=pick)
     assert "PLAYER_GUESSED" in guessed.events
     db.refresh(room)
-    frozen = next(p for p in room.game_session.players if p.user_id == guesser_id)
+    frozen = next(p for p in room.game_session.players if p.user_id == bot.user_id)
     assert frozen.has_guessed_correctly is True
     assert frozen.score > 0
-
-
-def test_bot_drawing_persists_valid_shapes(db: Session) -> None:
-    host = _user(db, "Host")
-    room = create_room(db, host_id=host.id, max_players=8)
-    room = _add_bot(db, room, host)
-    bot = room_bot_membership(room)
-    assert bot is not None
-    set_player_ready(db, room.code, host.id, ready=True)
-    start_game(db, room.code, host.id)
-    db.refresh(room)
-    room.game_session.drawer_user_id = bot.user_id
-    db.commit()
-    session_id = _force_deadline(db, room)
-    advance_due_session(db, session_id)
-    db.refresh(room)
-    choices = json.loads(room.game_session.word_choices_json)
-    select_word(db, room.code, bot.user_id, word=choices[0])
-    db.refresh(room)
-
-    shapes = build_bot_drawing(choices[0], str(bot.user_id))
-    assert len(shapes) >= 2
-    for raw in shapes:
-        parsed = parse_shape(raw)
-        apply_shape_created(db, room.code, bot.user_id, parsed.model_dump(mode="json"))
-    snap = get_canvas_snapshot(db, room.code, user_id=host.id)
-    assert len(snap["shapes"]) == len(shapes)
-    assert snap["can_draw"] is False
 
 
 def test_bot_guess_does_not_use_secret_directly(db: Session) -> None:
@@ -355,8 +380,6 @@ def test_bot_guess_does_not_use_secret_directly(db: Session) -> None:
 
 
 def _fast_bot_settings() -> None:
-    settings.bot_word_select_delay_seconds = 0.01
-    settings.bot_draw_step_delay_seconds = 0.01
     settings.bot_guess_debounce_seconds = 0.01
     settings.bot_guess_interval_seconds = 0.05
 
@@ -372,8 +395,7 @@ async def _drain_bot(coord: BotCoordinator, room_code: str) -> None:
         await asyncio.wait_for(task, timeout=8)
 
 
-def test_coordinator_selects_and_draws(db: Session) -> None:
-    _fast_bot_settings()
+def test_coordinator_ignores_bot_draw_seat(db: Session) -> None:
     host = _user(db, "Host")
     room = create_room(db, host_id=host.id, max_players=8)
     room = _add_bot(db, room, host)
@@ -387,24 +409,18 @@ def test_coordinator_selects_and_draws(db: Session) -> None:
     advance_due_session(db, _force_deadline(db, room))
     db.refresh(room)
     assert room.game_session.phase == GAME_PHASE_WORD_SELECTION
+    assert room.game_session.drawer_user_id == host.id
 
-    SessionFactory = db.get_bind()
-    TestSession = sessionmaker(bind=SessionFactory)
+    TestSession = sessionmaker(bind=db.get_bind())
     coord = BotCoordinator(session_factory=TestSession)
-    key = coord._inspect_room(room.code)
-    assert key is not None and key.role == "select"
+    assert coord._inspect_room(room.code) is None
 
     choices = json.loads(room.game_session.word_choices_json)
-    select_word(db, room.code, bot.user_id, word=choices[0])
+    select_word(db, room.code, host.id, word=choices[0])
+    apply_shape_created(db, room.code, host.id, _ink(host.id))
     db.refresh(room)
-    draw_key = coord._inspect_room(room.code)
-    assert draw_key is not None and draw_key.role == "draw"
-    assert room.game_session.phase == GAME_PHASE_ROUND_ACTIVE
-
-    for shape in build_bot_drawing(choices[0], str(bot.user_id)):
-        apply_shape_created(db, room.code, bot.user_id, shape)
-    snap = get_canvas_snapshot(db, room.code)
-    assert snap["shapes"]
+    guess_key = coord._inspect_room(room.code)
+    assert guess_key is not None and guess_key.role == "guess"
 
 
 def test_coordinator_guesses_via_submit_chat(db: Session) -> None:
@@ -428,7 +444,7 @@ def test_coordinator_guesses_via_submit_chat(db: Session) -> None:
         db,
         room.code,
         host.id,
-        build_bot_drawing(secret, str(host.id))[0],
+        _ink(host.id),
     )
     db.refresh(room)
 
@@ -469,7 +485,7 @@ def test_coordinator_ai_failure_does_not_block_round(db: Session) -> None:
         db,
         room.code,
         host.id,
-        build_bot_drawing(choices[0], str(host.id))[0],
+        _ink(host.id),
     )
 
     async def boom(_request):
@@ -523,7 +539,7 @@ def test_coordinator_cancels_stale_guess_task(db: Session) -> None:
         db,
         room.code,
         host.id,
-        build_bot_drawing(choices[0], str(host.id))[0],
+        _ink(host.id),
     )
 
     async def _run() -> None:
@@ -566,7 +582,7 @@ def test_coordinator_skips_guess_when_canvas_is_clean(db: Session) -> None:
         db,
         room.code,
         host.id,
-        build_bot_drawing(choices[0], str(host.id))[0],
+        _ink(host.id),
     )
 
     async def _run() -> None:
@@ -600,7 +616,7 @@ def test_overlapping_sync_leaves_one_task(db: Session) -> None:
         db,
         room.code,
         host.id,
-        build_bot_drawing(choices[0], str(host.id))[0],
+        _ink(host.id),
     )
 
     async def slow(_request):

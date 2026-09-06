@@ -21,7 +21,7 @@ export {
   signaturesEqual,
   summarizeShapes,
 } from "./changeDetector";
-export { isUncertain, smoothGuesses } from "./smoothing";
+export { normalizeGuessKey, pickCommittedGuess } from "./commit";
 export { renderDrawingSnapshot } from "./snapshot";
 export {
   AI_GUESSER_CANDIDATES,

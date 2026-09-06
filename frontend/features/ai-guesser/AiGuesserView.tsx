@@ -20,7 +20,7 @@ import {
 const BUTTON_BASE =
   "rounded-full px-4 py-2 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50";
 
-const CORRECT_HOLD_MS = 1600;
+const CORRECT_HOLD_MS = 2800;
 
 export function AiGuesserView() {
   const controllerRef = React.useRef<WhiteboardController | null>(null);
@@ -85,17 +85,17 @@ export function AiGuesserView() {
     reset,
     resetSession,
     serviceEnabled,
-    ttsEnabled,
     model,
   } = useAiGuesser({
     onAcceptedGuesses,
   });
   resetRef.current = reset;
 
-  const { muted, speaking, spokenText, toggleMuted } = useAiGuesserVoice({
+  const { muted, speaking, spokenText, toggleMuted, unlock } = useAiGuesserVoice({
     line: state.line,
     guesses: state.guesses,
-    enabled: Boolean(ttsEnabled && serviceEnabled),
+    solved,
+    secret,
   });
 
   const clearDrawing = React.useCallback(() => {
@@ -124,7 +124,10 @@ export function AiGuesserView() {
   const hasInk = state.drawingVersion > 0 && state.status !== "idle";
 
   return (
-    <div className="page-shell flex flex-col gap-5">
+    <div
+      className="page-shell flex flex-col gap-5"
+      onPointerDownCapture={unlock}
+    >
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-plum">
@@ -134,7 +137,7 @@ export function AiGuesserView() {
             AI Guesser
           </h1>
           <p className="mt-1 text-sm text-ink-muted">
-            Draw the word. If the AI names it, you score and move on.
+            Draw the word. AnAI shouts guesses the same way it does in a room.
           </p>
         </div>
         <Link

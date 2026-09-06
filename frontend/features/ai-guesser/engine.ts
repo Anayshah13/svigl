@@ -1,27 +1,23 @@
 /**
- * AI Guesser orchestrator.
+ * AI Guesser orchestrator — same calling logic as the in-game AnAI bot.
  *
- * Owns the full pipeline state machine:
+ *   first ink → debounce → snapshot → one shouted guess → wait for new ink
  *
- *   shapes -> signature -> change score -> call decision -> snapshot ->
- *   analyze -> staleness check -> smoothing -> state
- *
- * Every side effect (rasterizing, network, clock, timers) is injected, so the
- * whole policy is testable without a DOM or a live model.
+ * Smoothing, change scores, and stale-response drops are intentionally gone.
+ * Every side effect is injected so the policy stays testable.
  */
 
 import type { WhiteboardShape } from "@/features/whiteboard/types";
 import {
-  changeScore,
   createShapeMetricsCache,
   emptySignature,
   isEmptySignature,
   summarizeShapes,
   type ShapeMetricsCache,
 } from "./changeDetector";
+import { pickCommittedGuess } from "./commit";
 import { resolveConfig, type AiGuesserConfig } from "./config";
 import { decideCall } from "./scheduler";
-import { isUncertain, smoothGuesses } from "./smoothing";
 import {
   createInitialState,
   type AiGuesserState,
@@ -51,7 +47,7 @@ export interface AiGuesserEngineDeps {
   /** Development-only structured logging. Omit in production. */
   logger?: (fields: Record<string, unknown>) => void;
   mode?: CandidateMode;
-  /** Fired with the raw (unsmoothed) guesses of an accepted response. */
+  /** Fired with the single shouted guess of an accepted response. */
   onAcceptedGuesses?: (guesses: GuessItem[]) => void;
 }
 
@@ -85,9 +81,9 @@ export class AiGuesserEngine {
   private signature: DrawingSignature = emptySignature();
   private drawingVersion = 0;
 
-  private lastSentSignature: DrawingSignature | null = null;
+  private dirty = false;
+  private turnStartedAt: number | null = null;
   private lastCallStartedAt: number | null = null;
-  private lastDrawActivityAt: number | null = null;
 
   private inFlight = false;
   private abortController: AbortController | null = null;
@@ -97,6 +93,7 @@ export class AiGuesserEngine {
 
   private timer: IntervalToken | null = null;
   private disposed = false;
+  private epoch = 0;
 
   private mode: CandidateMode;
 
@@ -158,9 +155,8 @@ export class AiGuesserEngine {
   }
 
   /**
-   * Feed the newest shape list. Any actual mutation bumps `drawingVersion`,
-   * which is what invalidates in-flight responses. Worthiness is decided
-   * separately, by the scheduler.
+   * Feed the newest shape list. Any actual mutation marks the board dirty,
+   * which is the only thing that can justify another look.
    */
   setShapes(shapes: WhiteboardShape[]): void {
     if (this.disposed) return;
@@ -172,7 +168,13 @@ export class AiGuesserEngine {
     this.signature = next;
     this.drawingVersion += 1;
     this.state.drawingVersion = this.drawingVersion;
-    this.lastDrawActivityAt = this.now();
+
+    if (isEmptySignature(next)) {
+      this.dirty = false;
+    } else {
+      this.dirty = true;
+      this.turnStartedAt ??= this.now();
+    }
     this.syncStatus();
   }
 
@@ -182,16 +184,16 @@ export class AiGuesserEngine {
    */
   reset(options: { resetSession?: boolean } = {}): void {
     if (this.disposed) return;
+    this.epoch += 1;
     this.abortInFlight();
     this.metricsCache.clear();
 
     this.shapes = [];
     this.signature = emptySignature();
-    // Bump rather than zero: a late response for the old version must lose.
     this.drawingVersion += 1;
-    this.lastSentSignature = null;
+    this.dirty = false;
+    this.turnStartedAt = null;
     this.lastCallStartedAt = null;
-    this.lastDrawActivityAt = null;
     this.blockedUntil = null;
     this.consecutiveErrors = 0;
 
@@ -213,21 +215,18 @@ export class AiGuesserEngine {
 
     const decision = decideCall({
       now,
-      signature: this.signature,
-      lastSentSignature: this.lastSentSignature,
-      lastCallStartedAt: this.lastCallStartedAt,
+      hasInk: !isEmptySignature(this.signature),
+      dirty: this.dirty,
       inFlight: this.inFlight,
-      lastDrawActivityAt: this.lastDrawActivityAt,
+      callsThisDrawing: this.state.callsThisDrawing,
+      turnStartedAt: this.turnStartedAt,
       blockedUntil: this.blockedUntil,
       config: this.config,
     });
 
-    this.state.lastChangeScore = decision.score;
-
     this.deps.logger?.({
       drawingVersion: this.drawingVersion,
-      changedSinceLastCall: decision.score > 0,
-      changeScore: Number(decision.score.toFixed(3)),
+      dirty: this.dirty,
       call: decision.call,
       reason: decision.reason,
     });
@@ -241,14 +240,13 @@ export class AiGuesserEngine {
   }
 
   private async run(startedAt: number): Promise<void> {
-    // Capture the exact drawing this call describes.
+    const epoch = this.epoch;
     const version = this.drawingVersion;
     const shapes = this.shapes;
-    const sentSignature = this.signature;
     const previousCallStartedAt = this.lastCallStartedAt;
 
-    // Claim the single-flight slot before any await. lastSentSignature stays
-    // at the last *completed* send so a failed attempt can be retried.
+    // Consume dirty the way the server bot does: a failed look restores it.
+    this.dirty = false;
     this.inFlight = true;
     this.lastCallStartedAt = startedAt;
     this.syncStatus(true);
@@ -264,6 +262,7 @@ export class AiGuesserEngine {
       );
     } catch (error) {
       this.lastCallStartedAt = previousCallStartedAt;
+      this.dirty = true;
       this.failed(error);
       return;
     }
@@ -271,7 +270,6 @@ export class AiGuesserEngine {
     if (this.disposed) return;
 
     if (snapshot === null) {
-      // Nothing worth sending; release the slot without burning a call.
       this.inFlight = false;
       this.abortController = null;
       this.lastCallStartedAt = previousCallStartedAt;
@@ -279,92 +277,61 @@ export class AiGuesserEngine {
       return;
     }
 
-    this.state.callsThisDrawing += 1;
-    this.state.callsThisSession += 1;
-
     const input: AnalyzeInput = {
       imageBase64: snapshot.base64,
       mimeType: snapshot.mimeType,
       drawingVersion: version,
       mode: this.mode,
-      previousGuesses: this.state.guesses.map((g) => g.answer),
+      previousGuesses: [...this.state.guesses.map((g) => g.answer)].sort(),
     };
 
     try {
       const result = await this.deps.analyze(input, controller.signal);
-      this.settle(version, sentSignature, result);
+      this.settle(epoch, result);
     } catch (error) {
+      if (epoch !== this.epoch) return;
+      this.dirty = true;
       this.failed(error);
     }
   }
 
-  private settle(
-    version: number,
-    sentSignature: DrawingSignature,
-    result: AnalyzeResult,
-  ): void {
-    if (this.disposed) return;
+  private settle(epoch: number, result: AnalyzeResult): void {
+    if (this.disposed || epoch !== this.epoch) return;
 
     this.inFlight = false;
     this.abortController = null;
     this.consecutiveErrors = 0;
     this.blockedUntil = null;
-    // Only commit after a real model response — not on snapshot/network failure.
-    this.lastSentSignature = sentSignature;
 
+    this.state.callsThisDrawing += 1;
+    this.state.callsThisSession += 1;
     this.state.errorMessage = null;
     this.state.latencyMs = result.latencyMs;
     this.state.usage = result.usage;
     this.state.model = result.model;
-
-    // Stale if the drawing moved on, or if the server echoed a version that
-    // does not match what we asked about.
-    const superseded = version !== this.drawingVersion;
-    const echoMismatch = result.drawingVersion !== version;
-    let stale = superseded || echoMismatch;
-
-    if (
-      stale &&
-      !echoMismatch &&
-      this.config.ACCEPT_STALE_BELOW_SCORE > 0 &&
-      !isEmptySignature(this.signature)
-    ) {
-      const drift = changeScore(sentSignature, this.signature, this.config);
-      if (drift < this.config.ACCEPT_STALE_BELOW_SCORE) stale = false;
-    }
-
-    if (stale) {
-      this.state.staleDropped += 1;
-      this.deps.logger?.({
-        drawingVersion: this.drawingVersion,
-        requestDrawingVersion: version,
-        stale: true,
-        echoMismatch,
-        latency: result.latencyMs,
-      });
-      // Guesses intentionally untouched: never present an old answer as new.
-      this.syncStatus(true);
-      return;
-    }
-
-    this.state.guesses = smoothGuesses(
-      this.state.guesses,
-      result.guesses,
-      this.config,
-    );
-    this.state.line = result.line.trim() || null;
-    this.state.uncertain = isUncertain(this.state.guesses, this.config);
-    this.state.analyzedVersion = version;
+    this.state.line = result.line.trim() || this.state.line;
+    this.state.analyzedVersion = this.drawingVersion;
     this.state.lastAnalyzedAt = this.now();
-    this.deps.onAcceptedGuesses?.(result.guesses);
+    this.state.uncertain = false;
 
-    const top = this.state.guesses[0];
+    const committed = pickCommittedGuess(
+      result.guesses,
+      this.state.guesses.map((g) => g.answer),
+      this.config.MIN_CONFIDENCE,
+    );
+
+    if (committed) {
+      this.state.guesses = [...this.state.guesses, committed];
+      this.deps.onAcceptedGuesses?.([committed]);
+    }
+
+    const top = this.state.guesses[this.state.guesses.length - 1];
     this.deps.logger?.({
       drawingVersion: this.drawingVersion,
-      stale: false,
       latency: result.latencyMs,
-      topGuess: top?.answer ?? null,
-      confidence: top ? Number(top.confidence.toFixed(2)) : null,
+      shouted: committed?.answer ?? null,
+      confidence: committed ? Number(committed.confidence.toFixed(2)) : null,
+      latest: top?.answer ?? null,
     });
 
     this.syncStatus(true);
@@ -376,7 +343,6 @@ export class AiGuesserEngine {
     this.inFlight = false;
     this.abortController = null;
 
-    // Aborts are our own doing (reset/unmount) — not a model failure.
     if (isAbortError(error)) {
       this.syncStatus(true);
       return;
@@ -389,7 +355,6 @@ export class AiGuesserEngine {
         this.config.ERROR_BACKOFF_MS * this.consecutiveErrors,
         this.config.MAX_ERROR_BACKOFF_MS,
       );
-    // A single slow Gemini call should not paint the board "unavailable".
     this.state.errorMessage =
       this.consecutiveErrors >= this.config.UNAVAILABLE_AFTER_ERRORS
         ? errorMessage(error)

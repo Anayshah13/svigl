@@ -11,21 +11,14 @@ from uuid import UUID
 
 from app.config import settings
 from app.db.session import SessionLocal
-from app.models.room import (
-    GAME_PHASE_LOBBY,
-    GAME_PHASE_ROUND_ACTIVE,
-    GAME_PHASE_WORD_SELECTION,
-    GameSession,
-    Room,
-)
+from app.models.room import GAME_PHASE_LOBBY, GAME_PHASE_ROUND_ACTIVE, Room
 from app.schemas.ai_guesser import AiGuessRequest
 from app.schemas.room import RoomResponse
 from app.services.ai_guesser import AiGuesserError, generate_guess
 from app.services.bot import room_bot_membership
 from app.services.bot_canvas_image import render_shapes_png
-from app.services.bot_draw import build_bot_drawing
-from app.services.canvas import apply_shape_created, get_canvas_snapshot
-from app.services.game import GameError, GameMutation, select_word, submit_chat
+from app.services.canvas import get_canvas_snapshot
+from app.services.game import GameError, GameMutation, submit_chat
 from app.services.game_runtime import apply_mutation_side_effects, game_runtime
 from app.services.words import normalize_guess
 from app.websocket.notify import fire_and_forget
@@ -134,15 +127,7 @@ class BotCoordinator:
                 self._ai_calls.setdefault(code, 0)
                 self._canvas_dirty[code] = True
                 self._canvas_event(code).set()
-                if desired.role == "select":
-                    self._tasks[code] = asyncio.create_task(
-                        self._select_word(desired), name=f"bot-select-{code}"
-                    )
-                elif desired.role == "draw":
-                    self._tasks[code] = asyncio.create_task(
-                        self._draw_turn(desired), name=f"bot-draw-{code}"
-                    )
-                elif desired.role == "guess":
+                if desired.role == "guess":
                     self._tasks[code] = asyncio.create_task(
                         self._guess_turn(desired), name=f"bot-guess-{code}"
                     )
@@ -169,14 +154,6 @@ class BotCoordinator:
             )
             if frozen is None or not frozen.is_active:
                 return None
-            if session.phase == GAME_PHASE_WORD_SELECTION and session.drawer_user_id == bot_id:
-                return BotTurnKey(
-                    room_code, session.id, session.current_turn, session.phase, "select", bot_id
-                )
-            if session.phase == GAME_PHASE_ROUND_ACTIVE and session.drawer_user_id == bot_id:
-                return BotTurnKey(
-                    room_code, session.id, session.current_turn, session.phase, "draw", bot_id
-                )
             if (
                 session.phase == GAME_PHASE_ROUND_ACTIVE
                 and session.drawer_user_id != bot_id
@@ -191,92 +168,6 @@ class BotCoordinator:
 
     def _still_current(self, key: BotTurnKey) -> bool:
         return self._keys.get(key.room_code) == key
-
-    async def _select_word(self, key: BotTurnKey) -> None:
-        try:
-            await asyncio.sleep(max(0.05, settings.bot_word_select_delay_seconds))
-            if not self._still_current(key):
-                return
-
-            def _run() -> GameMutation | None:
-                db = self._session_factory()
-                try:
-                    room = db.query(Room).filter(Room.code == key.room_code).first()
-                    session = room.game_session if room is not None else None
-                    if (
-                        session is None
-                        or session.phase != GAME_PHASE_WORD_SELECTION
-                        or session.drawer_user_id != key.bot_id
-                    ):
-                        return None
-                    choices: list[str] = []
-                    if session.word_choices_json:
-                        import json
-
-                        try:
-                            raw = json.loads(session.word_choices_json)
-                            if isinstance(raw, list):
-                                choices = [str(item) for item in raw]
-                        except json.JSONDecodeError:
-                            choices = []
-                    if not choices:
-                        return None
-                    return select_word(
-                        db, key.room_code, key.bot_id, word=choices[0]
-                    )
-                except GameError as exc:
-                    logger.info(
-                        "bot word select skipped room=%s code=%s",
-                        key.room_code,
-                        exc.code,
-                    )
-                    return None
-                finally:
-                    db.close()
-
-            mutation = await game_runtime.run_serialized(key.room_code, _run)
-            if mutation is not None:
-                await self._publish_mutation(mutation)
-        except asyncio.CancelledError:
-            raise
-        except Exception:
-            logger.exception("bot word select failed room=%s", key.room_code)
-
-    async def _draw_turn(self, key: BotTurnKey) -> None:
-        try:
-            word = await asyncio.to_thread(self._secret_word, key)
-            if not word or not self._still_current(key):
-                return
-            shapes = build_bot_drawing(word, str(key.bot_id))
-            delay = max(0.05, settings.bot_draw_step_delay_seconds)
-            for shape in shapes:
-                if not self._still_current(key):
-                    return
-                await asyncio.sleep(delay)
-
-                def _run(shape_raw: dict[str, Any] = shape):
-                    db = self._session_factory()
-                    try:
-                        return apply_shape_created(
-                            db, key.room_code, key.bot_id, shape_raw
-                        )
-                    except Exception as exc:
-                        logger.info(
-                            "bot draw step skipped room=%s err=%s",
-                            key.room_code,
-                            type(exc).__name__,
-                        )
-                        return None
-                    finally:
-                        db.close()
-
-                result = await game_runtime.run_serialized(key.room_code, _run)
-                if result is not None:
-                    await self._publish_canvas(result)
-        except asyncio.CancelledError:
-            raise
-        except Exception:
-            logger.exception("bot draw failed room=%s", key.room_code)
 
     async def _guess_turn(self, key: BotTurnKey) -> None:
         try:
@@ -373,20 +264,6 @@ class BotCoordinator:
             # One public chat line per AI call avoids flooding.
             return
 
-    def _secret_word(self, key: BotTurnKey) -> str | None:
-        db = self._session_factory()
-        try:
-            session = (
-                db.query(GameSession).filter(GameSession.id == key.session_id).first()
-                if key.session_id is not None
-                else None
-            )
-            if session is None or session.drawer_user_id != key.bot_id:
-                return None
-            return session.secret_word
-        finally:
-            db.close()
-
     def _canvas_and_state(
         self, key: BotTurnKey
     ) -> tuple[list[dict[str, Any]], bool, int] | None:
@@ -457,11 +334,6 @@ class BotCoordinator:
                 "bot mutation broadcast failed room=%s", mutation.room_code
             )
         await self._sync_room(mutation.room_code)
-
-    async def _publish_canvas(self, result: Any) -> None:
-        from app.websocket.notify import broadcast_canvas_async
-
-        await broadcast_canvas_async(result)
 
 
 bot_coordinator = BotCoordinator()

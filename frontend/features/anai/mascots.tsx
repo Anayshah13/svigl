@@ -60,6 +60,7 @@ function RoboArm({
   armColor,
   jointColor,
   handColor,
+  children,
 }: {
   side: "left" | "right";
   pose: "up" | "down";
@@ -68,6 +69,7 @@ function RoboArm({
   armColor: string;
   jointColor: string;
   handColor: string;
+  children?: ReactNode;
 }) {
   const dir = side === "left" ? -1 : 1;
 
@@ -112,6 +114,7 @@ function RoboArm({
       />
       <circle cx={wristX} cy={wristY} r={2.8} fill={jointColor} />
       <LegoHand cx={wristX} cy={wristY} rotate={clawRotate} color={handColor} />
+      {children}
     </g>
   );
 }
@@ -266,9 +269,15 @@ function AnaiFaceMarks({ antennaClassName }: { antennaClassName?: string }) {
   );
 }
 
-export function MascotAnAI() {
+export function AnaiFigure({
+  leftHand,
+  rightHand,
+}: {
+  leftHand?: ReactNode;
+  rightHand?: ReactNode;
+} = {}) {
   return (
-    <Frame label="AnAI robot mascot">
+    <>
       <AnaiFaceMarks antennaClassName="anai-antenna-ball" />
 
       <RoboArm
@@ -279,7 +288,9 @@ export function MascotAnAI() {
         armColor={C.plum}
         jointColor={C.chartreuse}
         handColor={C.plum}
-      />
+      >
+        {leftHand}
+      </RoboArm>
       <RoboArm
         side="right"
         pose="down"
@@ -288,7 +299,9 @@ export function MascotAnAI() {
         armColor={C.plum}
         jointColor={C.chartreuse}
         handColor={C.plum}
-      />
+      >
+        {rightHand}
+      </RoboArm>
 
       <rect
         x={BODY_LEFT}
@@ -376,6 +389,14 @@ export function MascotAnAI() {
         hubColor={C.chartreuse}
         side="right"
       />
+    </>
+  );
+}
+
+export function MascotAnAI() {
+  return (
+    <Frame label="AnAI robot mascot">
+      <AnaiFigure />
     </Frame>
   );
 }

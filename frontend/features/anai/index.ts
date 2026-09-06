@@ -1,2 +1,2 @@
 export { AnaiGallery } from "./AnaiGallery";
-export { ANAI_MASCOTS, AnaiFace, MascotAnAI } from "./mascots";
+export { ANAI_MASCOTS, AnaiFace, AnaiFigure, MascotAnAI } from "./mascots";

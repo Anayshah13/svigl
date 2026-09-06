@@ -6,16 +6,21 @@
  */
 
 const MAX_SPEECH_CHARS = 140;
-const MAX_SPOKEN_CHARS = 48;
+const MAX_SPOKEN_CHARS = 64;
 
 export function resolveSpeechText(
   line: string | null | undefined,
   topAnswer?: string | null,
+  options?: { solved?: boolean },
 ): string {
+  const guess = (topAnswer ?? "").replace(/\s+/g, " ").trim();
+  if (options?.solved && guess) {
+    return `Oh, I know, it's ${guess}.`.slice(0, MAX_SPEECH_CHARS);
+  }
+
   const aside = (line ?? "").replace(/\s+/g, " ").trim();
   if (aside) return aside.slice(0, MAX_SPEECH_CHARS);
 
-  const guess = (topAnswer ?? "").replace(/\s+/g, " ").trim();
   if (!guess) return "";
   return `Looks like ${guess}.`.slice(0, MAX_SPEECH_CHARS);
 }
@@ -24,8 +29,12 @@ export function resolveSpeechText(
 export function resolveSpokenAudio(
   line: string | null | undefined,
   topAnswer?: string | null,
+  options?: { solved?: boolean },
 ): string {
   const guess = (topAnswer ?? "").replace(/\s+/g, " ").trim();
+  if (options?.solved && guess) {
+    return `Oh, I know, it's ${guess}.`.slice(0, MAX_SPOKEN_CHARS);
+  }
   if (guess) return `Looks like ${guess}.`.slice(0, MAX_SPOKEN_CHARS);
   const aside = (line ?? "").replace(/\s+/g, " ").trim();
   if (!aside) return "";

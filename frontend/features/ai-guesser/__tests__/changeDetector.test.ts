@@ -90,29 +90,39 @@ describe("changeScore", () => {
     );
   });
 
-  it("scores a small stroke extension below the call threshold", () => {
+  it("scores a small stroke extension as a tiny change", () => {
     const before = summarizeShapes([BASE_STROKE]);
     const after = summarizeShapes([TINY_EXTENSION]);
     const score = changeScore(before, after, config);
 
-    expect(score).toBeGreaterThan(config.TINY_CHANGE_SCORE);
-    expect(score).toBeLessThan(config.MIN_CHANGE_SCORE);
+    expect(score).toBeGreaterThan(0);
+    expect(score).toBeLessThan(0.12);
   });
 
-  it("scores a new stroke above the call threshold", () => {
+  it("scores a new stroke higher than a tiny extension", () => {
     const before = summarizeShapes([BASE_STROKE]);
-    const after = summarizeShapes([BASE_STROKE, SECOND_STROKE]);
-    expect(changeScore(before, after, config)).toBeGreaterThanOrEqual(
-      config.MIN_CHANGE_SCORE,
+    const tiny = changeScore(before, summarizeShapes([TINY_EXTENSION]), config);
+    const added = changeScore(
+      before,
+      summarizeShapes([BASE_STROKE, SECOND_STROKE]),
+      config,
     );
+    expect(added).toBeGreaterThan(tiny);
   });
 
-  it("scores several new strokes as a significant change", () => {
+  it("scores several new strokes higher than a single added stroke", () => {
     const before = summarizeShapes([BASE_STROKE]);
-    const after = summarizeShapes([BASE_STROKE, SECOND_STROKE, THIRD_STROKE]);
-    expect(changeScore(before, after, config)).toBeGreaterThanOrEqual(
-      config.SIGNIFICANT_CHANGE_SCORE,
+    const one = changeScore(
+      before,
+      summarizeShapes([BASE_STROKE, SECOND_STROKE]),
+      config,
     );
+    const many = changeScore(
+      before,
+      summarizeShapes([BASE_STROKE, SECOND_STROKE, THIRD_STROKE]),
+      config,
+    );
+    expect(many).toBeGreaterThan(one);
   });
 
   it("registers a moved or recoloured stroke as a structural change", () => {

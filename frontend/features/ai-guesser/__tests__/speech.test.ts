@@ -13,6 +13,12 @@ describe("resolveSpeechText", () => {
     expect(resolveSpeechText("   ", "  house ")).toBe("Looks like house.");
   });
 
+  it("uses a reveal line when the secret is hit", () => {
+    expect(resolveSpeechText("Wait, a tail?", "dog", { solved: true })).toBe(
+      "Oh, I know, it's dog.",
+    );
+  });
+
   it("is empty when there is nothing to say", () => {
     expect(resolveSpeechText(null, "")).toBe("");
     expect(resolveSpeechText(undefined, undefined)).toBe("");
@@ -30,6 +36,12 @@ describe("resolveSpokenAudio", () => {
     expect(resolveSpokenAudio("Hmm, a circle. Maybe the sun?", null)).toBe(
       "Hmm, a circle.",
     );
+  });
+
+  it("shouts a reveal when the word is guessed", () => {
+    expect(
+      resolveSpokenAudio("Looks like a tail.", "dog", { solved: true }),
+    ).toBe("Oh, I know, it's dog.");
   });
 });
 

@@ -12,7 +12,6 @@ import {
   BASE_STROKE,
   SECOND_STROKE,
   THIRD_STROKE,
-  TINY_EXTENSION,
   deferred,
   flush,
   type Deferred,
@@ -96,12 +95,13 @@ function harness(config?: Partial<AiGuesserConfig>) {
   };
 }
 
-/** Draw enough to trip the significant-change threshold. */
-async function draw(
+/** Place ink and wait out the first-look debounce. */
+async function firstLook(
   h: ReturnType<typeof harness>,
   shapes: WhiteboardShape[],
 ): Promise<void> {
   h.engine.setShapes(shapes);
+  h.advance(AI_GUESSER_CONFIG.DEBOUNCE_MS);
   h.engine.tick();
   await flush();
 }
@@ -109,28 +109,36 @@ async function draw(
 describe("AiGuesserEngine", () => {
   it("does not call the model when there is no drawing", async () => {
     const h = harness();
-    await draw(h, []);
+    h.engine.setShapes([]);
+    h.engine.tick();
+    await flush();
     expect(h.analyzeCalls).toHaveLength(0);
     expect(h.state().status).toBe("idle");
   });
 
-  it("calls the model once ink appears", async () => {
+  it("waits out the debounce before the first look", async () => {
     const h = harness();
-    await draw(h, [BASE_STROKE]);
+    h.engine.setShapes([BASE_STROKE]);
+    h.engine.tick();
+    await flush();
+    expect(h.analyzeCalls).toHaveLength(0);
 
+    h.advance(AI_GUESSER_CONFIG.DEBOUNCE_MS);
+    h.engine.tick();
+    await flush();
     expect(h.analyzeCalls).toHaveLength(1);
-    expect(h.analyzeCalls[0].drawingVersion).toBe(1);
-    expect(h.analyzeCalls[0].imageBase64).toBe(SNAPSHOT.base64);
     expect(h.state().status).toBe("thinking");
   });
 
   it("keeps exactly one request in flight", async () => {
     const h = harness();
-    await draw(h, [BASE_STROKE]);
+    await firstLook(h, [BASE_STROKE]);
     expect(h.analyzeCalls).toHaveLength(1);
 
     h.advance(10_000);
-    await draw(h, [BASE_STROKE, SECOND_STROKE]);
+    h.engine.setShapes([BASE_STROKE, SECOND_STROKE]);
+    h.engine.tick();
+    await flush();
 
     expect(h.engine.isInFlight()).toBe(true);
     expect(h.analyzeCalls).toHaveLength(1);
@@ -138,7 +146,7 @@ describe("AiGuesserEngine", () => {
 
   it("does not create a request storm while the player keeps drawing", async () => {
     const h = harness();
-    await draw(h, [BASE_STROKE]);
+    await firstLook(h, [BASE_STROKE]);
 
     for (let i = 0; i < 25; i += 1) {
       h.advance(500);
@@ -153,41 +161,34 @@ describe("AiGuesserEngine", () => {
     expect(h.analyzeCalls).toHaveLength(1);
   });
 
-  it("applies a fresh result and smooths confidence upward", async () => {
+  it("shouts the first guess above the floor and does not smooth later ones", async () => {
     const h = harness();
-    await draw(h, [BASE_STROKE]);
+    await firstLook(h, [BASE_STROKE]);
 
     h.pending[0].resolve(result(1, "dog", 0.6));
     await flush();
 
-    expect(h.state().guesses).toHaveLength(1);
-    expect(h.state().guesses[0].answer).toBe("dog");
-    expect(h.state().guesses[0].confidence).toBeCloseTo(0.6, 5);
-    expect(h.state().analyzedVersion).toBe(1);
-    expect(h.state().latencyMs).toBe(420);
+    expect(h.state().guesses).toEqual([{ answer: "dog", confidence: 0.6 }]);
+    expect(h.accepted()).toEqual([[{ answer: "dog", confidence: 0.6 }]]);
     expect(h.state().status).toBe("updated");
 
-    // Second, more confident reading nudges the smoothed value up.
-    h.advance(5000);
-    await draw(h, [BASE_STROKE, SECOND_STROKE]);
+    h.engine.setShapes([BASE_STROKE, SECOND_STROKE]);
+    h.engine.tick();
+    await flush();
     h.pending[1].resolve(
-      result(h.analyzeCalls[1].drawingVersion, "dog", 0.9),
+      result(h.analyzeCalls[1].drawingVersion, "cat", 0.9),
     );
     await flush();
 
-    expect(h.state().guesses[0].confidence).toBeGreaterThan(0.6);
-    expect(h.state().guesses[0].confidence).toBeLessThan(0.9);
+    expect(h.state().guesses.map((g) => g.answer)).toEqual(["dog", "cat"]);
+    expect(h.state().guesses[1].confidence).toBe(0.9);
   });
 
-  it("accepts a slightly stale response when the drawing barely changed", async () => {
+  it("keeps a shout even if the drawing moved on while the request was in flight", async () => {
     const h = harness();
-    await draw(h, [BASE_STROKE]);
-    const requestedVersion = h.analyzeCalls[0].drawingVersion;
-
-    h.engine.setShapes([TINY_EXTENSION]);
-    expect(h.state().drawingVersion).toBeGreaterThan(requestedVersion);
-
-    h.pending[0].resolve(result(requestedVersion, "dog", 0.8));
+    await firstLook(h, [BASE_STROKE]);
+    h.engine.setShapes([BASE_STROKE, SECOND_STROKE, THIRD_STROKE]);
+    h.pending[0].resolve(result(1, "dog", 0.8));
     await flush();
 
     expect(h.state().guesses[0]?.answer).toBe("dog");
@@ -195,66 +196,69 @@ describe("AiGuesserEngine", () => {
     expect(h.accepted()).toEqual([[{ answer: "dog", confidence: 0.8 }]]);
   });
 
-  it("rejects a stale response instead of showing it as current", async () => {
+  it("looks again immediately once new ink lands after a finished call", async () => {
     const h = harness();
-    await draw(h, [BASE_STROKE]);
-    const requestedVersion = h.analyzeCalls[0].drawingVersion;
-
-    // Player keeps drawing while the request is in flight.
-    h.engine.setShapes([BASE_STROKE, SECOND_STROKE]);
-    h.engine.setShapes([BASE_STROKE, SECOND_STROKE, THIRD_STROKE]);
-    expect(h.state().drawingVersion).toBeGreaterThan(requestedVersion);
-
-    h.pending[0].resolve(result(requestedVersion, "dog", 0.95));
-    await flush();
-
-    expect(h.state().guesses).toHaveLength(0);
-    expect(h.state().staleDropped).toBe(1);
-    expect(h.state().analyzedVersion).toBeNull();
-    expect(h.state().status).not.toBe("updated");
-  });
-
-  it("analyzes the newest drawing after an outdated request finishes", async () => {
-    const h = harness();
-    await draw(h, [BASE_STROKE]);
-
-    h.engine.setShapes([BASE_STROKE, SECOND_STROKE, THIRD_STROKE]);
+    await firstLook(h, [BASE_STROKE]);
     h.pending[0].resolve(result(1));
     await flush();
-
     expect(h.analyzeCalls).toHaveLength(1);
 
-    h.advance(AI_GUESSER_CONFIG.MIN_CALL_INTERVAL_MS);
+    h.engine.setShapes([BASE_STROKE, SECOND_STROKE, THIRD_STROKE]);
     h.engine.tick();
     await flush();
 
     expect(h.analyzeCalls).toHaveLength(2);
     expect(h.analyzeCalls[1].drawingVersion).toBe(h.state().drawingVersion);
-
-    h.pending[1].resolve(result(h.analyzeCalls[1].drawingVersion, "cat", 0.7));
-    await flush();
-
-    expect(h.state().guesses[0].answer).toBe("cat");
-    expect(h.state().analyzedVersion).toBe(h.analyzeCalls[1].drawingVersion);
-    // Exactly one response was dropped: the outdated one.
-    expect(h.state().staleDropped).toBe(1);
   });
 
-  it("rejects a response whose echoed version does not match the request", async () => {
+  it("does not re-analyze an unchanged board", async () => {
     const h = harness();
-    await draw(h, [BASE_STROKE]);
+    await firstLook(h, [BASE_STROKE]);
+    h.pending[0].resolve(result(1));
+    await flush();
 
-    // Server echoes the wrong version — treat as untrustworthy.
-    h.pending[0].resolve(result(999, "dog", 0.9));
+    h.advance(30_000);
+    h.engine.tick();
+    await flush();
+
+    expect(h.analyzeCalls).toHaveLength(1);
+  });
+
+  it("skips a low-confidence answer instead of shouting it", async () => {
+    const h = harness();
+    await firstLook(h, [BASE_STROKE]);
+    h.pending[0].resolve(result(1, "dog", 0.1));
     await flush();
 
     expect(h.state().guesses).toHaveLength(0);
-    expect(h.state().staleDropped).toBe(1);
+    expect(h.accepted()).toHaveLength(0);
+    expect(h.state().callsThisDrawing).toBe(1);
+  });
+
+  it("does not shout the same word twice", async () => {
+    const h = harness();
+    await firstLook(h, [BASE_STROKE]);
+    h.pending[0].resolve(result(1, "dog", 0.8));
+    await flush();
+
+    h.engine.setShapes([BASE_STROKE, SECOND_STROKE]);
+    h.engine.tick();
+    await flush();
+    h.pending[1].resolve({
+      ...result(2, "dog", 0.95),
+      guesses: [
+        { answer: "dog", confidence: 0.95 },
+        { answer: "wolf", confidence: 0.4 },
+      ],
+    });
+    await flush();
+
+    expect(h.state().guesses.map((g) => g.answer)).toEqual(["dog", "wolf"]);
   });
 
   it("survives a model failure and keeps watching", async () => {
     const h = harness({ UNAVAILABLE_AFTER_ERRORS: 1 });
-    await draw(h, [BASE_STROKE]);
+    await firstLook(h, [BASE_STROKE]);
 
     h.pending[0].reject(new Error("Gemini exploded"));
     await flush();
@@ -263,9 +267,7 @@ describe("AiGuesserEngine", () => {
     expect(h.state().errorMessage).toBe("Gemini exploded");
     expect(h.engine.isInFlight()).toBe(false);
 
-    // Drawing still tracked; a retry happens once the backoff expires.
     h.advance(60_000);
-    h.engine.setShapes([BASE_STROKE, SECOND_STROKE]);
     h.engine.tick();
     await flush();
 
@@ -274,7 +276,7 @@ describe("AiGuesserEngine", () => {
 
   it("retries the same drawing after a failure once backoff expires", async () => {
     const h = harness();
-    await draw(h, [BASE_STROKE]);
+    await firstLook(h, [BASE_STROKE]);
     expect(h.analyzeCalls).toHaveLength(1);
 
     h.pending[0].reject(new Error("timeout 1"));
@@ -292,7 +294,7 @@ describe("AiGuesserEngine", () => {
 
   it("does not mark the AI unavailable after a single timeout", async () => {
     const h = harness();
-    await draw(h, [BASE_STROKE]);
+    await firstLook(h, [BASE_STROKE]);
     h.pending[0].reject(new Error("AI guesser timed out"));
     await flush();
 
@@ -303,12 +305,11 @@ describe("AiGuesserEngine", () => {
 
   it("marks the AI unavailable after repeated failures", async () => {
     const h = harness();
-    await draw(h, [BASE_STROKE]);
+    await firstLook(h, [BASE_STROKE]);
     h.pending[0].reject(new Error("timeout 1"));
     await flush();
 
     h.advance(60_000);
-    h.engine.setShapes([BASE_STROKE, SECOND_STROKE]);
     h.engine.tick();
     await flush();
     h.pending[1].reject(new Error("timeout 2"));
@@ -320,7 +321,7 @@ describe("AiGuesserEngine", () => {
 
   it("blocks retries during the failure backoff window", async () => {
     const h = harness();
-    await draw(h, [BASE_STROKE]);
+    await firstLook(h, [BASE_STROKE]);
     h.pending[0].reject(new Error("nope"));
     await flush();
 
@@ -334,7 +335,7 @@ describe("AiGuesserEngine", () => {
 
   it("treats a timeout like any other failure and frees the in-flight slot", async () => {
     const h = harness({ UNAVAILABLE_AFTER_ERRORS: 1 });
-    await draw(h, [BASE_STROKE]);
+    await firstLook(h, [BASE_STROKE]);
 
     h.pending[0].reject(new Error("AI guesser timed out"));
     await flush();
@@ -343,7 +344,6 @@ describe("AiGuesserEngine", () => {
     expect(h.state().status).toBe("unavailable");
 
     h.advance(60_000);
-    h.engine.setShapes([BASE_STROKE, SECOND_STROKE]);
     h.engine.tick();
     await flush();
     expect(h.analyzeCalls).toHaveLength(2);
@@ -352,16 +352,36 @@ describe("AiGuesserEngine", () => {
   it("surfaces a snapshot failure without breaking the pipeline", async () => {
     const h = harness({ UNAVAILABLE_AFTER_ERRORS: 1 });
     h.failSnapshot(new Error("canvas unavailable"));
-    await draw(h, [BASE_STROKE]);
+    await firstLook(h, [BASE_STROKE]);
 
     expect(h.analyzeCalls).toHaveLength(0);
     expect(h.state().status).toBe("unavailable");
     expect(h.engine.isInFlight()).toBe(false);
   });
 
+  it("stops after the per-turn call cap", async () => {
+    const h = harness({ MAX_CALLS_PER_TURN: 2 });
+    await firstLook(h, [BASE_STROKE]);
+    h.pending[0].resolve(result(1, "dog", 0.8));
+    await flush();
+
+    h.engine.setShapes([BASE_STROKE, SECOND_STROKE]);
+    h.engine.tick();
+    await flush();
+    h.pending[1].resolve(result(2, "cat", 0.8));
+    await flush();
+
+    h.engine.setShapes([BASE_STROKE, SECOND_STROKE, THIRD_STROKE]);
+    h.engine.tick();
+    await flush();
+
+    expect(h.analyzeCalls).toHaveLength(2);
+    expect(h.state().guesses).toHaveLength(2);
+  });
+
   it("invalidates previous AI state on reset", async () => {
     const h = harness();
-    await draw(h, [BASE_STROKE]);
+    await firstLook(h, [BASE_STROKE]);
     h.pending[0].resolve(result(1, "dog", 0.9));
     await flush();
     expect(h.state().guesses).toHaveLength(1);
@@ -374,13 +394,12 @@ describe("AiGuesserEngine", () => {
     expect(h.state().analyzedVersion).toBeNull();
     expect(h.state().latencyMs).toBeNull();
     expect(h.state().status).toBe("idle");
-    // Session total is cumulative across drawings.
     expect(h.state().callsThisSession).toBe(1);
   });
 
   it("discards an in-flight response that resolves after a reset", async () => {
     const h = harness();
-    await draw(h, [BASE_STROKE]);
+    await firstLook(h, [BASE_STROKE]);
     const version = h.analyzeCalls[0].drawingVersion;
 
     h.engine.reset();
@@ -393,7 +412,7 @@ describe("AiGuesserEngine", () => {
 
   it("zeroes the session counter on a session reset", async () => {
     const h = harness();
-    await draw(h, [BASE_STROKE]);
+    await firstLook(h, [BASE_STROKE]);
     h.pending[0].resolve(result(1));
     await flush();
 
@@ -425,7 +444,7 @@ describe("AiGuesserEngine", () => {
   it("emits no state and makes no calls after dispose", async () => {
     const h = harness();
     h.engine.start();
-    await draw(h, [BASE_STROKE]);
+    await firstLook(h, [BASE_STROKE]);
 
     const emitted = h.states.length;
     h.engine.dispose();
@@ -445,6 +464,7 @@ describe("AiGuesserEngine", () => {
     const h = harness();
     h.engine.start();
     h.engine.setShapes([BASE_STROKE]);
+    h.advance(AI_GUESSER_CONFIG.DEBOUNCE_MS);
 
     h.fireTimer();
     await flush();
@@ -456,7 +476,7 @@ describe("AiGuesserEngine", () => {
   it("forwards mode to the model call without a candidate list", async () => {
     const h = harness();
     h.engine.setMode("open");
-    await draw(h, [BASE_STROKE]);
+    await firstLook(h, [BASE_STROKE]);
 
     expect(h.analyzeCalls[0].mode).toBe("open");
     expect(h.analyzeCalls[0]).not.toHaveProperty("candidates");
@@ -464,7 +484,7 @@ describe("AiGuesserEngine", () => {
 
   it("stores the spoken line from an accepted response", async () => {
     const h = harness();
-    await draw(h, [BASE_STROKE]);
+    await firstLook(h, [BASE_STROKE]);
     h.pending[0].resolve({
       ...result(1, "dog", 0.8),
       line: "Wait, is that a tail? I'm going with dog.",
@@ -476,14 +496,15 @@ describe("AiGuesserEngine", () => {
     expect(h.state().line).toBeNull();
   });
 
-  it("passes previous guesses as context on later calls", async () => {
+  it("passes previous shouts as context on later calls", async () => {
     const h = harness();
-    await draw(h, [BASE_STROKE]);
+    await firstLook(h, [BASE_STROKE]);
     h.pending[0].resolve(result(1, "dog", 0.8));
     await flush();
 
-    h.advance(5000);
-    await draw(h, [BASE_STROKE, SECOND_STROKE]);
+    h.engine.setShapes([BASE_STROKE, SECOND_STROKE]);
+    h.engine.tick();
+    await flush();
 
     expect(h.analyzeCalls[1].previousGuesses).toEqual(["dog"]);
   });
