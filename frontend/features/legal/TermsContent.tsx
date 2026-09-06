@@ -11,6 +11,7 @@ const TOC = [
   { id: "multiplayer", label: "Multiplayer interactions" },
   { id: "ip", label: "Intellectual property" },
   { id: "third-parties", label: "Third-party services" },
+  { id: "cookies", label: "Cookies and similar technologies" },
   { id: "availability", label: "Service availability" },
   { id: "termination", label: "Termination and suspension" },
   { id: "disclaimers", label: "Disclaimer of warranties" },
@@ -26,7 +27,8 @@ export function TermsContent() {
     <LegalDocument
       eyebrow="Legal"
       title="Terms & Conditions"
-      lastUpdated="August 4, 2026"
+      lastUpdated="September 7, 2026"
+      lastUpdatedIso="2026-09-07"
       description="The rules and conditions that apply when you access or use Svigl."
       toc={TOC}
       relatedHref="/policies"
@@ -37,7 +39,8 @@ export function TermsContent() {
           These Terms &amp; Conditions (&quot;Terms&quot;) govern your access to and use of Svigl
           (the &quot;Service&quot;). By accessing or using the Service — including by signing in with
           Google, playing as a guest, joining a room, drawing, chatting, browsing galleries, or using
-          Labs — you agree to these Terms and acknowledge our{" "}
+          Labs — you agree to these Terms, including the cookie practices described below, and
+          acknowledge our{" "}
           <Link href="/policies">Privacy Policy</Link>.
         </p>
         <p>If you do not agree, do not use the Service.</p>
@@ -225,7 +228,95 @@ export function TermsContent() {
         </p>
       </LegalSection>
 
-      <LegalSection id="availability" title="10. Service availability">
+      <LegalSection id="cookies" title="10. Cookies and similar technologies">
+        <p>
+          The Service uses cookies and similar technologies (including browser{" "}
+          <code className="rounded bg-plum-light px-1.5 py-0.5 font-mono text-[0.85em] text-plum">
+            localStorage
+          </code>{" "}
+          and{" "}
+          <code className="rounded bg-plum-light px-1.5 py-0.5 font-mono text-[0.85em] text-plum">
+            sessionStorage
+          </code>
+          ) to operate accounts, keep you signed in, remember gameplay state, and — when configured
+          — measure how the Service is used. More detail, including named storage keys, is in our{" "}
+          <Link href="/policies#cookies">Privacy Policy</Link>.
+        </p>
+
+        <h3 className="pt-1 text-base font-bold text-ink">Essential cookies and storage</h3>
+        <p>
+          These technologies are required for the Service to function as offered. By using the
+          Service, you understand that we set and read them as needed to provide authentication,
+          guest continuity, rooms, and related core features:
+        </p>
+        <ul>
+          <li>
+            <strong>Authentication cookie</strong> (
+            <code className="rounded bg-plum-light px-1.5 py-0.5 font-mono text-[0.85em] text-plum">
+              svigl_access_token
+            </code>
+            ) — an HTTP-only cookie containing a signed session token so you stay signed in;
+          </li>
+          <li>
+            <strong>OAuth session cookie</strong> — a short-lived server session cookie used during
+            Google sign-in to hold redirect and OAuth state;
+          </li>
+          <li>
+            <strong>Token fallback</strong> — in some browsers (especially where cross-site cookies
+            are blocked), a short-lived token stored in session storage and sent with API or
+            WebSocket requests;
+          </li>
+          <li>
+            <strong>Guest device identifier</strong> — a browser-stored identifier used to create or
+            reconnect a guest account; and
+          </li>
+          <li>
+            <strong>Functional preferences and room state</strong> — values such as the active room
+            code, tab-lock information, post-sign-in redirect path, onboarding dismissal, and similar
+            interface preferences.
+          </li>
+        </ul>
+        <p>
+          If you block or clear essential cookies or site storage, sign-in, guest reconnection, room
+          continuity, or other core features may stop working.
+        </p>
+
+        <h3 className="pt-1 text-base font-bold text-ink">Analytics cookies</h3>
+        <p>
+          When a Google Analytics measurement ID is configured for a deployment, Google Analytics 4
+          may set or read its own cookies (typically including{" "}
+          <code className="rounded bg-plum-light px-1.5 py-0.5 font-mono text-[0.85em] text-plum">
+            _ga
+          </code>{" "}
+          and related identifiers) to understand usage of the Service. These are not required to play
+          or sign in. They are distinct from Svigl&apos;s essential authentication cookies.
+        </p>
+        <p>
+          Svigl does not currently display a cookie-consent banner. Essential cookies are used
+          because they are necessary to provide the Service you requested. Analytics cookies, when
+          enabled, are set by the Google Analytics script on page load. You can limit or block
+          analytics cookies through your browser settings, extensions, or other tools. Where
+          applicable law requires prior consent before analytics cookies are set, we will not treat
+          continued browsing alone as consent for that purpose.
+        </p>
+
+        <h3 className="pt-1 text-base font-bold text-ink">Your choices</h3>
+        <p>You can control cookies and similar technologies by:</p>
+        <ul>
+          <li>using your browser controls to block, delete, or limit cookies and site storage;</li>
+          <li>signing out, which clears your active authentication session; and</li>
+          <li>
+            contacting us using the details in the Contact section if you want information about
+            cookies used on your account or deployment.
+          </li>
+        </ul>
+        <p>
+          Third-party cookies (including Google&apos;s) are also subject to those providers&apos; own
+          terms and privacy practices.
+        </p>
+      </LegalSection>
+
+      <LegalSection id="availability" title="11. Service availability">
         <p>
           We aim to keep the Service available, but we do not guarantee uninterrupted, error-free, or
           always-available operation.
@@ -243,7 +334,7 @@ export function TermsContent() {
         </p>
       </LegalSection>
 
-      <LegalSection id="termination" title="11. Termination and suspension">
+      <LegalSection id="termination" title="12. Termination and suspension">
         <p>
           We may restrict, suspend, or terminate your access to the Service, in whole or in part, if
           we reasonably believe that you have:
@@ -263,7 +354,7 @@ export function TermsContent() {
         </p>
       </LegalSection>
 
-      <LegalSection id="disclaimers" title="12. Disclaimer of warranties">
+      <LegalSection id="disclaimers" title="13. Disclaimer of warranties">
         <p>
           To the fullest extent permitted by applicable law, the Service is provided on an
           &quot;as is&quot; and &quot;as available&quot; basis. We disclaim warranties of any kind,
@@ -281,7 +372,7 @@ export function TermsContent() {
         </p>
       </LegalSection>
 
-      <LegalSection id="liability" title="13. Limitation of liability">
+      <LegalSection id="liability" title="14. Limitation of liability">
         <p>
           To the fullest extent permitted by applicable law, Svigl and its operators, contributors,
           and service providers will not be liable for any indirect, incidental, special,
@@ -301,7 +392,7 @@ export function TermsContent() {
         </p>
       </LegalSection>
 
-      <LegalSection id="indemnification" title="14. Indemnification">
+      <LegalSection id="indemnification" title="15. Indemnification">
         <p>
           To the extent permitted by applicable law, you agree to indemnify and hold harmless Svigl
           and its operators and contributors from and against reasonable claims, liabilities, damages,
@@ -314,7 +405,7 @@ export function TermsContent() {
         </ul>
       </LegalSection>
 
-      <LegalSection id="changes" title="15. Changes to the service or terms">
+      <LegalSection id="changes" title="16. Changes to the service or terms">
         <p>
           We may update these Terms from time to time. When we do, we will revise the &quot;Last
           updated&quot; date at the top of this page. For material revisions, we may also provide
@@ -326,7 +417,7 @@ export function TermsContent() {
         </p>
       </LegalSection>
 
-      <LegalSection id="governing-law" title="16. Governing law">
+      <LegalSection id="governing-law" title="17. Governing law">
         <p>
           <strong>[GOVERNING LAW / JURISDICTION TO BE CONFIRMED]</strong>
         </p>
@@ -337,7 +428,7 @@ export function TermsContent() {
         </p>
       </LegalSection>
 
-      <LegalSection id="contact" title="17. Contact">
+      <LegalSection id="contact" title="18. Contact">
         <p>For questions about these Terms, contact:</p>
         <ul>
           <li>

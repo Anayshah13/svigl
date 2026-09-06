@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { GoogleAnalytics } from "@next/third-parties/google";
 import { Caveat, DM_Sans, Geist_Mono } from "next/font/google";
 import localFont from "next/font/local";
@@ -8,6 +8,18 @@ import { AuroraBackground } from "@/components/layout/AuroraBackground";
 import { AuthProvider } from "@/components/auth/AuthProvider";
 import { ActiveRoomBar } from "@/components/room/ActiveRoomBar";
 import { RoomPresenceKeeper } from "@/components/room/RoomPresenceKeeper";
+import { JsonLd } from "@/components/seo/JsonLd";
+import {
+  AUTHOR_NAME,
+  AUTHOR_PORTFOLIO_URL,
+  DEFAULT_DESCRIPTION,
+  DEFAULT_TITLE,
+  SITE_KEYWORDS,
+  SITE_LOCALE,
+  SITE_NAME,
+  SITE_URL,
+  siteJsonLdGraph,
+} from "@/lib/seo";
 
 /** GA4 Measurement ID — never hardcode; omit component when unset (local/dev). */
 const gaMeasurementId = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID?.trim();
@@ -36,14 +48,48 @@ const galindo = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "Svigl - Challenge your Friends",
-  description: "SVG drawing gallery built from editable vector primitives.",
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default: DEFAULT_TITLE,
+    template: `%s | ${SITE_NAME}`,
+  },
+  description: DEFAULT_DESCRIPTION,
+  applicationName: SITE_NAME,
+  authors: [{ name: AUTHOR_NAME, url: AUTHOR_PORTFOLIO_URL }],
+  creator: AUTHOR_NAME,
+  publisher: AUTHOR_NAME,
+  keywords: [...SITE_KEYWORDS],
+  alternates: { canonical: "/" },
+  openGraph: {
+    type: "website",
+    locale: SITE_LOCALE,
+    url: SITE_URL,
+    siteName: SITE_NAME,
+    title: DEFAULT_TITLE,
+    description: DEFAULT_DESCRIPTION,
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: DEFAULT_TITLE,
+    description: DEFAULT_DESCRIPTION,
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+    },
+  },
+  category: "games",
+  manifest: "/manifest.webmanifest",
 };
 
-export const viewport = {
+export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  viewportFit: "cover" as const,
+  viewportFit: "cover",
+  themeColor: "#FAFAF8",
 };
 
 export default function RootLayout({
@@ -66,6 +112,7 @@ export default function RootLayout({
           paddingRight: "env(safe-area-inset-right, 0px)",
         }}
       >
+        <JsonLd data={siteJsonLdGraph()} />
         <AuroraBackground />
         <AuthProvider>
           <AppHeader />

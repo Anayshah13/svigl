@@ -12,6 +12,7 @@ type NavItem = {
   href: string;
   label: string;
   activePrefix?: string;
+  external?: boolean;
 };
 
 const STATIC_NAV: NavItem[] = [
@@ -20,6 +21,8 @@ const STATIC_NAV: NavItem[] = [
   { href: "/labs", label: "Labs" },
   { href: "/settings", label: "Settings" },
   { href: "/feedback", label: "Feedback" },
+  { href: "https://anay13.tech", label: "Portfolio", external: true },
+  { href: "/blog", label: "Blog" },
 ];
 
 const MINIMAL_HEADER_PATHS = ["/sign-in", "/auth/callback"];
@@ -70,23 +73,37 @@ function NavLink({
   active,
   onNavigate,
   className,
+  external,
 }: {
   href: string;
   label: string;
   active: boolean;
   onNavigate?: () => void;
   className?: string;
+  external?: boolean;
 }) {
+  const classes = cn(
+    "relative rounded-full px-2.5 py-2 text-sm font-medium transition-colors lg:px-3.5",
+    active ? "text-plum" : "text-ink-muted hover:text-ink",
+    className,
+  );
+
+  if (external) {
+    return (
+      <a
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={onNavigate}
+        className={classes}
+      >
+        <span className="relative z-10">{label}</span>
+      </a>
+    );
+  }
+
   return (
-    <Link
-      href={href}
-      onClick={onNavigate}
-      className={cn(
-        "relative rounded-full px-4 py-2 text-sm font-medium transition-colors",
-        active ? "text-plum" : "text-ink-muted hover:text-ink",
-        className,
-      )}
-    >
+    <Link href={href} onClick={onNavigate} className={classes}>
       {active && (
         <motion.span
           layoutId="nav-pill"
@@ -156,14 +173,23 @@ export function AppHeader() {
           </div>
         ) : null}
 
-        <nav className="absolute left-1/2 hidden -translate-x-1/2 items-center gap-1 md:flex">
-          {nav.map(({ href, label, activePrefix }) => {
+        <nav className="absolute left-1/2 hidden -translate-x-1/2 items-center gap-0.5 md:flex lg:gap-1">
+          {nav.map(({ href, label, activePrefix, external }) => {
             const prefix = activePrefix ?? href;
             const active =
-              prefix === "/"
+              !external &&
+              (prefix === "/"
                 ? pathname === "/"
-                : pathname === prefix || pathname.startsWith(`${prefix}/`);
-            return <NavLink key={label} href={href} label={label} active={active} />;
+                : pathname === prefix || pathname.startsWith(`${prefix}/`));
+            return (
+              <NavLink
+                key={label}
+                href={href}
+                label={label}
+                active={active}
+                external={external}
+              />
+            );
           })}
         </nav>
 
@@ -216,12 +242,13 @@ export function AppHeader() {
                 }}
               >
                 <nav className="flex flex-col gap-0.5 p-1.5">
-                  {nav.map(({ href, label, activePrefix }, i) => {
+                  {nav.map(({ href, label, activePrefix, external }, i) => {
                     const prefix = activePrefix ?? href;
                     const active =
-                      prefix === "/"
+                      !external &&
+                      (prefix === "/"
                         ? pathname === "/"
-                        : pathname === prefix || pathname.startsWith(`${prefix}/`);
+                        : pathname === prefix || pathname.startsWith(`${prefix}/`));
                     return (
                       <motion.div
                         key={label}
@@ -237,6 +264,7 @@ export function AppHeader() {
                           href={href}
                           label={label}
                           active={active}
+                          external={external}
                           onNavigate={() => setMenuOpen(false)}
                           className="flex min-h-11 w-full items-center rounded-xl px-3 py-2.5 text-sm"
                         />

@@ -13,6 +13,7 @@ type LegalDocumentProps = {
   eyebrow: string;
   title: string;
   lastUpdated: string;
+  lastUpdatedIso: string;
   description: string;
   toc: LegalTocItem[];
   relatedHref: string;
@@ -24,6 +25,7 @@ export function LegalDocument({
   eyebrow,
   title,
   lastUpdated,
+  lastUpdatedIso,
   description,
   toc,
   relatedHref,
@@ -46,7 +48,7 @@ export function LegalDocument({
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-ink-muted">
             <p>
               Last updated:{" "}
-              <time dateTime="2026-08-04" className="font-medium text-ink">
+              <time dateTime={lastUpdatedIso} className="font-medium text-ink">
                 {lastUpdated}
               </time>
             </p>
@@ -113,6 +115,12 @@ export function LegalDocument({
               className="font-medium text-ink-muted transition-colors hover:text-plum focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-plum/40"
             >
               Terms &amp; Conditions
+            </Link>
+            <Link
+              href="/termsandconditions#cookies"
+              className="font-medium text-ink-muted transition-colors hover:text-plum focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-plum/40"
+            >
+              Cookies
             </Link>
             <Link
               href="/feedback"

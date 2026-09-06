@@ -1,29 +1,13 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useEffect } from "react";
 import { LandingPage } from "@/features/landing/LandingPage";
-import { LoaderScreen } from "@/features/loaders";
-import { useSessionStore } from "@/stores/session";
 
+/**
+ * Homepage entry. The marketing landing is public so signed-out humans and
+ * crawlers get the same HTML — no user-agent cloaking and no bounce to
+ * `/sign-in`. Signed-in users stay here; this is also the app home
+ * (create / join room). App-only routes stay gated elsewhere.
+ */
 export function HomeGate() {
-  const router = useRouter();
-  const authUser = useSessionStore((s) => s.authUser);
-  const authReady = useSessionStore((s) => s.authReady);
-
-  useEffect(() => {
-    if (authReady && !authUser) {
-      router.replace("/sign-in");
-    }
-  }, [authReady, authUser, router]);
-
-  if (!authReady) {
-    return <LoaderScreen kind="bars" label="Loading…" />;
-  }
-
-  if (!authUser) {
-    return null;
-  }
-
   return <LandingPage />;
 }

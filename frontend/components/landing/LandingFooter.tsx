@@ -16,11 +16,13 @@ const CONNECT_LINKS: FooterLink[] = [
   { label: "GitHub", href: "https://github.com/Anayshah13/svigl", external: true },
   { label: "LinkedIn", href: "https://www.linkedin.com/in/anay-shah-5880aa264/", external: true },
   { label: "Portfolio", href: "https://anay13.tech", external: true },
+  { label: "Blog", href: "/blog" },
 ];
 
 const LEGAL_LINKS: FooterLink[] = [
   { label: "Privacy Policy", href: "/policies" },
   { label: "Terms & Conditions", href: "/termsandconditions" },
+  { label: "Cookies", href: "/termsandconditions#cookies" },
 ];
 
 function GitHubIcon() {
@@ -51,6 +53,17 @@ function PortfolioIcon() {
       <path
         fill="currentColor"
         d="M14 3a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v6a1 1 0 1 1-2 0V6.41l-9.29 9.3a1 1 0 0 1-1.42-1.42L18.59 5H15a1 1 0 0 1-1-1ZM5 5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-5a1 1 0 1 1 2 0v5a4 4 0 0 1-4 4H5a4 4 0 0 1-4-4V7a4 4 0 0 1 4-4h5a1 1 0 1 1 0 2H5Z"
+      />
+    </svg>
+  );
+}
+
+function BlogIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4">
+      <path
+        fill="currentColor"
+        d="M6 3a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9.83a2 2 0 0 0-.59-1.41l-4.83-4.83A2 2 0 0 0 13.17 3H6Zm7 1.5L18.5 10H14a1 1 0 0 1-1-1V4.5ZM8 13a1 1 0 1 1 0-2h8a1 1 0 1 1 0 2H8Zm0 4a1 1 0 1 1 0-2h5a1 1 0 1 1 0 2H8Z"
       />
     </svg>
   );
@@ -162,6 +175,7 @@ export function LandingFooter() {
     { label: "Home", href: "/" },
     { label: "Gallery", href: "/gallery" },
     { label: "Labs", href: "/labs" },
+    { label: "Blog", href: "/blog" },
     { label: "Profile", href: authUser ? profilePath(authUser.username) : "/profile" },
     { label: "Feedback", href: "/feedback" },
   ];
@@ -335,6 +349,15 @@ export function LandingFooter() {
               >
                 <PortfolioIcon />
               </motion.a>
+              <motion.div whileHover={{ y: -2 }}>
+                <Link
+                  href="/blog"
+                  aria-label="Blog"
+                  className="inline-flex h-11 w-11 touch-manipulation items-center justify-center rounded-full border border-plum/15 bg-white/70 text-ink-muted transition-colors hover:border-plum/40 hover:bg-white hover:text-plum"
+                >
+                  <BlogIcon />
+                </Link>
+              </motion.div>
             </div>
           </motion.div>
         </div>

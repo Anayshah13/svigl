@@ -24,7 +24,8 @@ export function PrivacyPolicyContent() {
     <LegalDocument
       eyebrow="Legal"
       title="Privacy Policy"
-      lastUpdated="August 4, 2026"
+      lastUpdated="September 7, 2026"
+      lastUpdatedIso="2026-09-07"
       description="How Svigl collects, uses, stores, and handles information when you access or use the service."
       toc={TOC}
       relatedHref="/termsandconditions"
@@ -211,36 +212,80 @@ export function PrivacyPolicyContent() {
       </LegalSection>
 
       <LegalSection id="cookies" title="6. Cookies and similar technologies">
+        <p>
+          This section is Svigl&apos;s cookie policy. It should be read with the{" "}
+          <Link href="/termsandconditions#cookies">Cookies and similar technologies</Link> section of
+          the Terms &amp; Conditions.
+        </p>
+        <p>
+          We use cookies and similar technologies because they are needed to run accounts and
+          gameplay, and — when a deployment is configured for analytics — to understand how the
+          Service is used. We do not currently show a cookie-consent banner.
+        </p>
+
         <h3 className="text-base font-bold text-ink">Essential authentication and session technologies</h3>
-        <p>We use cookies and related storage that are needed for core Service functionality, including:</p>
+        <p>These are needed for core Service functionality:</p>
         <ul>
           <li>
-            an HTTP-only authentication cookie (<code className="rounded bg-plum-light px-1.5 py-0.5 font-mono text-[0.85em] text-plum">svigl_access_token</code>) containing a signed session token;
+            an HTTP-only authentication cookie (
+            <code className="rounded bg-plum-light px-1.5 py-0.5 font-mono text-[0.85em] text-plum">
+              svigl_access_token
+            </code>
+            ) containing a signed session token, typically lasting up to seven days unless you sign
+            out earlier;
           </li>
           <li>
-            a server session cookie used during Google OAuth (including redirect and OAuth state
-            handling); and
+            a server session cookie (
+            <code className="rounded bg-plum-light px-1.5 py-0.5 font-mono text-[0.85em] text-plum">
+              session
+            </code>
+            ) used during Google OAuth, including redirect and OAuth state handling; and
           </li>
           <li>
             in some browser environments, a short-lived token fallback stored in{" "}
-            <code className="rounded bg-plum-light px-1.5 py-0.5 font-mono text-[0.85em] text-plum">sessionStorage</code>{" "}
-            and sent with API or WebSocket requests.
+            <code className="rounded bg-plum-light px-1.5 py-0.5 font-mono text-[0.85em] text-plum">
+              sessionStorage
+            </code>{" "}
+            (
+            <code className="rounded bg-plum-light px-1.5 py-0.5 font-mono text-[0.85em] text-plum">
+              svigl:access_token
+            </code>
+            ) and sent with API or WebSocket requests.
           </li>
         </ul>
 
         <h3 className="pt-1 text-base font-bold text-ink">Local and session storage</h3>
         <p>The Service may store information in your browser such as:</p>
         <ul>
-          <li>a persistent guest device identifier;</li>
+          <li>
+            a persistent guest device identifier (
+            <code className="rounded bg-plum-light px-1.5 py-0.5 font-mono text-[0.85em] text-plum">
+              svigl:guest_device_id
+            </code>
+            );
+          </li>
           <li>active room code and tab-lock information used to manage room sessions;</li>
-          <li>post-authentication redirect paths; and</li>
-          <li>onboarding dismissal preferences.</li>
+          <li>post-authentication redirect paths;</li>
+          <li>onboarding dismissal preferences; and</li>
+          <li>certain feature preferences (for example, AI-guesser mute state).</li>
         </ul>
 
         <h3 className="pt-1 text-base font-bold text-ink">Analytics technologies</h3>
         <p>
           When Google Analytics is enabled, Google may set or read cookies or similar identifiers used
-          for analytics. These are distinct from Svigl&apos;s essential authentication cookies.
+          for analytics (typically{" "}
+          <code className="rounded bg-plum-light px-1.5 py-0.5 font-mono text-[0.85em] text-plum">
+            _ga
+          </code>{" "}
+          and related Google Analytics cookies). These are distinct from Svigl&apos;s essential
+          authentication cookies and are not required to use the Service.
+        </p>
+        <p>
+          Essential cookies are used as strictly necessary to provide the Service you request.
+          Analytics cookies are not strictly necessary. Svigl does not currently collect prior
+          consent before loading Google Analytics when a measurement ID is configured. If you are in
+          a region that requires consent for analytics cookies, you may refuse them through your
+          browser or other available tools, and you may contact us using the details below.
         </p>
         <p>
           You can control cookies through your browser settings. Blocking essential cookies may prevent

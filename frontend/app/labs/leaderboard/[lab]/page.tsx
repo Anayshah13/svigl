@@ -6,6 +6,8 @@ import {
   getLabBySlug,
   isLabSlug,
 } from "@/features/labs";
+import { JsonLd } from "@/components/seo/JsonLd";
+import { breadcrumbJsonLd, createPageMetadata } from "@/lib/seo";
 
 interface LabLeaderboardPageProps {
   params: Promise<{ lab: string }>;
@@ -21,12 +23,18 @@ export async function generateMetadata({
   const { lab: slug } = await params;
   const lab = getLabBySlug(slug);
   if (!lab) {
-    return { title: "Leaderboard not found — Svigl Labs" };
+    return createPageMetadata({
+      title: "Leaderboard not found",
+      description: "That Svigl Labs leaderboard does not exist.",
+      path: `/labs/leaderboard/${slug}`,
+      index: false,
+    });
   }
-  return {
-    title: `${lab.name} Leaderboard — Svigl Labs`,
-    description: `Top players for ${lab.name}.`,
-  };
+  return createPageMetadata({
+    title: `${lab.name} leaderboard`,
+    description: `Top Svigl Labs scores for ${lab.name}.`,
+    path: `/labs/leaderboard/${lab.slug}`,
+  });
 }
 
 export default async function LabLeaderboardPage({ params }: LabLeaderboardPageProps) {
@@ -34,5 +42,17 @@ export default async function LabLeaderboardPage({ params }: LabLeaderboardPageP
   if (!isLabSlug(slug)) notFound();
   const lab = getLabBySlug(slug);
   if (!lab) notFound();
-  return <LabLeaderboardView lab={lab} />;
+  return (
+    <>
+      <JsonLd
+        data={breadcrumbJsonLd([
+          { name: "Svigl", path: "/" },
+          { name: "Labs", path: "/labs" },
+          { name: "Leaderboard", path: "/labs/leaderboard" },
+          { name: lab.name, path: `/labs/leaderboard/${lab.slug}` },
+        ])}
+      />
+      <LabLeaderboardView lab={lab} />
+    </>
+  );
 }
