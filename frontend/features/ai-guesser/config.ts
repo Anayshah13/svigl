@@ -41,7 +41,7 @@ export const AI_GUESSER_CONFIG: AiGuesserConfig = {
   // Same numbers as backend bot_guess_* settings.
   DEBOUNCE_MS: 4000,
   TICK_INTERVAL_MS: 400,
-  MAX_CALLS_PER_TURN: 8,
+  MAX_CALLS_PER_TURN: 12,
   MIN_CONFIDENCE: 0.22,
 
   NEW_SHAPE_SATURATION: 3,

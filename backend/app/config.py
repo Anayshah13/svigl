@@ -82,7 +82,7 @@ class Settings(BaseSettings):
     bot_guess_debounce_seconds: float = 4.0
     bot_guess_interval_seconds: float = 5.0
     bot_guess_timeout_seconds: float = 18.0
-    bot_max_guess_calls_per_turn: int = 8
+    bot_max_guess_calls_per_turn: int = 12
     bot_global_ai_concurrency: int = 4
     bot_guess_min_confidence: float = 0.22
 
