@@ -2,12 +2,14 @@
 
 import * as React from "react";
 import type { WhiteboardShape } from "@/features/whiteboard/types";
+import { isAbortError } from "@/lib/api";
 import { fetchAiGuesserConfig, requestAiGuess } from "@/services/ai-guesser";
 import { AI_GUESSER_CONFIG, type AiGuesserConfig } from "./config";
 import { AiGuesserEngine } from "./engine";
 import { renderDrawingSnapshot } from "./snapshot";
 import {
   createInitialState,
+  type AiGuessMatchState,
   type AiGuesserState,
   type AnalyzeInput,
   type AnalyzeResult,
@@ -54,6 +56,11 @@ async function analyzeWithTimeout(
   } catch (error) {
     // Engine abort (reset/unmount) wins over a timer that fired in the same tick.
     if (timedOut && !signal.aborted) throw new Error("AI guesser timed out");
+    if (signal.aborted) {
+      throw isAbortError(error)
+        ? error
+        : new DOMException("The operation was aborted.", "AbortError");
+    }
     throw error;
   } finally {
     clearTimeout(timer);
@@ -65,6 +72,9 @@ export interface UseAiGuesserOptions {
   initialMode?: CandidateMode;
   config?: Partial<AiGuesserConfig>;
   onAcceptedGuesses?: (guesses: GuessItem[]) => void;
+  onMatch?: (match: AiGuessMatchState) => void;
+  runId?: string | null;
+  promptIndex?: number | null;
 }
 
 export interface UseAiGuesserResult {
@@ -91,10 +101,19 @@ export function useAiGuesser(
     initialMode = "game",
     config: configOverrides,
     onAcceptedGuesses,
+    onMatch,
+    runId = null,
+    promptIndex = null,
   } = options;
 
   const onAcceptedRef = React.useRef(onAcceptedGuesses);
   onAcceptedRef.current = onAcceptedGuesses;
+  const onMatchRef = React.useRef(onMatch);
+  onMatchRef.current = onMatch;
+  const runIdRef = React.useRef(runId);
+  runIdRef.current = runId;
+  const promptIndexRef = React.useRef(promptIndex);
+  promptIndexRef.current = promptIndex;
 
   const [state, setState] = React.useState<AiGuesserState>(createInitialState);
   const [mode, setModeState] = React.useState<CandidateMode>(initialMode);
@@ -118,8 +137,19 @@ export function useAiGuesser(
   React.useEffect(() => {
     const engine = new AiGuesserEngine({
       renderSnapshot: renderDrawingSnapshot,
-      analyze: (input, signal) =>
-        analyzeWithTimeout(input, signal, config.REQUEST_TIMEOUT_MS),
+      analyze: async (input, signal) => {
+        const result = await analyzeWithTimeout(
+          {
+            ...input,
+            runId: runIdRef.current,
+            promptIndex: promptIndexRef.current,
+          },
+          signal,
+          config.REQUEST_TIMEOUT_MS,
+        );
+        if (result.match) onMatchRef.current?.(result.match);
+        return result;
+      },
       onState: setState,
       config: configOverrides,
       logger: IS_DEV ? devLog : undefined,

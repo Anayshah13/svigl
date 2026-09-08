@@ -203,7 +203,7 @@ def test_valid_response_is_parsed(monkeypatch, enabled):
     assert [g.answer for g in result.guesses] == ["star wars", "spaceship"]
     assert result.guesses[0].confidence == pytest.approx(0.74)
     assert result.line == ""
-    assert result.model == "gemini-test-lite"
+    assert result.model == "AnAI 1.3 Pro"
     assert result.mode == "game"
     assert result.latency_ms >= 0
     assert result.usage is not None
@@ -571,7 +571,8 @@ def test_config_endpoint_reports_availability_without_leaking_key(
     assert response.status_code == 200
     payload = response.json()
     assert payload["enabled"] is True
-    assert payload["model"] == "gemini-test-lite"
+    assert payload["model"] == "AnAI 1.3 Pro"
+    assert "gemini" not in response.text.lower()
     assert API_KEY not in response.text
 
 
@@ -597,8 +598,9 @@ def test_guess_endpoint_returns_normalized_payload(client, monkeypatch, enabled)
     assert payload["guesses"] == [{"answer": "star wars", "confidence": 0.74}]
     assert payload["line"] == ""
     assert payload["drawing_version"] == 3
-    assert payload["model"] == "gemini-test-lite"
+    assert payload["model"] == "AnAI 1.3 Pro"
     assert "latency_ms" in payload
+    assert "gemini" not in response.text.lower()
     assert API_KEY not in response.text
 
 

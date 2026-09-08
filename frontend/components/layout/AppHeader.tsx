@@ -12,17 +12,13 @@ type NavItem = {
   href: string;
   label: string;
   activePrefix?: string;
-  external?: boolean;
 };
 
 const STATIC_NAV: NavItem[] = [
   { href: "/", label: "Home" },
   { href: "/gallery", label: "Gallery" },
   { href: "/labs", label: "Labs" },
-  { href: "/settings", label: "Settings" },
   { href: "/feedback", label: "Feedback" },
-  { href: "https://anay13.tech", label: "Portfolio", external: true },
-  { href: "/blog", label: "Blog" },
 ];
 
 const MINIMAL_HEADER_PATHS = ["/sign-in", "/auth/callback"];
@@ -73,37 +69,23 @@ function NavLink({
   active,
   onNavigate,
   className,
-  external,
 }: {
   href: string;
   label: string;
   active: boolean;
   onNavigate?: () => void;
   className?: string;
-  external?: boolean;
 }) {
-  const classes = cn(
-    "relative rounded-full px-2.5 py-2 text-sm font-medium transition-colors lg:px-3.5",
-    active ? "text-plum" : "text-ink-muted hover:text-ink",
-    className,
-  );
-
-  if (external) {
-    return (
-      <a
-        href={href}
-        target="_blank"
-        rel="noopener noreferrer"
-        onClick={onNavigate}
-        className={classes}
-      >
-        <span className="relative z-10">{label}</span>
-      </a>
-    );
-  }
-
   return (
-    <Link href={href} onClick={onNavigate} className={classes}>
+    <Link
+      href={href}
+      onClick={onNavigate}
+      className={cn(
+        "relative rounded-full px-2.5 py-2 text-sm font-medium transition-colors lg:px-3.5",
+        active ? "text-plum" : "text-ink-muted hover:text-ink",
+        className,
+      )}
+    >
       {active && (
         <motion.span
           layoutId="nav-pill"
@@ -151,15 +133,18 @@ export function AppHeader() {
 
   const isLandingHome = pathname === "/";
   const authOnLeft = isLandingHome && !mdUp;
-  // In-room / demo pages own the full viewport on mobile (game UI has its own chrome).
+  // In-room / demo own the full viewport on mobile; AI guesser stays
+  // immersive through tablet / landscape (lg) so the board never scrolls.
   const hideHeaderOnMobile =
     pathname.startsWith("/room/") || pathname.startsWith("/demo");
+  const hideHeaderUntilLg = pathname.startsWith("/ai-guesser");
 
   return (
     <header
       className={cn(
         "sticky top-0 z-50 border-b border-white/60 bg-white/70 backdrop-blur-xl",
         hideHeaderOnMobile && "hidden md:block",
+        hideHeaderUntilLg && "hidden lg:block",
       )}
     >
       <div className="mx-auto flex h-14 w-full max-w-7xl items-center gap-3 px-4 sm:h-16 sm:px-6">
@@ -174,20 +159,18 @@ export function AppHeader() {
         ) : null}
 
         <nav className="absolute left-1/2 hidden -translate-x-1/2 items-center gap-0.5 md:flex lg:gap-1">
-          {nav.map(({ href, label, activePrefix, external }) => {
+          {nav.map(({ href, label, activePrefix }) => {
             const prefix = activePrefix ?? href;
             const active =
-              !external &&
-              (prefix === "/"
+              prefix === "/"
                 ? pathname === "/"
-                : pathname === prefix || pathname.startsWith(`${prefix}/`));
+                : pathname === prefix || pathname.startsWith(`${prefix}/`);
             return (
               <NavLink
                 key={label}
                 href={href}
                 label={label}
                 active={active}
-                external={external}
               />
             );
           })}
@@ -242,13 +225,12 @@ export function AppHeader() {
                 }}
               >
                 <nav className="flex flex-col gap-0.5 p-1.5">
-                  {nav.map(({ href, label, activePrefix, external }, i) => {
+                  {nav.map(({ href, label, activePrefix }, i) => {
                     const prefix = activePrefix ?? href;
                     const active =
-                      !external &&
-                      (prefix === "/"
+                      prefix === "/"
                         ? pathname === "/"
-                        : pathname === prefix || pathname.startsWith(`${prefix}/`));
+                        : pathname === prefix || pathname.startsWith(`${prefix}/`);
                     return (
                       <motion.div
                         key={label}
@@ -264,7 +246,6 @@ export function AppHeader() {
                           href={href}
                           label={label}
                           active={active}
-                          external={external}
                           onNavigate={() => setMenuOpen(false)}
                           className="flex min-h-11 w-full items-center rounded-xl px-3 py-2.5 text-sm"
                         />

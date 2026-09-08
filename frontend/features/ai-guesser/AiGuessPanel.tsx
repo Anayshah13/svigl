@@ -11,6 +11,14 @@ import {
   type AiGuesserStatus,
 } from "./types";
 
+const STATUS_LABEL_SHORT: Record<AiGuesserStatus, string> = {
+  idle: "Waiting",
+  watching: "Watching",
+  thinking: "Thinking",
+  updated: "Guessed",
+  unavailable: "Offline",
+};
+
 const STATUS_STYLE: Record<AiGuesserStatus, string> = {
   idle: "bg-plum-light text-plum",
   watching: "bg-blue-light text-blue",
@@ -19,27 +27,31 @@ const STATUS_STYLE: Record<AiGuesserStatus, string> = {
   unavailable: "bg-ink/10 text-ink-muted",
 };
 
-/** Ticks only while a timestamp is on screen, for the "Xs ago" readout. */
-function useRelativeClock(active: boolean): number {
-  const [now, setNow] = React.useState(() => Date.now());
-
-  React.useEffect(() => {
-    if (!active) return;
-    const timer = setInterval(() => setNow(Date.now()), 250);
-    return () => clearInterval(timer);
-  }, [active]);
-
-  return now;
-}
-
-function Metric({ label, value }: { label: string; value: string }) {
+function MuteIcon({ muted }: { muted: boolean }) {
   return (
-    <div className="flex flex-col gap-0.5">
-      <span className="text-[0.65rem] font-semibold uppercase tracking-wide text-ink-muted">
-        {label}
-      </span>
-      <span className="font-mono text-sm font-semibold text-ink">{value}</span>
-    </div>
+    <svg
+      viewBox="0 0 24 24"
+      className="h-4 w-4"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      {muted ? (
+        <>
+          <path d="M11 5 6 9H3v6h3l5 4V5z" />
+          <path d="m16 10 6 6M22 10l-6 6" />
+        </>
+      ) : (
+        <>
+          <path d="M11 5 6 9H3v6h3l5 4V5z" />
+          <path d="M16 9a5 5 0 0 1 0 6" />
+          <path d="M18.5 7a8 8 0 0 1 0 10" />
+        </>
+      )}
+    </svg>
   );
 }
 
@@ -48,12 +60,12 @@ export interface AiGuessPanelProps {
   secret: string;
   solved: boolean;
   serviceEnabled: boolean | null;
-  model: string | null;
-  wordCount: number;
   muted?: boolean;
   speaking?: boolean;
   spokenText?: string;
   onToggleMute?: () => void;
+  /** Dock fills the desktop aside; strip is the mobile/landscape chat lane. */
+  variant?: "dock" | "strip";
   className?: string;
 }
 
@@ -62,12 +74,11 @@ export function AiGuessPanel({
   secret,
   solved,
   serviceEnabled,
-  model,
-  wordCount,
   muted = false,
   speaking = false,
   spokenText = "",
   onToggleMute,
+  variant = "dock",
   className,
 }: AiGuessPanelProps) {
   const disabled = serviceEnabled === false;
@@ -76,12 +87,14 @@ export function AiGuessPanel({
     : solved
       ? "updated"
       : state.status;
+  const strip = variant === "strip";
 
-  const now = useRelativeClock(state.lastAnalyzedAt !== null);
-  const secondsAgo =
-    state.lastAnalyzedAt === null
-      ? null
-      : Math.max(0, (now - state.lastAnalyzedAt) / 1000);
+  const listRef = React.useRef<HTMLDivElement>(null);
+  React.useEffect(() => {
+    const el = listRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+  }, [state.guesses.length, solved]);
 
   const latest = state.guesses[state.guesses.length - 1];
   const topConfidence = latest?.confidence ?? 0;
@@ -111,30 +124,31 @@ export function AiGuessPanel({
   return (
     <aside
       className={cn(
-        "flex w-full flex-col gap-4 rounded-3xl border border-plum/15 bg-bg-surface p-4 shadow-(--shadow-soft) sm:p-5",
+        "flex h-full min-h-0 w-full flex-col overflow-hidden rounded-2xl border border-plum/15 bg-white/90 sm:rounded-3xl",
         className,
       )}
     >
-      <header className="flex items-start justify-between gap-3">
-        <div>
-          <h2 className="font-display text-lg leading-tight text-ink">
-            AI Guesser
+      <header
+        className={cn(
+          "flex shrink-0 items-center justify-between gap-2 border-b border-plum/10",
+          strip ? "px-2.5 py-1.5" : "px-3 py-2",
+        )}
+      >
+        <div className="min-w-0">
+          <h2 className="text-xs font-bold uppercase tracking-wider text-ink-muted">
+            AnAI
           </h2>
-          {model ? (
-            <p className="font-mono text-[0.65rem] text-ink-muted">{model}</p>
-          ) : (
-            <p className="text-[0.65rem] text-ink-muted">
-              {wordCount} possible words
-            </p>
+          {strip ? null : (
+            <p className="text-[0.65rem] text-ink-muted">1.3 Pro</p>
           )}
         </div>
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex shrink-0 items-center gap-1.5">
           {onToggleMute ? (
             <button
               type="button"
               onClick={onToggleMute}
               className={cn(
-                "rounded-full px-3 py-1 text-xs font-semibold transition-colors",
+                "inline-flex min-h-9 touch-manipulation items-center gap-1 rounded-full px-2.5 text-xs font-semibold transition-colors",
                 muted
                   ? "bg-ink/10 text-ink-muted"
                   : speaking
@@ -144,135 +158,127 @@ export function AiGuessPanel({
               aria-pressed={!muted}
               aria-label={muted ? "Unmute AI voice" : "Mute AI voice"}
             >
-              {muted ? "Muted" : speaking ? "Speaking" : "Voice on"}
+              <MuteIcon muted={muted} />
+              <span className="hidden sm:inline">
+                {muted ? "Muted" : speaking ? "Live" : "Voice"}
+              </span>
             </button>
           ) : null}
-        <span
-          className={cn(
-            "shrink-0 rounded-full px-3 py-1 text-xs font-semibold",
-            STATUS_STYLE[status],
-          )}
-        >
-          {solved ? (
-            "Correct!"
-          ) : status === "thinking" ? (
-            <motion.span
-              animate={{ opacity: [1, 0.45, 1] }}
-              transition={{ duration: 1.2, repeat: Infinity }}
-            >
-              {STATUS_LABEL.thinking}
-            </motion.span>
-          ) : (
-            STATUS_LABEL[status]
-          )}
-        </span>
+          <span
+            className={cn(
+              "shrink-0 rounded-full px-2.5 py-1 text-[0.65rem] font-semibold",
+              STATUS_STYLE[status],
+            )}
+          >
+            {solved ? (
+              "Correct!"
+            ) : status === "thinking" ? (
+              <motion.span
+                animate={{ opacity: [1, 0.45, 1] }}
+                transition={{ duration: 1.2, repeat: Infinity }}
+              >
+                {STATUS_LABEL_SHORT.thinking}
+              </motion.span>
+            ) : (
+              STATUS_LABEL_SHORT[status]
+            )}
+          </span>
         </div>
       </header>
 
       {disabled ? (
-        <p className="rounded-2xl bg-plum-light px-3 py-2 text-sm text-ink-muted">
-          AI is not configured on this server. You can still draw freely.
+        <p className="shrink-0 bg-plum-light px-3 py-1.5 text-xs text-ink-muted">
+          AI is not configured on this server. You can still draw.
         </p>
       ) : null}
 
       {!disabled && !solved && state.errorMessage ? (
-        <p className="rounded-2xl bg-pink-light px-3 py-2 text-sm text-ink">
-          One of the last looks timed out. Keep drawing — it will try again.
+        <p className="shrink-0 bg-pink-light px-3 py-1.5 text-xs text-ink">
+          A look timed out. Keep drawing — it will try again.
         </p>
       ) : null}
 
-      <div className="min-h-[8.5rem]">
+      <div
+        ref={listRef}
+        className={cn(
+          "min-h-0 flex-1 overflow-y-auto overscroll-contain",
+          strip ? "space-y-1 px-2 py-1.5" : "space-y-1.5 px-2.5 py-2",
+        )}
+      >
         {state.guesses.length === 0 ? (
-          <p className="text-sm text-ink-muted">
+          <p className="px-1 text-xs text-ink-muted">
             {status === "idle"
-              ? "Start drawing. AnAI shouts one guess at a time, like in a real game."
+              ? "Start drawing. AnAI shouts guesses here, like in a room."
               : "No shout yet — waiting for a confident look."}
           </p>
         ) : (
-          <>
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-muted">
-              Shouted in chat
-            </p>
-            <ol className="flex flex-col gap-2">
-              <AnimatePresence initial={false}>
-                {state.guesses.map((guess, index) => {
-                  const pct = Math.round(guess.confidence * 100);
-                  const hit = answersMatch(guess.answer, secret);
-                  const leading = index === state.guesses.length - 1;
-                  return (
-                    <motion.li
-                      key={guess.answer.toLowerCase()}
-                      layout
-                      initial={{ opacity: 0, y: 6 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -6 }}
-                      transition={{ duration: 0.18 }}
+          <ol className="flex flex-col gap-1">
+            <AnimatePresence initial={false}>
+              {state.guesses.map((guess, index) => {
+                const pct = Math.round(guess.confidence * 100);
+                const hit = answersMatch(guess.answer, secret);
+                const leading = index === state.guesses.length - 1;
+                return (
+                  <motion.li
+                    key={guess.answer.toLowerCase()}
+                    layout
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -6 }}
+                    transition={{ duration: 0.18 }}
+                    className={cn(
+                      "relative overflow-hidden rounded-xl px-2 py-1.5",
+                      hit || solved
+                        ? "bg-green-light"
+                        : leading
+                          ? "bg-plum-light"
+                          : "bg-plum-light/70",
+                    )}
+                  >
+                    <div
+                      aria-hidden
                       className={cn(
-                        "relative overflow-hidden rounded-2xl px-3 py-2",
-                        hit || solved
-                          ? "bg-green-light"
-                          : leading
-                            ? "bg-plum-light"
-                            : "bg-plum-light/70",
+                        "absolute inset-y-0 left-0 transition-[width] duration-500",
+                        hit ? "bg-green/20" : "bg-plum/10",
                       )}
-                    >
-                      <div
-                        aria-hidden
-                        className={cn(
-                          "absolute inset-y-0 left-0 transition-[width] duration-500",
-                          hit ? "bg-green/20" : "bg-plum/10",
-                        )}
-                        style={{ width: `${pct}%` }}
-                      />
-                      <div className="relative flex items-center justify-between gap-3">
-                        <span className="flex min-w-0 items-center gap-2">
-                          <span aria-hidden className="text-base">
-                            {emojiFor(guess.answer)}
-                          </span>
-                          <span
-                            className={cn(
-                              "truncate capitalize",
-                              leading || hit
-                                ? "font-display text-base text-ink"
-                                : "text-sm font-semibold text-ink",
-                            )}
-                          >
-                            {guess.answer}
-                          </span>
+                      style={{ width: `${pct}%` }}
+                    />
+                    <div className="relative flex items-center justify-between gap-2">
+                      <span className="flex min-w-0 items-center gap-1.5">
+                        <span aria-hidden className="text-sm">
+                          {emojiFor(guess.answer)}
                         </span>
-                        <span className="shrink-0 font-mono text-sm font-semibold text-ink">
-                          {pct}%
+                        <span
+                          className={cn(
+                            "truncate capitalize",
+                            leading || hit
+                              ? "font-display text-sm text-ink"
+                              : "text-xs font-semibold text-ink",
+                          )}
+                        >
+                          {guess.answer}
                         </span>
-                      </div>
-                    </motion.li>
-                  );
-                })}
-              </AnimatePresence>
-            </ol>
-          </>
+                      </span>
+                      <span className="shrink-0 font-mono text-xs font-semibold text-ink">
+                        {pct}%
+                      </span>
+                    </div>
+                  </motion.li>
+                );
+              })}
+            </AnimatePresence>
+          </ol>
         )}
       </div>
 
-      <AnaiSpeech line={caption} mood={mood} />
-
-      <div className="grid grid-cols-2 gap-3 border-t border-plum/10 pt-3 sm:grid-cols-4">
-        <Metric label="AI calls" value={String(state.callsThisDrawing)} />
-        <Metric
-          label="Latency"
-          value={state.latencyMs === null ? "—" : `${state.latencyMs}ms`}
-        />
-        <Metric
-          label="Analyzed"
-          value={secondsAgo === null ? "—" : `${secondsAgo.toFixed(1)}s ago`}
-        />
-        <Metric label="Session" value={String(state.callsThisSession)} />
+      <div
+        className={cn(
+          "shrink-0 border-t border-plum/10",
+          strip ? "px-2 py-1.5" : "px-2.5 py-2",
+        )}
+      >
+        <AnaiSpeech line={caption} mood={mood} compact />
       </div>
-
-      <p className="text-xs text-ink-muted">
-        Draw <span className="font-semibold text-ink">{secret}</span> clearly.
-        Close calls from lookalike words do not score. {wordCount} secrets in
-        the deck.
-      </p>
 
       <span className="sr-only" role="status" aria-live="polite">
         {solved

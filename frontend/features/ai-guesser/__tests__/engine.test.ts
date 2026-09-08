@@ -248,12 +248,24 @@ describe("AiGuesserEngine", () => {
       ...result(2, "dog", 0.95),
       guesses: [
         { answer: "dog", confidence: 0.95 },
-        { answer: "wolf", confidence: 0.4 },
+        { answer: "wolf", confidence: 0.6 },
       ],
     });
     await flush();
 
     expect(h.state().guesses.map((g) => g.answer)).toEqual(["dog", "wolf"]);
+  });
+
+  it("ignores an aborted look instead of marking the AI unavailable", async () => {
+    const h = harness({ UNAVAILABLE_AFTER_ERRORS: 1 });
+    await firstLook(h, [BASE_STROKE]);
+
+    h.pending[0].reject(new TypeError("signal is aborted without reason"));
+    await flush();
+
+    expect(h.state().status).toBe("watching");
+    expect(h.state().errorMessage).toBeNull();
+    expect(h.engine.isInFlight()).toBe(false);
   });
 
   it("survives a model failure and keeps watching", async () => {

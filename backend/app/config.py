@@ -84,7 +84,7 @@ class Settings(BaseSettings):
     bot_guess_timeout_seconds: float = 18.0
     bot_max_guess_calls_per_turn: int = 12
     bot_global_ai_concurrency: int = 4
-    bot_guess_min_confidence: float = 0.22
+    bot_guess_min_confidence: float = 0.5
 
     # Same EmailJS template as /feedback. Unset disables limit-alert mail.
     emailjs_service_id: str | None = Field(

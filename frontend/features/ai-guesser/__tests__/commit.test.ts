@@ -39,13 +39,13 @@ describe("pickCommittedGuess", () => {
     const picked = pickCommittedGuess(
       [
         { answer: "dog", confidence: 0.1 },
-        { answer: "cat", confidence: 0.21 },
-        { answer: "fish", confidence: 0.4 },
+        { answer: "cat", confidence: 0.49 },
+        { answer: "fish", confidence: 0.6 },
       ],
       [],
       min,
     );
-    expect(picked).toEqual({ answer: "fish", confidence: 0.4 });
+    expect(picked).toEqual({ answer: "fish", confidence: 0.6 });
   });
 
   it("returns null when nothing is shoutable", () => {

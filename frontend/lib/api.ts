@@ -56,6 +56,21 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * Chromium / undici often reject an aborted fetch as
+ * `TypeError: signal is aborted without reason` instead of `AbortError`.
+ */
+export function isAbortError(error: unknown): boolean {
+  if (typeof error !== "object" || error === null) return false;
+  const name = (error as { name?: unknown }).name;
+  if (name === "AbortError") return true;
+  const message = (error as { message?: unknown }).message;
+  return (
+    typeof message === "string" &&
+    /signal is aborted|operation was aborted|The user aborted/i.test(message)
+  );
+}
+
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const headers = withAuthHeaders(init?.headers);
 
@@ -74,7 +89,14 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
       ...init,
       headers,
     });
-  } catch {
+  } catch (error) {
+    // Aborts are intentional (timeouts, reset, unmount) — never label them as
+    // network failures or they spam the AI Guesser UI.
+    if (isAbortError(error) || init?.signal?.aborted) {
+      throw error instanceof Error
+        ? error
+        : new DOMException("The operation was aborted.", "AbortError");
+    }
     trackEvent(AnalyticsEvents.API_ERROR, {
       status: 0,
       path: analyticsPath,

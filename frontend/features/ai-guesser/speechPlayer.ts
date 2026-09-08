@@ -99,6 +99,15 @@ export class PcmPlayer {
     this.playBuffer(buffer);
   }
 
+  /** Wait until scheduled buffers have finished (or the signal aborts). */
+  async waitUntilIdle(signal?: AbortSignal): Promise<void> {
+    const ctx = this.ctx;
+    if (!ctx) return;
+    while (!signal?.aborted && ctx.currentTime + 0.03 < this.next) {
+      await new Promise((resolve) => setTimeout(resolve, 40));
+    }
+  }
+
   dispose(): void {
     this.stop();
     void this.ctx?.close();
@@ -117,6 +126,7 @@ export async function playSpeechResponse(
     if (signal.aborted) return;
     player.stop();
     await player.enqueueWav(wav);
+    await player.waitUntilIdle(signal);
     return;
   }
 
@@ -126,6 +136,7 @@ export async function playSpeechResponse(
     if (signal.aborted || all.byteLength < 2) return;
     player.stop();
     player.enqueue(all);
+    await player.waitUntilIdle(signal);
     return;
   }
 
@@ -152,5 +163,8 @@ export async function playSpeechResponse(
     }
   } finally {
     reader.releaseLock();
+  }
+  if (!signal.aborted && started) {
+    await player.waitUntilIdle(signal);
   }
 }

@@ -25,6 +25,7 @@ from app.config import settings
 from app.schemas.ai_guesser import (
     MAX_GUESSES,
     MAX_LINE_LENGTH,
+    PUBLIC_MODEL_NAME,
     AiGuessItem,
     AiGuessRequest,
     AiGuessResponse,
@@ -318,8 +319,7 @@ async def generate_guess(payload: AiGuessRequest) -> AiGuessResponse:
         logger.warning("ai-guesser unknown model=%s", model)
         raise AiGuesserError(
             "unknown_model",
-            f"Gemini model '{model}' was not found. Set GEMINI_AI_GUESSER_MODEL "
-            "to a current Flash-Lite id (e.g. gemini-3.5-flash-lite).",
+            "AI guesser is unavailable.",
             status_code=502,
         )
     if response.status_code >= 400:
@@ -352,7 +352,7 @@ async def generate_guess(payload: AiGuessRequest) -> AiGuessResponse:
     return AiGuessResponse(
         guesses=normalize_guesses(parsed),
         line=normalize_line(parsed.line),
-        model=model,
+        model=PUBLIC_MODEL_NAME,
         mode=payload.mode,
         drawing_version=payload.drawing_version,
         latency_ms=latency_ms,

@@ -186,7 +186,7 @@ Players can also initiate a vote-kick during active play. A majority is required
 
 If a room needs another guesser—or simply wants to test its artistic legibility—the host can add **AnAI 1.3 Pro**.
 
-AnAI is a server-side robot player powered by Google Gemini. It occupies a guessing role but never takes drawing turns, leaving every creative turn to human players.
+AnAI is a server-side robot player. It occupies a guessing role but never takes drawing turns, leaving every creative turn to human players.
 
 The bot is not a scripted list of random chat messages and does not run through a fake browser. During a drawing round, the server renders the current vector canvas to an image, sends that image through the AI guesser pipeline, and submits the bot’s response as a normal game guess.
 
@@ -251,7 +251,7 @@ This mode transforms the same fundamental act—moving a pointer across a canvas
 
 The `/ai-guesser` experience isolates Svigl’s human-versus-machine idea into an experimental solo mode.
 
-The player receives a word, draws it, and waits for Gemini’s vision model to identify the result. A successful answer increases the score and begins another round, creating an endless loop of visual communication.
+The player receives a word, draws it, and waits for AnAI 1.3 Pro to identify the result. A successful answer increases the score and begins another round, creating an endless loop of visual communication.
 
 Optional text-to-speech gives the AI a voice, making its guesses feel more like responses from a character than labels from an image classifier.
 

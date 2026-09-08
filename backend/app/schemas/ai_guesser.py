@@ -11,9 +11,14 @@ from __future__ import annotations
 import re
 from typing import Literal
 
+from datetime import datetime
+from uuid import UUID
+
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 CandidateMode = Literal["game", "open"]
+# Public label for AnAI. The upstream provider id never goes to the client.
+PUBLIC_MODEL_NAME = "AnAI 1.3 Pro"
 
 MAX_CANDIDATES = 64
 MAX_CANDIDATE_LENGTH = 48
@@ -57,6 +62,9 @@ class AiGuessRequest(BaseModel):
     # Accepted for older clients; never forwarded to the model.
     candidates: list[str] = Field(default_factory=list)
     previous_guesses: list[str] = Field(default_factory=list)
+    run_id: UUID | None = None
+    # Client prompt index so late/in-flight guesses for a prior drawing are ignored.
+    prompt_index: int | None = Field(default=None, ge=0, le=4)
 
     @field_validator("image_base64")
     @classmethod
@@ -105,6 +113,88 @@ class AiGuesserConfigResponse(BaseModel):
     model: str
     min_call_interval_ms: int
     tts_enabled: bool = False
+
+
+class AiGuessSplit(BaseModel):
+    ms: int
+    solved: bool
+
+
+class AiGuessMatchState(BaseModel):
+    run_id: UUID
+    week_id: str
+    game_index: int
+    game_slug: str
+    prompt_index: int
+    secret: str
+    deadline_at: datetime | None = None
+    calls_used: int
+    calls_left: int
+    splits: list[AiGuessSplit]
+    status: str
+    prompt_solved: bool = False
+    prompt_failed: bool = False
+    last_split: AiGuessSplit | None = None
+    total_ms: int | None = None
+    is_personal_best: bool | None = None
+    rank: int | None = None
+
+
+class AiGuessPlayResponse(AiGuessResponse):
+    match: AiGuessMatchState
+
+
+class AiGuesserStartRunRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    game: str | None = None
+    game_index: int | None = Field(default=None, ge=1, le=5)
+
+
+class AiGuesserWeekGame(BaseModel):
+    index: int
+    slug: str
+    title: str
+    description: str
+    my_best_ms: int | None = None
+    my_rank: int | None = None
+    finished: bool = False
+
+
+class AiGuesserWeekResponse(BaseModel):
+    week_id: str
+    resets_at: datetime
+    games: list[AiGuesserWeekGame]
+    free_play_unlocked: bool
+    finished_count: int
+    prompt_limit_ms: int
+    max_calls: int
+    prompts_per_game: int
+
+
+class AiGuesserLeaderboardEntry(BaseModel):
+    rank: int
+    user_id: UUID
+    player: str
+    total_ms: int
+    splits: list[AiGuessSplit]
+    updated_at: datetime
+
+
+class AiGuesserLeaderboardResponse(BaseModel):
+    week_id: str
+    game_slug: str
+    game_title: str
+    entries: list[AiGuesserLeaderboardEntry]
+    total: int
+    my_best_ms: int | None = None
+    my_rank: int | None = None
+    my_splits: list[AiGuessSplit] | None = None
+
+
+class AiGuesserFreePlayWordResponse(BaseModel):
+    secret: str
+    unlocked: bool = True
 
 
 class AiSpeakRequest(BaseModel):

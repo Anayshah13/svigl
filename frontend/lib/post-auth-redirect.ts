@@ -12,6 +12,9 @@ export function sanitizePostAuthRedirect(path: string | null | undefined): strin
   const [pathname] = trimmed.split("?");
 
   if (pathname === "/") return "/";
+  if (pathname === "/ai-guesser") return pathname;
+  if (/^\/ai-guesser\/[a-z0-9-]+$/.test(pathname)) return pathname;
+  if (/^\/ai-guesser\/[a-z0-9-]+\/leaderboard$/.test(pathname)) return pathname;
 
   const roomMatch = pathname.match(/^\/room\/([A-Za-z]{4})$/);
   if (roomMatch) {

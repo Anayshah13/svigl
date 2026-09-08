@@ -52,6 +52,33 @@ export interface AnalyzeInput {
   drawingVersion: number;
   mode: CandidateMode;
   previousGuesses: string[];
+  runId?: string | null;
+  promptIndex?: number | null;
+}
+
+export interface AiGuessSplit {
+  ms: number;
+  solved: boolean;
+}
+
+export interface AiGuessMatchState {
+  runId: string;
+  weekId: string;
+  gameIndex: number;
+  gameSlug: string;
+  promptIndex: number;
+  secret: string;
+  deadlineAt: string | null;
+  callsUsed: number;
+  callsLeft: number;
+  splits: AiGuessSplit[];
+  status: "open" | "finished" | "abandoned" | string;
+  promptSolved: boolean;
+  promptFailed: boolean;
+  lastSplit: AiGuessSplit | null;
+  totalMs: number | null;
+  isPersonalBest: boolean | null;
+  rank: number | null;
 }
 
 export interface AnalyzeResult {
@@ -63,6 +90,7 @@ export interface AnalyzeResult {
   drawingVersion: number;
   latencyMs: number;
   usage: AiGuessUsage | null;
+  match?: AiGuessMatchState | null;
 }
 
 export interface DrawingSnapshot {

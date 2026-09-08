@@ -175,7 +175,6 @@ export function LandingFooter() {
     { label: "Home", href: "/" },
     { label: "Gallery", href: "/gallery" },
     { label: "Labs", href: "/labs" },
-    { label: "Blog", href: "/blog" },
     { label: "Profile", href: authUser ? profilePath(authUser.username) : "/profile" },
     { label: "Feedback", href: "/feedback" },
   ];

@@ -1,4 +1,7 @@
 export { AiGuesserView } from "./AiGuesserView";
+export { AiGuesserHub } from "./AiGuesserHub";
+export { AiGuesserFreePlay } from "./AiGuesserFreePlay";
+export { AiGuesserLeaderboard } from "./AiGuesserLeaderboard";
 export { AiGuessPanel } from "./AiGuessPanel";
 export { useAiGuesser } from "./useAiGuesser";
 export { useAiGuesserVoice } from "./useAiGuesserVoice";

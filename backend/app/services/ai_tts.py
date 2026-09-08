@@ -220,7 +220,7 @@ async def stream_pcm(text: str) -> AsyncIterator[bytes]:
                     logger.warning("ai-guesser unknown tts model=%s", model)
                     raise AiGuesserError(
                         "unknown_model",
-                        f"Gemini TTS model '{model}' was not found.",
+                        "AI speech is unavailable.",
                         status_code=502,
                     )
                 if response.status_code >= 400:

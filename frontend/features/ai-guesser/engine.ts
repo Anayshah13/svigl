@@ -8,6 +8,7 @@
  */
 
 import type { WhiteboardShape } from "@/features/whiteboard/types";
+import { isAbortError } from "@/lib/api";
 import {
   createShapeMetricsCache,
   emptySignature,
@@ -49,14 +50,6 @@ export interface AiGuesserEngineDeps {
   mode?: CandidateMode;
   /** Fired with the single shouted guess of an accepted response. */
   onAcceptedGuesses?: (guesses: GuessItem[]) => void;
-}
-
-function isAbortError(error: unknown): boolean {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    (error as { name?: unknown }).name === "AbortError"
-  );
 }
 
 function errorMessage(error: unknown): string {
