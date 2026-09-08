@@ -82,3 +82,49 @@ def test_pop_culture_pack_is_the_franchise_five():
     game = GAME_BY_SLUG["pop-culture"]
     words = set(prompts_for_game("2026-W37", game))
     assert words == {"marvel", "minecraft", "superman", "lego", "pokemon"}
+
+
+def test_pools_keep_only_drawable_detectable_words():
+    from app.services.ai_guesser_week import FREE_PLAY_WORDS, WEEKLY_GAMES
+
+    hard = {
+        "pagoda",
+        "aqueduct",
+        "observatory",
+        "kaleidoscope",
+        "gramophone",
+        "origami crane",
+        "sundial",
+        "lighthouse keeper",
+        "lumber mill",
+        "amphitheater",
+        "typewriter",
+        "harmonica",
+        "artichoke",
+        "pomegranate",
+        "northern lights",
+        "constellation",
+        "tightrope",
+        "carrom",
+        "steam locomotive",
+        "segway",
+        "drawbridge",
+        "subway station",
+        "coral reef",
+        "desert oasis",
+        "juggler",
+        "magician",
+        "accordion",
+        "totem pole",
+        "chess knight",
+        "finish line",
+        "yoga mat",
+        "referee",
+        "cheerleader",
+    }
+    pool = set(FREE_PLAY_WORDS)
+    for game in WEEKLY_GAMES:
+        assert len(set(game.words)) == len(game.words)
+        assert len(game.words) >= PROMPTS_PER_GAME
+        pool.update(game.words)
+    assert hard.isdisjoint(pool)
