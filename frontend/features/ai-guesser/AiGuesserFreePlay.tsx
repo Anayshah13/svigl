@@ -164,7 +164,7 @@ export function AiGuesserFreePlay() {
       <div
         className={cn(
           "grid min-h-0 w-full flex-1 gap-1.5 overflow-hidden",
-          "grid-rows-[minmax(0,1fr)_minmax(7.5rem,24%)]",
+          "grid-rows-[minmax(0,1fr)_minmax(9rem,26%)]",
           "lg:grid-rows-1",
         )}
       >

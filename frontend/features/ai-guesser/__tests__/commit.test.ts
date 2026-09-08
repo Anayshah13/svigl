@@ -35,11 +35,20 @@ describe("pickCommittedGuess", () => {
     expect(picked).toEqual({ answer: "cat", confidence: 0.7 });
   });
 
+  it("accepts a guess at the confidence floor", () => {
+    const picked = pickCommittedGuess(
+      [{ answer: "dog", confidence: 0.3 }],
+      [],
+      min,
+    );
+    expect(picked).toEqual({ answer: "dog", confidence: 0.3 });
+  });
+
   it("skips guesses under the confidence floor", () => {
     const picked = pickCommittedGuess(
       [
         { answer: "dog", confidence: 0.1 },
-        { answer: "cat", confidence: 0.49 },
+        { answer: "cat", confidence: 0.29 },
         { answer: "fish", confidence: 0.6 },
       ],
       [],

@@ -22,7 +22,7 @@ export function AnaiSpeech({
     <div
       className={cn(
         "anai-duel flex items-end",
-        compact ? "gap-2" : "gap-3 border-t border-plum/10 pt-3",
+        compact ? "gap-2" : "gap-3",
         mood === "speaking" && "anai-duel-speaking",
         mood === "solved" && "anai-duel-solved",
         className,
@@ -31,7 +31,7 @@ export function AnaiSpeech({
       <div
         className={cn(
           "anai-duel-bot relative shrink-0",
-          compact ? "h-12 w-14" : "h-24 w-28 sm:h-28 sm:w-32",
+          compact ? "h-16 w-[4.75rem]" : "h-32 w-36 sm:h-36 sm:w-40",
           mood === "thinking" && "anai-duel-thinking",
         )}
         aria-hidden

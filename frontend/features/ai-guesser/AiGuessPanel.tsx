@@ -277,7 +277,7 @@ export function AiGuessPanel({
           strip ? "px-2 py-1.5" : "px-2.5 py-2",
         )}
       >
-        <AnaiSpeech line={caption} mood={mood} compact />
+        <AnaiSpeech line={caption} mood={mood} compact={strip} />
       </div>
 
       <span className="sr-only" role="status" aria-live="polite">
