@@ -9,6 +9,7 @@ import {
 } from "@/features/whiteboard";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/cn";
+import { DotPulseGrid } from "@/features/loaders";
 import { fetchAiGuesserWeek, fetchFreePlayWord } from "@/services/ai-guesser";
 import { useSessionStore } from "@/stores/session";
 import { AiGuessPanel } from "./AiGuessPanel";
@@ -18,7 +19,7 @@ import type { GuessItem } from "./types";
 import { guessesMatchSecret } from "./words";
 import { aiGuesserPath } from "./week";
 
-const HOLD_MS = 2200;
+const HOLD_MS = 2000;
 
 export function AiGuesserFreePlay() {
   const authUser = useSessionStore((s) => s.authUser);
@@ -34,10 +35,13 @@ export function AiGuesserFreePlay() {
   const secretRef = React.useRef(secret);
   secretRef.current = secret;
 
+  const [handoff, setHandoff] = React.useState(false);
+
   const loadWord = React.useCallback(async (exclude?: string) => {
     const next = await fetchFreePlayWord(exclude);
     setSecret(next);
     setSolved(false);
+    setHandoff(false);
   }, []);
 
   React.useEffect(() => {
@@ -59,9 +63,10 @@ export function AiGuesserFreePlay() {
     if (advancingRef.current) return;
     advancingRef.current = true;
     setSolved(true);
+    setHandoff(true);
+    controllerRef.current?.clear();
+    resetRef.current();
     window.setTimeout(() => {
-      controllerRef.current?.clear();
-      resetRef.current();
       void loadWord(secretRef.current).finally(() => {
         advancingRef.current = false;
       });
@@ -163,17 +168,29 @@ export function AiGuesserFreePlay() {
           "lg:grid-rows-1",
         )}
       >
-        <Whiteboard
-          {...DRAWER_WHITEBOARD_UI}
-          isDrawer
-          fill
-          playerId="ai-guesser-free"
-          controllerRef={controllerRef}
-          className="h-full min-h-0"
-          aside={<AiGuessPanel {...panelProps} variant="dock" />}
-          onShapesChange={onShapesChange}
-          onClear={reset}
-        />
+        <section className="relative min-h-0">
+          <Whiteboard
+            {...DRAWER_WHITEBOARD_UI}
+            isDrawer
+            fill
+            playerId="ai-guesser-free"
+            controllerRef={controllerRef}
+            className="h-full min-h-0"
+            aside={<AiGuessPanel {...panelProps} variant="dock" />}
+            onShapesChange={solved || handoff ? undefined : onShapesChange}
+            onClear={reset}
+          />
+          {handoff ? (
+            <div
+              className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-[#fafaf8]/85 backdrop-blur-sm"
+              role="status"
+              aria-live="polite"
+            >
+              <DotPulseGrid size="sm" />
+              <p className="font-display text-lg text-ink">Next drawing</p>
+            </div>
+          ) : null}
+        </section>
         <div className="min-h-0 overflow-hidden lg:hidden">
           <AiGuessPanel {...panelProps} variant="strip" />
         </div>

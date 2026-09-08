@@ -43,6 +43,12 @@ describe("resolveSpokenAudio", () => {
       resolveSpokenAudio("Looks like a tail.", "dog", { solved: true }),
     ).toBe("Oh, I know, it's dog.");
   });
+
+  it("keeps the guessed word even if a newer secret is also in play", () => {
+    expect(resolveSpokenAudio(null, "dog", { solved: true })).toBe(
+      "Oh, I know, it's dog.",
+    );
+  });
 });
 
 describe("sameSpeech", () => {

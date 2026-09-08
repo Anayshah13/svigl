@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/Button";
 import { isAbortError } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import { buildSignInUrl } from "@/lib/post-auth-redirect";
+import { DotPulseGrid } from "@/features/loaders";
 import {
   failAiGuesserPrompt,
   fetchActiveAiGuesserRun,
@@ -27,7 +28,33 @@ import type { AiGuessMatchState } from "./types";
 import { AI_GUESSER_CONFIG } from "./config";
 import { aiGuesserGamePath, aiGuesserPath } from "./week";
 
-const HOLD_MS = 1600;
+const HOLD_MS = 2000;
+
+type PromptHold = {
+  secret: string;
+  callsLeft: number;
+  promptIndex: number;
+  remainingMs: number;
+};
+
+function PromptHandoff({
+  missed,
+}: {
+  missed: boolean;
+}) {
+  return (
+    <div
+      className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-[#fafaf8]/85 backdrop-blur-sm"
+      role="status"
+      aria-live="polite"
+    >
+      <DotPulseGrid size="sm" />
+      <p className="font-display text-lg text-ink">
+        {missed ? "Time’s up" : "Next drawing"}
+      </p>
+    </div>
+  );
+}
 
 export function AiGuesserView({ gameSlug }: { gameSlug: string }) {
   const authUser = useSessionStore((s) => s.authUser);
@@ -42,28 +69,45 @@ export function AiGuesserView({ gameSlug }: { gameSlug: string }) {
   const [starting, setStarting] = React.useState(false);
   const [solved, setSolved] = React.useState(false);
   const [missed, setMissed] = React.useState(false);
+  const [hold, setHold] = React.useState<PromptHold | null>(null);
   const [now, setNow] = React.useState(() => Date.now());
+  const matchRef = React.useRef<AiGuessMatchState | null>(null);
+  const transitioningRef = React.useRef(false);
+  matchRef.current = match;
 
   const applyMatch = React.useCallback((next: AiGuessMatchState) => {
-    setMatch(next);
-    if (next.promptSolved) setSolved(true);
-    if (next.promptFailed) setMissed(true);
-    // Kill any in-flight look immediately so it cannot land on the next prompt
-    // and surface as a fake network / conflict error.
-    if (next.promptSolved || next.promptFailed || next.status === "finished") {
-      resetRef.current();
-    }
-    if (next.status === "finished") return;
+    const current = matchRef.current;
+    if (transitioningRef.current) return;
+
     if (next.promptSolved || next.promptFailed) {
+      transitioningRef.current = true;
+      const frozen: PromptHold = {
+        secret: current?.secret || next.secret,
+        callsLeft: current?.callsLeft ?? next.callsLeft,
+        promptIndex: current?.promptIndex ?? Math.max(0, next.promptIndex - 1),
+        remainingMs: current?.deadlineAt
+          ? Math.max(0, new Date(current.deadlineAt).getTime() - Date.now())
+          : 0,
+      };
+      setHold(frozen);
+      setSolved(next.promptSolved);
+      setMissed(next.promptFailed);
+      resetRef.current();
+      controllerRef.current?.clear();
       if (holdTimerRef.current !== null) window.clearTimeout(holdTimerRef.current);
       holdTimerRef.current = window.setTimeout(() => {
         holdTimerRef.current = null;
-        controllerRef.current?.clear();
+        transitioningRef.current = false;
         resetRef.current();
+        setMatch(next);
+        setHold(null);
         setSolved(false);
         setMissed(false);
       }, HOLD_MS);
+      return;
     }
+
+    setMatch(next);
   }, []);
 
   const beginRun = React.useCallback(async () => {
@@ -71,6 +115,12 @@ export function AiGuesserView({ gameSlug }: { gameSlug: string }) {
     setBootError(null);
     setSolved(false);
     setMissed(false);
+    setHold(null);
+    transitioningRef.current = false;
+    if (holdTimerRef.current !== null) {
+      window.clearTimeout(holdTimerRef.current);
+      holdTimerRef.current = null;
+    }
     try {
       const next = await startAiGuesserRun(gameSlug);
       controllerRef.current?.clear();
@@ -129,7 +179,7 @@ export function AiGuesserView({ gameSlug }: { gameSlug: string }) {
   resetRef.current = reset;
 
   React.useEffect(() => {
-    if (!match || match.status !== "open" || solved || missed) return;
+    if (!match || match.status !== "open" || solved || missed || hold) return;
     if (remainingMs > 0) return;
     // Let an in-flight look finish; the server will fail/solve on apply.
     // Only force-fail when we are idle so we do not abort a useful response.
@@ -145,11 +195,14 @@ export function AiGuesserView({ gameSlug }: { gameSlug: string }) {
       .finally(() => {
         failingRef.current = false;
       });
-  }, [applyMatch, match, missed, remainingMs, solved, state.status]);
+  }, [applyMatch, hold, match, missed, remainingMs, solved, state.status]);
 
-  const secret = match?.secret ?? "";
+  const secret = hold?.secret ?? match?.secret ?? "";
+  const callsLeft = hold?.callsLeft ?? match?.callsLeft ?? 0;
+  const promptIndex = hold?.promptIndex ?? match?.promptIndex ?? 0;
+  const clockMs = hold?.remainingMs ?? remainingMs;
   const { muted, speaking, spokenText, toggleMuted, unlock } = useAiGuesserVoice({
-    line: state.line,
+    line: hold ? null : state.line,
     guesses: state.guesses,
     solved,
     secret,
@@ -217,9 +270,9 @@ export function AiGuesserView({ gameSlug }: { gameSlug: string }) {
       <AiGuesserMobileHeader
         className="lg:hidden"
         secret={secret}
-        remainingMs={remainingMs}
-        callsLeft={match.callsLeft}
-        promptIndex={match.promptIndex}
+        remainingMs={clockMs}
+        callsLeft={callsLeft}
+        promptIndex={promptIndex}
         promptCount={promptCount}
         solved={solved}
         muted={muted}
@@ -248,19 +301,20 @@ export function AiGuesserView({ gameSlug }: { gameSlug: string }) {
             headerInfo={
               <AiGuesserHud
                 secret={secret}
-                remainingMs={remainingMs}
-                callsLeft={match.callsLeft}
+                remainingMs={clockMs}
+                callsLeft={callsLeft}
                 maxCalls={maxCalls}
-                promptIndex={match.promptIndex}
+                promptIndex={promptIndex}
                 promptCount={promptCount}
                 solved={solved}
                 missed={missed}
               />
             }
             aside={<AiGuessPanel {...panelProps} variant="dock" />}
-            onShapesChange={solved || missed ? undefined : onShapesChange}
+            onShapesChange={solved || missed || hold ? undefined : onShapesChange}
             onClear={reset}
           />
+          {hold ? <PromptHandoff missed={missed} /> : null}
         </section>
 
         <div className="order-2 min-h-0 overflow-hidden pb-[max(0.35rem,env(safe-area-inset-bottom,0px))] max-lg:landscape:order-2 lg:hidden lg:pb-0">

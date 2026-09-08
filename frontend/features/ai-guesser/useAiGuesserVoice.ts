@@ -61,7 +61,7 @@ export function useAiGuesserVoice(
     secret = "",
   } = options;
   const latestAnswer = solved
-    ? secret || guesses[guesses.length - 1]?.answer || ""
+    ? guesses[guesses.length - 1]?.answer || secret
     : (guesses[guesses.length - 1]?.answer ?? "");
   const incoming = resolveSpokenAudio(line, latestAnswer, { solved });
 

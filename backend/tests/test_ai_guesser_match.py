@@ -116,19 +116,34 @@ def test_early_fail_is_rejected(db):
     assert exc.value.status_code == 400
 
 
-def test_call_cap_fails_the_prompt(db):
+def test_call_cap_does_not_allow_an_early_fail(db):
+    user = _user(db)
+    snap = start_run(db, user_id=user.id, game=require_game(slug="motion"))
+    for _ in range(MAX_CALLS_PER_PROMPT):
+        snap = apply_guesses(
+            db, user_id=user.id, run_id=snap.run_id, guesses=[_guess("nope")]
+        )
+    with pytest.raises(MatchError) as exc:
+        fail_prompt(db, user_id=user.id, run_id=snap.run_id)
+    assert exc.value.status_code == 400
+
+
+def test_call_cap_stops_looking_but_leaves_the_clock(db):
     user = _user(db)
     snap = start_run(db, user_id=user.id, game=require_game(slug="pop-culture"))
-    for _ in range(MAX_CALLS_PER_PROMPT - 1):
+    for _ in range(MAX_CALLS_PER_PROMPT):
         snap = apply_guesses(
             db, user_id=user.id, run_id=snap.run_id, guesses=[_guess("nope")]
         )
         assert snap.prompt_failed is False
-    snap = apply_guesses(
+        assert snap.prompt_index == 0
+    assert snap.calls_left == 0
+    extra = apply_guesses(
         db, user_id=user.id, run_id=snap.run_id, guesses=[_guess("nope")]
     )
-    assert snap.prompt_failed is True
-    assert snap.last_split == {"ms": PROMPT_LIMIT_MS, "solved": False}
+    assert extra.prompt_failed is False
+    assert extra.calls_used == MAX_CALLS_PER_PROMPT
+    assert extra.prompt_index == 0
 
 
 def _finish_run(db, user, game, *, solve_ms: int, monkeypatch):

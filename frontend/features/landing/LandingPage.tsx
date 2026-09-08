@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { useEffect, useState, useSyncExternalStore, type FormEvent } from "react";
+import { startTransition, useEffect, useState, useSyncExternalStore, type FormEvent } from "react";
 import { GameFeaturesSection } from "@/components/landing/GameFeaturesSection";
 import { HeroMascot } from "@/components/landing/HeroMascot";
 import { LandingBackgroundDoodles } from "@/components/landing/LandingBackgroundDoodles";
@@ -70,6 +70,34 @@ function useRandomHeadline() {
   return HEADLINES[index]!;
 }
 
+/** Side CTAs mount after the rest of the landing page has committed, so they
+ *  don't compete with the hero headline / join card for first paint. */
+function HeroSideCtas() {
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    startTransition(() => setReady(true));
+  }, []);
+
+  if (!ready) return null;
+
+  return (
+    <motion.div
+      className="pointer-events-none absolute inset-0 z-10 hidden lg:block"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.55, delay: 0.35, ease: [0.22, 1, 0.36, 1] }}
+    >
+      <div className="pointer-events-auto absolute top-[calc(50%+2.25rem)] left-[max(1.75rem,9%)] w-48 -translate-y-1/2 xl:left-[max(2.25rem,11%)] xl:w-52">
+        <HeroMascot />
+      </div>
+      <div className="pointer-events-auto absolute top-1/2 right-[max(1.75rem,9%)] -translate-y-1/2 scale-110 xl:right-[max(2.25rem,11%)]">
+        <LabsCtaOverlapShapes />
+      </div>
+    </motion.div>
+  );
+}
+
 export function LandingPage() {
   const router = useRouter();
   const displayName = useSessionStore((s) => s.displayName);
@@ -106,15 +134,6 @@ export function LandingPage() {
       <LandingBackgroundDoodles />
       <div className="relative z-10">
         <section className="relative flex min-h-[calc(100dvh-3.5rem)] flex-col items-center justify-center px-5 py-16 sm:min-h-[calc(100dvh-4rem)] sm:px-6 sm:py-20 lg:py-24">
-          <div className="pointer-events-none absolute inset-0 z-10 hidden lg:block">
-            <div className="pointer-events-auto absolute top-[calc(50%+2.25rem)] left-[max(1.75rem,9%)] w-48 -translate-y-1/2 xl:left-[max(2.25rem,11%)] xl:w-52">
-              <HeroMascot />
-            </div>
-            <div className="pointer-events-auto absolute top-1/2 right-[max(1.75rem,9%)] -translate-y-1/2 scale-110 xl:right-[max(2.25rem,11%)]">
-              <LabsCtaOverlapShapes />
-            </div>
-          </div>
-
           <div className="relative mx-auto flex w-full max-w-2xl flex-col items-center text-center sm:max-w-3xl lg:-translate-y-3vh lg:max-w-4xl">
             <FadeIn className="mb-8 flex w-full justify-center md:hidden">
               <SviglLogo size="hero" className="justify-center text-center" />
@@ -269,6 +288,7 @@ export function LandingPage() {
             </FadeIn>
 
           </div>
+          <HeroSideCtas />
         </section>
 
         <GameFeaturesSection />

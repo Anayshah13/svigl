@@ -305,8 +305,7 @@ def fail_prompt(db: Session, *, user_id: UUID, run_id: UUID) -> MatchSnapshot:
     run = _load_open_run(db, user_id, run_id)
     now = utcnow()
     expired = now >= _deadline(run.prompt_started_at)
-    out_of_calls = run.calls_used >= MAX_CALLS_PER_PROMPT
-    if not expired and not out_of_calls:
+    if not expired:
         raise MatchError("too_early", "This prompt is still in play.")
     split = _finish_prompt(db, run, solved=False, now=now)
     is_best, rank = getattr(run, "_result", (None, None))
@@ -339,7 +338,7 @@ def apply_guesses(
         return _snapshot(run)
 
     now = utcnow()
-    if now >= _deadline(run.prompt_started_at) or run.calls_used >= MAX_CALLS_PER_PROMPT:
+    if now >= _deadline(run.prompt_started_at):
         split = _finish_prompt(db, run, solved=False, now=now)
         is_best, rank = getattr(run, "_result", (None, None))
         db.commit()
@@ -351,6 +350,10 @@ def apply_guesses(
             is_personal_best=is_best,
             rank=rank,
         )
+
+    # Out of looks: stay on this drawing until the clock expires.
+    if run.calls_used >= MAX_CALLS_PER_PROMPT:
+        return _snapshot(run)
 
     run.calls_used += 1
     secret = _secret_for(run)
@@ -364,19 +367,6 @@ def apply_guesses(
         return _snapshot(
             run,
             prompt_solved=True,
-            last_split=split,
-            is_personal_best=is_best,
-            rank=rank,
-        )
-
-    if run.calls_used >= MAX_CALLS_PER_PROMPT:
-        split = _finish_prompt(db, run, solved=False, now=now)
-        is_best, rank = getattr(run, "_result", (None, None))
-        db.commit()
-        db.refresh(run)
-        return _snapshot(
-            run,
-            prompt_failed=True,
             last_split=split,
             is_personal_best=is_best,
             rank=rank,
