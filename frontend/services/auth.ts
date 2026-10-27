@@ -1,8 +1,10 @@
 import { clearAccessToken, setAccessToken } from "@/lib/access-token";
-import { getGuestDeviceId } from "@/lib/guest";
+import { readPersistedAuthUser } from "@/lib/auth-persist";
 import { getApiUrl, withAuthHeaders } from "@/lib/api";
+import { peekGuestDeviceId, getGuestDeviceId } from "@/lib/guest";
 import { formatDisplayName } from "@/lib/names";
 import { sanitizePostAuthRedirect, storePostAuthRedirect } from "@/lib/post-auth-redirect";
+import { useSessionStore } from "@/stores/session";
 
 export type AuthProvider = "google" | "guest";
 
@@ -117,6 +119,47 @@ export async function fetchAuthSession(): Promise<AuthUser | null> {
   }
 
   return sessionRequest;
+}
+
+/**
+ * Restore the home-screen session on another route (or tab).
+ * Reconnects the same guest when the cookie/token is missing but the
+ * browser still has that guest device id.
+ */
+export async function ensureAuthSession(): Promise<AuthUser | null> {
+  const existing = useSessionStore.getState().authUser;
+  if (existing) return existing;
+
+  const persisted = readPersistedAuthUser();
+  if (persisted) {
+    useSessionStore.getState().setAuth(persisted);
+  }
+
+  const live = await fetchAuthSession().catch(() => null);
+  if (live) {
+    useSessionStore.getState().setAuth(live);
+    return live;
+  }
+
+  const known = useSessionStore.getState().authUser;
+  if (known?.provider === "google") {
+    useSessionStore.getState().clearAuth();
+    return null;
+  }
+
+  if (known?.provider === "guest" || peekGuestDeviceId()) {
+    try {
+      const guest = await startGuestSignIn();
+      useSessionStore.getState().setAuth(guest);
+      return guest;
+    } catch {
+      useSessionStore.getState().clearAuth();
+      return null;
+    }
+  }
+
+  if (known) useSessionStore.getState().clearAuth();
+  return null;
 }
 
 export async function updateProfile(input: UpdateProfileInput): Promise<AuthUser> {

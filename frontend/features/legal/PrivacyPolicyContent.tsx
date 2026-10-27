@@ -244,7 +244,7 @@ export function PrivacyPolicyContent() {
           <li>
             in some browser environments, a short-lived token fallback stored in{" "}
             <code className="rounded bg-plum-light px-1.5 py-0.5 font-mono text-[0.85em] text-plum">
-              sessionStorage
+              localStorage
             </code>{" "}
             (
             <code className="rounded bg-plum-light px-1.5 py-0.5 font-mono text-[0.85em] text-plum">

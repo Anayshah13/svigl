@@ -14,6 +14,7 @@ import {
   type WeekOverview,
   type WeeklyGameCard,
 } from "@/services/ai-guesser";
+import { ensureAuthSession } from "@/services/auth";
 import { useSessionStore } from "@/stores/session";
 import { BestScoreCorner } from "./BestScore";
 import {
@@ -199,6 +200,12 @@ export function AiGuesserHub() {
   const [week, setWeek] = useState<WeekOverview | null>(null);
   const [error, setError] = useState<string | null>(null);
   const countdown = useWeekCountdown(week?.resetsAt ?? null);
+
+  useEffect(() => {
+    if (!authReady) return;
+    if (authUser) return;
+    void ensureAuthSession();
+  }, [authReady, authUser]);
 
   useEffect(() => {
     if (!authReady) return;

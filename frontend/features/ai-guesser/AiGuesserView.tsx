@@ -17,6 +17,7 @@ import {
   fetchActiveAiGuesserRun,
   startAiGuesserRun,
 } from "@/services/ai-guesser";
+import { ensureAuthSession } from "@/services/auth";
 import { useSessionStore } from "@/stores/session";
 import { AiGuessPanel } from "./AiGuessPanel";
 import { AiGuesserHud } from "./AiGuesserHud";
@@ -132,6 +133,11 @@ export function AiGuesserView({ gameSlug }: { gameSlug: string }) {
       setStarting(false);
     }
   }, [gameSlug]);
+
+  React.useEffect(() => {
+    if (!authReady || authUser) return;
+    void ensureAuthSession();
+  }, [authReady, authUser]);
 
   React.useEffect(() => {
     if (!authReady || !authUser) return;

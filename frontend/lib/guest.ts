@@ -13,8 +13,16 @@ function generateGuestDeviceId(): string {
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
+export function peekGuestDeviceId(): string | null {
+  try {
+    return localStorage.getItem(GUEST_DEVICE_ID_KEY);
+  } catch {
+    return null;
+  }
+}
+
 export function getGuestDeviceId(): string {
-  const existing = localStorage.getItem(GUEST_DEVICE_ID_KEY);
+  const existing = peekGuestDeviceId();
   if (existing) {
     return existing;
   }

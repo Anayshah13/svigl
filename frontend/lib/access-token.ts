@@ -1,35 +1,60 @@
 /**
  * Client-held JWT for browsers that block cross-site cookies (Safari ITP).
  * Cookie auth remains preferred when the browser allows it.
+ *
+ * Stored in localStorage so the session survives new tabs and a full
+ * navigation to /ai-guesser — sessionStorage is tab-scoped and looked
+ * like a fresh sign-out.
  */
 
 const ACCESS_TOKEN_KEY = "svigl:access_token";
 
-export function getAccessToken(): string | null {
-  if (typeof window === "undefined") return null;
+function readStorage(storage: Storage): string | null {
   try {
-    return sessionStorage.getItem(ACCESS_TOKEN_KEY);
+    return storage.getItem(ACCESS_TOKEN_KEY);
   } catch {
     return null;
   }
 }
 
-export function setAccessToken(token: string): void {
-  if (typeof window === "undefined") return;
+function writeStorage(storage: Storage, token: string): void {
   try {
-    sessionStorage.setItem(ACCESS_TOKEN_KEY, token);
+    storage.setItem(ACCESS_TOKEN_KEY, token);
   } catch {
     /* private mode / quota */
   }
 }
 
-export function clearAccessToken(): void {
-  if (typeof window === "undefined") return;
+function removeStorage(storage: Storage): void {
   try {
-    sessionStorage.removeItem(ACCESS_TOKEN_KEY);
+    storage.removeItem(ACCESS_TOKEN_KEY);
   } catch {
     /* ignore */
   }
+}
+
+export function getAccessToken(): string | null {
+  if (typeof window === "undefined") return null;
+  const fromLocal = readStorage(window.localStorage);
+  if (fromLocal) return fromLocal;
+  const fromSession = readStorage(window.sessionStorage);
+  if (fromSession) {
+    writeStorage(window.localStorage, fromSession);
+    return fromSession;
+  }
+  return null;
+}
+
+export function setAccessToken(token: string): void {
+  if (typeof window === "undefined") return;
+  writeStorage(window.localStorage, token);
+  writeStorage(window.sessionStorage, token);
+}
+
+export function clearAccessToken(): void {
+  if (typeof window === "undefined") return;
+  removeStorage(window.localStorage);
+  removeStorage(window.sessionStorage);
 }
 
 /**
@@ -43,7 +68,7 @@ export function consumeAccessTokenFromUrl(): string | null {
   let token = url.searchParams.get("access_token");
 
   if (!token) {
-    const hash = window.location.hash.replace(/^#/, "");
+    const hash = url.hash.replace(/^#/, "");
     if (hash) {
       token = new URLSearchParams(hash).get("access_token");
     }

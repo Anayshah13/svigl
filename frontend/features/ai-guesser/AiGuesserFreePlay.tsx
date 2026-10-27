@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/cn";
 import { DotPulseGrid } from "@/features/loaders";
 import { fetchAiGuesserWeek, fetchFreePlayWord } from "@/services/ai-guesser";
+import { ensureAuthSession } from "@/services/auth";
 import { useSessionStore } from "@/stores/session";
 import { AiGuessPanel } from "./AiGuessPanel";
 import { useAiGuesser } from "./useAiGuesser";
@@ -43,6 +44,11 @@ export function AiGuesserFreePlay() {
     setSolved(false);
     setHandoff(false);
   }, []);
+
+  React.useEffect(() => {
+    if (!authReady || authUser) return;
+    void ensureAuthSession();
+  }, [authReady, authUser]);
 
   React.useEffect(() => {
     if (!authReady || !authUser) return;

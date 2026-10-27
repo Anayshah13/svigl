@@ -2,7 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import * as React from "react";
-import { fetchAuthSession } from "@/services/auth";
+import { ensureAuthSession } from "@/services/auth";
 import { useSessionStore } from "@/stores/session";
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -16,18 +16,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    // Bootstrap once per page load. Do not refetch on client navigations.
-    if (authReady) return;
+    // Bootstrap once per page load. Do not refetch on client navigations
+    // after a live session is already in memory.
+    if (authReady && useSessionStore.getState().authUser) return;
 
     let cancelled = false;
 
-    fetchAuthSession()
-      .then((user) => {
-        if (cancelled || !user) return;
-        useSessionStore.getState().setAuth(user);
-      })
+    ensureAuthSession()
       .catch(() => {
-        // treat a failed session fetch the same as being unauthenticated
+        // treat a failed session restore the same as being unauthenticated
       })
       .finally(() => {
         if (!cancelled) {

@@ -1,5 +1,6 @@
 "use client";
 
+import { clearPersistedAuthUser, writePersistedAuthUser } from "@/lib/auth-persist";
 import { createStore } from "@/lib/create-store";
 import type { AuthUser } from "@/services/auth";
 
@@ -25,6 +26,7 @@ export const useSessionStore = createStore<SessionState>((set) => ({
   setDisplayName: (displayName) => set({ displayName }),
   setSelfId: (selfId) => set({ selfId }),
   setAuth: (user) => {
+    writePersistedAuthUser(user);
     set({
       authUser: user,
       isGuest: user.provider === "guest",
@@ -32,12 +34,14 @@ export const useSessionStore = createStore<SessionState>((set) => ({
       displayName: user.username,
     });
   },
-  clearAuth: () =>
+  clearAuth: () => {
+    clearPersistedAuthUser();
     set({
       authUser: null,
       isGuest: true,
       selfId: null,
       displayName: "",
-    }),
+    });
+  },
   setAuthReady: (authReady) => set({ authReady }),
 }));
