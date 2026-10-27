@@ -17,6 +17,7 @@ from app.api.gallery import router as gallery_router
 from app.api.games import router as games_router
 from app.api.health import router as health_router
 from app.api.labs import router as labs_router
+from app.api.research import router as research_router
 from app.api.rooms import router as rooms_router
 from app.api.session import router as session_router
 from app.api.users import router as users_router
@@ -141,4 +142,5 @@ app.include_router(gallery_router)
 app.include_router(labs_router)
 app.include_router(games_router)
 app.include_router(ai_guesser_router)
+app.include_router(research_router)
 app.include_router(ws_router)

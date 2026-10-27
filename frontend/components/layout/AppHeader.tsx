@@ -18,6 +18,7 @@ const STATIC_NAV: NavItem[] = [
   { href: "/", label: "Home" },
   { href: "/gallery", label: "Gallery" },
   { href: "/labs", label: "Labs" },
+  { href: "/research", label: "Research", activePrefix: "/research" },
   { href: "/feedback", label: "Feedback" },
 ];
 
