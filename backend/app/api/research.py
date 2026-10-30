@@ -31,7 +31,7 @@ _DEFAULT = [
     "pizza",
     "clock",
     "key",
-    "boat",
+    "sailboat",
     "sun",
     "guitar",
     "book",

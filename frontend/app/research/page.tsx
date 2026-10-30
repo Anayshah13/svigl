@@ -3,9 +3,9 @@ import { ResearchView } from "@/features/research";
 import { createPageMetadata } from "@/lib/seo";
 
 export const metadata: Metadata = createPageMetadata({
-  title: "Research",
+  title: "Research · AI Lab Exp. 10",
   description:
-    "Comparative study of sketch recognition methods — live Gemini vs stroke RNNs, CNNs, Sketch-RNN, and Jev.",
+    "Comparative sketch recognition on Quick, Draw! — measured Gemini vs published stroke, CNN, and decision-model baselines.",
   path: "/research",
   index: false,
 });

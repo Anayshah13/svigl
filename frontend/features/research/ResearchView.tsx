@@ -8,7 +8,8 @@ import { isAbortError } from "@/lib/api";
 import { fetchAiGuesserConfig, requestAiGuess } from "@/services/ai-guesser";
 import { fetchQuickDrawSamples } from "@/services/research";
 import { DoodleThumb } from "./DoodleThumb";
-import { METHODS, PROTOCOL, type MethodRow } from "./data";
+import { demoResultsForWords } from "./demoResults";
+import { DEMO_SCRIPT, EXPERIMENT, METHODS, PROTOCOL, type MethodRow } from "./data";
 import {
   CORPUS_WORDS,
   DATASET_REPO,
@@ -43,7 +44,7 @@ function pct(n: number | null | undefined) {
 }
 
 function evidenceLabel(kind: MethodRow["evidence"]) {
-  if (kind === "live") return "Live";
+  if (kind === "live") return "Measured";
   if (kind === "literature") return "Published";
   return "Out of task";
 }
@@ -55,6 +56,8 @@ export function ResearchView() {
   const [banner, setBanner] = useState<string | null>(null);
   const [samples, setSamples] = useState<Record<string, QuickDrawSample>>({});
   const [datasetReady, setDatasetReady] = useState(false);
+  const [usingSampleResults, setUsingSampleResults] = useState(false);
+  const [guideOpen, setGuideOpen] = useState(true);
   const lastCallAt = useRef(0);
   const drawingVersion = useRef(1);
   const samplesRef = useRef(samples);
@@ -185,9 +188,26 @@ export function ResearchView() {
     }
   }
 
+  function loadSampleResults() {
+    setUsingSampleResults(true);
+    setBanner(
+      "Showing recorded hold-out results from the lab report (offline preview). Run the evaluation batch to measure live with Gemini.",
+    );
+    setTrials(
+      demoResultsForWords().map((row) => ({
+        word: row.word,
+        status: row.status,
+        guesses: row.guesses,
+        latencyMs: row.latencyMs,
+        detail: row.detail,
+      })),
+    );
+  }
+
   async function runTrial() {
     if (running) return;
     setRunning(true);
+    setUsingSampleResults(false);
     setBanner(null);
     setTrials(
       LIVE_WORDS.map((word) => ({
@@ -209,12 +229,16 @@ export function ResearchView() {
         try {
           await guessOne(word, gap);
         } catch {
-          setBanner("Stopped the live trial — the guesser endpoint failed. Other rows still show published figures.");
+          setBanner(
+            "Batch stopped — API error. Use “Load sample results” to continue the demo with recorded figures.",
+          );
           break;
         }
       }
     } catch {
-      setBanner("Could not reach the Svigl API. Start the backend, then run the live trial.");
+      setBanner(
+        "Could not reach the API. Start the backend, or load sample results for an offline walkthrough.",
+      );
     } finally {
       setRunning(false);
     }
@@ -223,53 +247,95 @@ export function ResearchView() {
   return (
     <div className="research-sheet page-shell gap-10 sm:gap-12">
       <header className="relative overflow-hidden rounded-[2rem] border border-ink/10 bg-white/80 px-5 py-8 sm:px-10 sm:py-12">
-          <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-plum">
-            Sketch recognition · comparative study
+        <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-plum">
+          AI Lab · Experiment {EXPERIMENT.number}
+        </p>
+        <h1 className="mt-3 max-w-3xl font-display text-[clamp(2rem,5.5vw,3.6rem)] leading-[0.98] text-ink">
+          {EXPERIMENT.title}
+        </h1>
+        <p className="mt-2 text-sm font-medium text-plum">{EXPERIMENT.course}</p>
+        <p className="mt-4 max-w-2xl text-base leading-relaxed text-ink-muted sm:text-lg">
+          <span className="font-medium text-ink">Aim.</span> {EXPERIMENT.aim} Sketches are loaded
+          from Google’s{" "}
+          <a
+            href={DATASET_REPO}
+            className="font-medium text-plum underline decoration-plum/30 underline-offset-2"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Quick, Draw! dataset
+          </a>{" "}
+          (simplified ndjson, CC BY 4.0), rasterized to 256px PNG for Gemini 3.5 Flash-Lite.
+        </p>
+        <div className="mt-8 flex flex-wrap items-center gap-3">
+          <Button onClick={runTrial} disabled={running || !datasetReady} size="lg">
+            {running
+              ? "Running evaluation batch…"
+              : !datasetReady
+                ? "Loading Quick, Draw!…"
+                : scored.length && !usingSampleResults
+                  ? "Re-run evaluation batch"
+                  : "Run evaluation batch (live)"}
+          </Button>
+          <Button
+            variant="secondary"
+            onClick={loadSampleResults}
+            disabled={running || !datasetReady}
+            size="lg"
+          >
+            Load sample results
+          </Button>
+          <p className="max-w-md text-xs leading-relaxed text-ink-muted">
+            Six hold-out doodles (harder, often unrecognized in-game). Exact-match scoring; ~4s
+            between live API calls. Use sample results if the network or API key is unavailable.
           </p>
-          <h1 className="mt-3 max-w-3xl font-display text-[clamp(2.1rem,6vw,4.2rem)] leading-[0.95] text-ink">
-            What actually reads the drawing
-          </h1>
-          <p className="mt-4 max-w-2xl text-base leading-relaxed text-ink-muted sm:text-lg">
-            Drawings are streamed from Google’s{" "}
-            <a
-              href={DATASET_REPO}
-              className="font-medium text-plum underline decoration-plum/30 underline-offset-2"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Quick, Draw! dataset
-            </a>{" "}
-            (simplified ndjson, CC BY 4.0). Gemini then sees a 256px PNG of that ink — the same
-            path Svigl uses in the game.
-          </p>
-          <div className="mt-8 flex flex-wrap items-center gap-3">
-            <Button onClick={runTrial} disabled={running || !datasetReady} size="lg">
-              {running
-                ? "Running live trial…"
-                : !datasetReady
-                  ? "Loading Quick, Draw!…"
-                  : scored.length
-                    ? "Run live trial again"
-                    : "Run live Gemini trial"}
-            </Button>
-            <p className="max-w-sm text-xs leading-relaxed text-ink-muted">
-              Six later / often-unrecognized doodles from the official dump — not the first easy
-              hits. Exact-match scoring, ~4s between calls.
-            </p>
-          </div>
-          {banner ? (
-            <p className="mt-4 rounded-2xl bg-pink-light px-4 py-3 text-sm text-ink">{banner}</p>
-          ) : null}
+        </div>
+        {banner ? (
+          <p className="mt-4 rounded-2xl bg-pink-light px-4 py-3 text-sm text-ink">{banner}</p>
+        ) : null}
       </header>
+
+      <section className="rounded-[2rem] border border-plum/15 bg-plum-light/40 px-5 py-5 sm:px-7">
+        <button
+          type="button"
+          className="flex w-full items-center justify-between gap-3 text-left"
+          onClick={() => setGuideOpen((open) => !open)}
+          aria-expanded={guideOpen}
+        >
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-plum">
+              Presenter guide
+            </p>
+            <h2 className="mt-1 font-display text-xl text-ink sm:text-2xl">
+              How to walk through this with your instructor
+            </h2>
+          </div>
+          <span className="font-mono text-sm text-plum">{guideOpen ? "−" : "+"}</span>
+        </button>
+        {guideOpen ? (
+          <ol className="mt-5 grid gap-3 sm:grid-cols-2">
+            {DEMO_SCRIPT.map((item) => (
+              <li
+                key={item.step}
+                className="rounded-2xl border border-ink/8 bg-white/90 px-4 py-4"
+              >
+                <p className="font-mono text-[11px] text-plum">Step {item.step}</p>
+                <p className="mt-1 font-display text-lg text-ink">{item.title}</p>
+                <p className="mt-2 text-sm leading-relaxed text-ink-muted">{item.body}</p>
+              </li>
+            ))}
+          </ol>
+        ) : null}
+      </section>
 
       <section className="grid gap-4 sm:grid-cols-3">
         <Stat
-          label="Live Gemini top-1"
+          label="Gemini top-1 (measured)"
           value={liveAcc == null ? "—" : pct(liveAcc)}
           hint={`${hits} / ${scored.length || LIVE_WORDS.length} on this sheet`}
         />
         <Stat
-          label="Live Gemini top-3"
+          label="Gemini top-3 (measured)"
           value={liveTop3 == null ? "—" : pct(liveTop3)}
           hint="Any of three ranked guesses"
         />
@@ -297,14 +363,11 @@ export function ResearchView() {
       </section>
 
       <section>
-        <SectionKicker n="02" title="Live Gemini trial" />
+        <SectionKicker n="02" title="Hold-out evaluation batch" />
         <p className="mt-2 max-w-2xl text-sm text-ink-muted">
-          Each card is a real Quick, Draw! stroke record from later in that class file, preferring
-          doodles the original game classifier missed. Rasterized, then posted to{" "}
-          <code className="rounded bg-plum-light px-1.5 py-0.5 font-mono text-[12px] text-plum">
-            POST /ai-guesser/guess
-          </code>
-          , and compared to the prompt. Click the button above and watch the guesses land.
+          Each card is a real Quick, Draw! stroke record (later in the class file, preferring{" "}
+          <code className="font-mono text-[11px]">recognized=false</code>). Ink is rasterized and
+          sent to the vision guesser; guesses are compared to the prompt with exact-match scoring.
         </p>
         <ul className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
           {trials.map((trial) => (
@@ -341,8 +404,8 @@ export function ResearchView() {
         <div className="border-b border-ink/8 px-5 py-4 sm:px-6">
           <SectionKicker n="04" title="Paired comparison" />
           <p className="mt-1 text-sm text-ink-muted">
-            Gemini accuracy updates with the live trial. Other top-1 figures stay published so a
-            teacher can see the scale of each family without mixing train and test.
+            Gemini rows update after you run the batch (or load sample results). Other methods stay
+            at published 345-way reference values so families are comparable without mixed evidence.
           </p>
         </div>
         <div className="overflow-x-auto">
@@ -394,8 +457,8 @@ export function ResearchView() {
         <article className="rounded-[2rem] border border-ink/10 bg-white/85 p-5 sm:p-7">
           <SectionKicker n="05" title="Prompt corpus" />
           <p className="mt-2 text-sm text-ink-muted">
-            Twenty-four classes from the official 345-way dump. Highlighted tiles are in the live
-            trial. Ink is a later drawing, preferring{" "}
+            Twenty-four classes from the official 345-way dump. Highlighted tiles are in the
+            evaluation batch. Ink is a later drawing, preferring{" "}
             <code className="font-mono text-[11px]">recognized=false</code>.
           </p>
           <ul className="mt-5 grid grid-cols-4 gap-2 sm:grid-cols-6 lg:grid-cols-8">
@@ -565,9 +628,9 @@ function TrialCard({
         </p>
       ) : null}
       <p className="mt-2 min-h-[2.5rem] text-center text-sm text-ink">
-        {trial.status === "calling" && "Looking…"}
+        {trial.status === "calling" && "Inferring…"}
         {trial.status === "queued" && "Queued"}
-        {trial.status === "idle" && "Waiting"}
+        {trial.status === "idle" && "Ready"}
         {trial.status === "error" && (trial.detail || "Failed")}
         {(trial.status === "hit" || trial.status === "miss") && top
           ? `${top.answer}`
@@ -575,14 +638,25 @@ function TrialCard({
         {(trial.status === "hit" || trial.status === "miss") && !top ? "No guess" : null}
       </p>
       {trial.status === "hit" || trial.status === "miss" ? (
-        <p
-          className={`text-center text-[10px] font-bold uppercase tracking-widest ${
-            trial.status === "hit" ? "text-green" : "text-pink"
-          }`}
-        >
-          {trial.status === "hit" ? "Match" : "Miss"}
-          {trial.latencyMs != null ? ` · ${trial.latencyMs} ms` : ""}
-        </p>
+        <>
+          {trial.guesses.length > 1 ? (
+            <ul className="mt-1 space-y-0.5 text-center text-[9px] text-ink-muted">
+              {trial.guesses.slice(1, 3).map((g, i) => (
+                <li key={`${g.answer}-${i}`}>
+                  #{i + 2} {g.answer} ({Math.round(g.confidence * 100)}%)
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          <p
+            className={`mt-1 text-center text-[10px] font-bold uppercase tracking-widest ${
+              trial.status === "hit" ? "text-green" : "text-pink"
+            }`}
+          >
+            {trial.status === "hit" ? "Top-1 match" : "Top-1 miss"}
+            {trial.latencyMs != null ? ` · ${trial.latencyMs} ms` : ""}
+          </p>
+        </>
       ) : null}
     </article>
   );

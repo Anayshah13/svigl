@@ -41,7 +41,7 @@ ALLOWED_WORDS = frozenset(
         "pizza",
         "clock",
         "key",
-        "boat",
+        "sailboat",
         "sun",
         "guitar",
         "book",

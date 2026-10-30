@@ -23,8 +23,8 @@ export const METHODS: MethodRow[] = [
     acc1: null,
     acc3: null,
     ms: null,
-    note: "Production Svigl path: raster in, three ranked guesses out. Scored with the same exact-match rule as AI Guesser.",
-    cite: "This page · live API",
+    note: "Open-vocabulary vision: 256px PNG in, three ranked text guesses out. Exact-match scoring against the prompt word.",
+    cite: "Measured on this page · Gemini API",
   },
   {
     id: "rnn",
@@ -76,6 +76,37 @@ export const METHODS: MethodRow[] = [
   },
 ];
 
+export const EXPERIMENT = {
+  number: "10",
+  course: "DJS23IPC302L · Artificial Intelligence Laboratory",
+  title: "Comparative sketch recognition on Quick, Draw!",
+  aim:
+    "Compare open-vocabulary vision (Gemini 3.5 Flash-Lite) with closed-set stroke/raster models and a typed decision baseline on the same doodle prompts.",
+} as const;
+
+export const DEMO_SCRIPT = [
+  {
+    step: "1",
+    title: "Dataset & protocol",
+    body: "Scroll to sections 01–04: 24 noun classes from Quick, Draw!, exact-match scoring, paired IDs, published baselines vs measured Gemini.",
+  },
+  {
+    step: "2",
+    title: "Hold-out evaluation",
+    body: "Run the six-sketch batch (highlighted corpus tiles). Each card is real ndjson ink, rasterized to 256px PNG—the same vision path as the write-up.",
+  },
+  {
+    step: "3",
+    title: "Read the metrics",
+    body: "Top-1 / top-3 and latency update in the stats row and comparison table. Published CNN/RNN/Jev rows stay fixed at 345-way literature values.",
+  },
+  {
+    step: "4",
+    title: "Sketch-RNN caveat",
+    body: "Explain why Magenta Sketch-RNN is shown but not ranked: it generates strokes; it does not output a class label.",
+  },
+] as const;
+
 export const PROTOCOL = [
   {
     n: "01",
@@ -95,6 +126,6 @@ export const PROTOCOL = [
   {
     n: "04",
     title: "Separate evidence",
-    body: "Live Gemini is measured on this sheet. CNN, RNN, and Jev rows are published figures so we do not pretend we trained 345-way nets in this session.",
+    body: "Gemini is measured on this page when you run the batch. CNN, RNN, and Jev rows are published figures from papers and tutorials—not re-trained during the demo.",
   },
 ] as const;
